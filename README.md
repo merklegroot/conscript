@@ -3,7 +3,14 @@
 A minimalist, tense survival roguelike about dodging conscription and deserting during the Russia-Ukraine war.
 
 ## Overview
-**Conscript** puts you in the shoes of a 28-year-old Russian man who burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
+**Conscript** puts you in the shoes of a 20-year-old Russian man who burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
+
+## Dodging
+- Avoid initial conscription by surviving in the forest
+- Flee the country
+
+## Deserting
+- Flee the war after being conscripted
 
 ## Core Stats
 - **Suspicion** — How close the authorities are to finding you (0-100%)
@@ -70,13 +77,22 @@ cd Conscript
 dotnet run
 ```
 
-**Current state:** A single interactive screen — the "Day 1 City Apartment" starting scene.
+**Current state:** A single interactive screen matching the reference layout you provided (Deep Forest Camp, Day 3, Early Winter, night snow).
 
-- Left sidebar: persistent stats (Suspicion / Health / Morale / Exposure / Provisions) with live-updating bars.
-- Central framed "image": procedurally drawn lonely apartment with table, seated figure, window, and the draft summons envelope.
-- Bottom choices: 4 starting decisions. Use ↑/↓ or W/S to highlight, ENTER or 1-4 to act.
-- Every choice immediately mutates the stats so you can feel the trade-offs and rising tension.
+- Segmented top info bar: CONSCRIPT title + Day/Time + War Intensity + Age + Season.
+- Large central scene area (currently a dark procedural night-forest placeholder with simple tree silhouettes, lean-to shelter, walking figure, and snow — ready for your real background art).
+- "Updated Stats" panel overlaid on the left of the scene, listing Suspicion, Money, Health, Morale, Documents, Status, and Exposure with the exact notes/deltas from the reference.
+- Two narrative text boxes overlaid on the scene (short headline banner + longer right-side description).
+- Bottom row of four large action buttons: "SET UP IMPROVED CAMP", "GATHER WINTER SUPPLIES (harder now)", "FORTIFY SHELTER FOR COLD", "CHECK RADIO / LISTEN FOR NEWS".
+- ← → / A D or 1-4 to select, ENTER to act. Every choice mutates the relevant stats live.
 - ESC/Q to quit.
+
+This is the visual foundation. Future work will add:
+- Real background PNGs (you'll generate them with me soon)
+- Additional locations and the Day 1 apartment as a separate screen
+- A custom font
+- Day/end-of-day random events, hidden rolls, inventory
+- Win/lose conditions and multiple endings
 
 This is the foundation. Future work will add:
 - Additional locations (deep forest, on the run, bug harvest)

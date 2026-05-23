@@ -5,16 +5,28 @@ public static class GameConstants
     public const int ScreenWidth = 1280;
     public const int ScreenHeight = 720;
 
-    public const int LeftPanelWidth = 240;
-    public const int TopBarHeight = 52;
+    // Top info bar
+    public const int TopBarHeight = 50;
 
-    public const int SceneMarginLeft = 260;
-    public const int SceneMarginRight = 20;
-    public const int SceneTop = TopBarHeight + 8;
-    public const int SceneHeight = 400;
+    // Main visual area (below top bar, above bottom buttons)
+    public const int MainAreaTop = TopBarHeight + 6;
+    public const int BottomButtonHeight = 60;
+    public const int MainAreaBottom = ScreenHeight - BottomButtonHeight - 6;
 
-    public const int ChoicePanelTop = SceneTop + SceneHeight + 8;
-    public const int ChoicePanelHeight = 140;
+    // Inset for the large scene rect inside the main area
+    public const int SceneInset = 12;
 
-    public const int FooterHeight = 30;
+    // Stats panel (overlaid on left side of scene)
+    public const int StatsPanelWidth = 222;
+    public const int StatsPanelHeight = 198;
+
+    // Narrative overlays
+    public const int ShortNarrativeWidth = 440;
+    public const int ShortNarrativeHeight = 28;
+    public const int LongNarrativeWidth = 248;
+    public const int LongNarrativeHeight = 108;
+
+    // Bottom action buttons row
+    public const int ButtonGap = 8;
+    public const int ButtonCount = 4;
 }

@@ -36,4 +36,25 @@ public static class Palette
     public static readonly Color StampRed = new Color(120, 35, 30, 255);
     public static readonly Color Person = new Color(30, 28, 26, 255);
     public static readonly Color LampLight = new Color(90, 80, 55, 255);
+
+    // Night forest / winter scene tones (for placeholder)
+    public static readonly Color NightBg = new Color(8, 10, 16, 255);
+    public static readonly Color NightGround = new Color(18, 22, 28, 255);
+    public static readonly Color TreeDark = new Color(12, 14, 18, 255);
+    public static readonly Color Snow = new Color(170, 175, 185, 255);
+    public static readonly Color Shelter = new Color(25, 27, 30, 255);
+
+    // Overlay panels (slightly transparent feeling but solid for readability)
+    public static readonly Color OverlayBg = new Color(14, 16, 20, 235);
+    public static readonly Color OverlayBorder = new Color(55, 58, 65, 255);
+
+    // Button styles
+    public static readonly Color ButtonBg = new Color(22, 24, 28, 255);
+    public static readonly Color ButtonBorder = new Color(60, 63, 70, 255);
+    public static readonly Color ButtonSelectedBg = new Color(30, 34, 40, 255);
+    public static readonly Color ButtonSelectedBorder = new Color(110, 115, 125, 255);
+
+    // Delta / status colors
+    public static readonly Color Positive = new Color(130, 175, 95, 255);
+    public static readonly Color Negative = new Color(175, 85, 75, 255);
 }
