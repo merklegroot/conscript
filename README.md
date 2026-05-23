@@ -77,26 +77,30 @@ cd Conscript
 dotnet run
 ```
 
-**Current state:** A single interactive screen matching the reference layout you provided (Deep Forest Camp, Day 3, Early Winter, night snow).
+**Current state:** A single interactive screen (Deep Forest Camp, Day 3, Early Winter) with a significantly polished, cinematic, high-tension UI.
 
-- Segmented top info bar: CONSCRIPT title + Day/Time + War Intensity + Age + Season.
-- Large central scene area (currently a dark procedural night-forest placeholder with simple tree silhouettes, lean-to shelter, walking figure, and snow — ready for your real background art).
-- "Updated Stats" panel overlaid on the left of the scene, listing Suspicion, Money, Health, Morale, Documents, Status, and Exposure with the exact notes/deltas from the reference.
-- Two narrative text boxes overlaid on the scene (short headline banner + longer right-side description).
-- Bottom row of four large action buttons: "SET UP IMPROVED CAMP", "GATHER WINTER SUPPLIES (harder now)", "FORTIFY SHELTER FOR COLD", "CHECK RADIO / LISTEN FOR NEWS".
-- ← → / A D or 1-4 to select, ENTER to act. Every choice mutates the relevant stats live.
-- ESC/Q to quit.
+**Layout & Polish:**
+- Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time, War Intensity, and Age + Season (right), generous spacing and subtle dividers.
+- Fixed-width left sidebar (Status panel) containing:
+  - A small flavor/situation text box at the top ("THE FOREST" + "Deeper now. The trees are closing in...")
+  - Clean, well-spaced stat list with elegant thin colored progress bars for Suspicion / Health / Morale / Exposure
+  - Text values for Money, Documents, and current Status
+- Large central scene area with **much richer atmospheric placeholder art**:
+  - Layered forest (far → mid → near trees)
+  - Detailed snow-covered lean-to shelter
+  - Small walking figure with backpack
+  - Falling snow, faint cold moonlight, strong cinematic vignette
+  - Generous breathing room around the art
+  - Narrative cards elegantly placed inside the image area
+- Bottom action bar with four substantial, high-visual-weight buttons and refined control hint
 
-This is the visual foundation. Future work will add:
-- Real background PNGs (you'll generate them with me soon)
-- Additional locations and the Day 1 apartment as a separate screen
-- A custom font
-- Day/end-of-day random events, hidden rolls, inventory
-- Win/lose conditions and multiple endings
+**Interaction:** ← → / A D or number keys to select, ENTER to commit. Stats update live with every choice.
 
-This is the foundation. Future work will add:
-- Additional locations (deep forest, on the run, bug harvest)
-- Proper scene art (PNG textures)
-- A custom font
-- Day/end-of-day random events
-- Win/lose conditions and multiple endings
+This is now a much more professional, immersive, and oppressive-feeling prototype while remaining 100% placeholder (no external art yet). Ready for real background images when you are.
+
+Future work will add:
+- Real background PNGs (we'll generate them together soon)
+- Additional locations (Day 1 apartment, deeper forest variants, "on the run", bug harvest, etc.)
+- A custom distressed or period-appropriate TTF font
+- Day cycle, random events, hidden rolls, inventory, and proper game systems
+- Win / lose / multiple ending states

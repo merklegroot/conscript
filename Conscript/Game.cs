@@ -157,287 +157,427 @@ public sealed class Game : IGame
         Raylib.ClearBackground(Palette.Bg);
 
         DrawTopBar();
-        DrawScenePlaceholder();
-        DrawStatsPanel();
-        DrawNarrativeOverlays();
-        DrawActionButtons();
+        DrawLeftSidebar();
+        DrawCentralScene();
+        DrawActionBar();
 
         Raylib.EndDrawing();
     }
 
-    // Top segmented info bar (exactly as in the reference image)
+    // =====================================================================
+    // TOP BAR — Clean, cinematic header with generous breathing room
+    // =====================================================================
     private void DrawTopBar()
     {
-        int barH = GameConstants.TopBarHeight;
-        Raylib.DrawRectangle(0, 0, _screenWidth, barH, Palette.PanelBg);
+        int h = GameConstants.TopBarHeight;
+
+        // Deep header background
+        Raylib.DrawRectangle(0, 0, _screenWidth, h, Palette.HeaderBg);
+
+        // Very subtle bottom divider
+        Raylib.DrawLine(0, h, _screenWidth, h, Palette.Divider);
 
         var font = Raylib.GetFontDefault();
-        int yText = 9;
-        int yLabel = 28;
+        int centerY = (h - 18) / 2; // vertical center for primary text
 
-        // Helper to draw one dark cell
-        void DrawCell(int x, int w, string main, string? subLabel = null, bool isTitle = false)
-        {
-            Raylib.DrawRectangle(x, 4, w, barH - 8, new Color(18, 20, 24, 255));
-            Raylib.DrawRectangleLines(x, 4, w, barH - 8, Palette.Frame);
+        // --- Left: Title ---
+        Raylib.DrawTextEx(font, "CONSCRIPT",
+            new Vector2(24, centerY - 2),
+            LayoutConstants.TitleFontSize, 0.9f, Palette.TextPrimary);
 
-            if (isTitle)
-            {
-                Raylib.DrawTextEx(font, main, new Vector2(x + 12, yText + 2), LayoutConstants.TitleFontSize, 1.0f, Palette.TextPrimary);
-            }
-            else
-            {
-                Raylib.DrawTextEx(font, main, new Vector2(x + 10, yText), LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextPrimary);
-                if (!string.IsNullOrEmpty(subLabel))
-                {
-                    Raylib.DrawTextEx(font, subLabel, new Vector2(x + 10, yLabel), LayoutConstants.TopLabelFontSize, 0.6f, Palette.TextMuted);
-                }
-            }
-        }
+        // Thin elegant underline under the title for presence
+        int titleWidth = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.9f).X;
+        Raylib.DrawLine(24, centerY + 20, 24 + titleWidth, centerY + 20, Palette.StrongBorder);
 
-        int x = 8;
-        int gap = 6;
+        // --- Center-left: Day + Time ---
+        int x = 210;
+        Raylib.DrawTextEx(font, $"Day {_day}  •  {_timeOfDay}",
+            new Vector2(x, centerY), LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
-        // 1. CONSCRIPT (title cell)
-        int w0 = 148;
-        DrawCell(x, w0, "CONSCRIPT", null, isTitle: true);
-        x += w0 + gap;
+        // Subtle vertical divider
+        x += 155;
+        Raylib.DrawLine(x, 14, x, h - 14, Palette.Divider);
 
-        // 2. Day
-        int w1 = 172;
-        DrawCell(x, w1, $"Day {_day} ({_timeOfDay})", "DAY / TIME");
-        x += w1 + gap;
+        // --- Center-right: War Intensity ---
+        x += 18;
+        Raylib.DrawTextEx(font, "War Intensity",
+            new Vector2(x, centerY - 9), LayoutConstants.TopMetaFontSize, 0.6f, Palette.TextMuted);
+        Raylib.DrawTextEx(font, _warIntensity,
+            new Vector2(x, centerY + 3), LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
-        // 3. War Intensity
-        int w2 = 198;
-        DrawCell(x, w2, $"War Intensity: {_warIntensity}", "THREAT LEVEL");
-        x += w2 + gap;
-
-        // 4. Age
-        int w3 = 138;
-        DrawCell(x, w3, $"{_age} years old", "AGE");
-        x += w3 + gap;
-
-        // 5. Season (fills remaining)
-        int w4 = _screenWidth - x - 8;
-        DrawCell(x, w4, $"Season: {_season}", "ENVIRONMENT");
+        // --- Far Right: Age + Season ---
+        string rightText = $"{_age} years  •  {_season}";
+        int rightWidth = (int)Raylib.MeasureTextEx(font, rightText, LayoutConstants.TopInfoFontSize, 0.8f).X;
+        Raylib.DrawTextEx(font, rightText,
+            new Vector2(_screenWidth - 28 - rightWidth, centerY),
+            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
     }
 
-    // Large central scene area (placeholder for future background art)
-    private void DrawScenePlaceholder()
+    // =====================================================================
+    // LEFT SIDEBAR — Fixed panel with flavor text + clean stat list
+    // =====================================================================
+    private void DrawLeftSidebar()
     {
-        int sceneX = GameConstants.SceneInset;
-        int sceneY = GameConstants.MainAreaTop;
-        int sceneW = _screenWidth - GameConstants.SceneInset * 2;
-        int sceneH = GameConstants.MainAreaBottom - GameConstants.MainAreaTop;
+        int x = 0;
+        int y = GameConstants.TopBarHeight;
+        int w = GameConstants.SidebarWidth;
+        int h = _screenHeight - y - GameConstants.ActionBarHeight;
 
-        // Outer subtle frame
-        Raylib.DrawRectangle(sceneX - 1, sceneY - 1, sceneW + 2, sceneH + 2, Palette.Frame);
-        Raylib.DrawRectangle(sceneX, sceneY, sceneW, sceneH, Palette.NightBg);
+        // Main sidebar background
+        Raylib.DrawRectangle(x, y, w, h, Palette.SidebarBg);
 
-        // Very light ground plane (snow)
-        int groundY = sceneY + (int)(sceneH * 0.72f);
-        Raylib.DrawRectangle(sceneX, groundY, sceneW, sceneH - (groundY - sceneY), Palette.NightGround);
+        // Right edge divider (subtle but present)
+        Raylib.DrawLine(w, y, w, y + h, Palette.Divider);
 
         var font = Raylib.GetFontDefault();
+        int tx = x + GameConstants.SidebarPadding;
+        int cy = y + 18;
 
-        // Minimal tree silhouettes (distant and mid)
-        DrawSimpleTree(sceneX + 80, groundY - 40, 110, 140, 0.6f);
-        DrawSimpleTree(sceneX + 180, groundY - 30, 70, 95, 0.45f);
-        DrawSimpleTree(sceneX + 260, groundY - 55, 95, 130, 0.7f);
-        DrawSimpleTree(sceneX + sceneW - 220, groundY - 35, 85, 115, 0.55f);
-        DrawSimpleTree(sceneX + sceneW - 140, groundY - 48, 120, 155, 0.85f);
-        DrawSimpleTree(sceneX + sceneW - 70, groundY - 25, 55, 80, 0.35f);
+        // --- Flavor / Situation box (the "Deeper now..." message) ---
+        int flavorH = 52;
+        Raylib.DrawRectangle(tx - 4, cy, w - GameConstants.SidebarPadding * 2 + 8, flavorH, Palette.CardBg);
+        Raylib.DrawRectangleLines(tx - 4, cy, w - GameConstants.SidebarPadding * 2 + 8, flavorH, Palette.CardBorder);
 
-        // Small lean-to shelter on the left (matches reference)
-        int shelterX = sceneX + 95;
-        int shelterY = groundY - 68;
-        Raylib.DrawTriangle(
-            new Vector2(shelterX, shelterY + 68),
-            new Vector2(shelterX + 95, shelterY + 68),
-            new Vector2(shelterX + 48, shelterY),
-            Palette.Shelter);
-        Raylib.DrawLine(shelterX + 20, shelterY + 20, shelterX + 48, shelterY, Palette.TreeDark);
-        Raylib.DrawLine(shelterX + 75, shelterY + 20, shelterX + 48, shelterY, Palette.TreeDark);
+        Raylib.DrawTextEx(font, "THE FOREST",
+            new Vector2(tx, cy + 6), LayoutConstants.SidebarHeaderSize, 0.6f, Palette.TextMuted);
 
-        // Tiny walking figure with backpack (center-right path)
-        int figX = sceneX + sceneW / 2 + 30;
-        int figY = groundY - 52;
-        // head
-        Raylib.DrawCircle(figX + 6, figY + 6, 5, new Color((byte)20, (byte)22, (byte)26, (byte)255));
-        // body + backpack
-        Raylib.DrawRectangle(figX, figY + 11, 12, 22, new Color(25, 27, 32, 255));
-        Raylib.DrawRectangle(figX - 4, figY + 13, 6, 16, new Color(30, 32, 36, 255)); // pack
-        // legs
-        Raylib.DrawRectangle(figX + 2, figY + 32, 4, 14, new Color(22, 24, 28, 255));
-        Raylib.DrawRectangle(figX + 7, figY + 32, 4, 14, new Color(22, 24, 28, 255));
+        Raylib.DrawTextEx(font, ShortNarrative,
+            new Vector2(tx, cy + 22), LayoutConstants.SidebarFlavorSize, 0.75f, Palette.TextPrimary);
 
-        // Light snow dots (static for prototype)
-        for (int i = 0; i < 42; i++)
-        {
-            int sx = sceneX + 30 + (i * 31 % (sceneW - 60));
-            int sy = sceneY + 20 + (i * 17 % (groundY - sceneY - 30));
-            Raylib.DrawPixel(sx, sy, Palette.Snow);
-            if (i % 3 == 0)
-                Raylib.DrawPixel(sx + 1, sy + 1, new Color((byte)150, (byte)155, (byte)165, (byte)120));
-        }
+        cy += flavorH + GameConstants.SidebarInternalGap + 6;
 
-        // Subtle inner vignette border
-        Raylib.DrawRectangleLines(sceneX + 4, sceneY + 4, sceneW - 8, sceneH - 8, new Color((byte)20, (byte)22, (byte)28, (byte)140));
-    }
-
-    private void DrawSimpleTree(int x, int baseY, int w, int h, float alpha)
-    {
-        byte a = (byte)(alpha * 255);
-        Color c = new Color((byte)Palette.TreeDark.R, (byte)Palette.TreeDark.G, (byte)Palette.TreeDark.B, a);
-
-        // trunk
-        Raylib.DrawRectangle(x + w / 2 - 3, baseY - h / 3, 6, h / 3, c);
-        // foliage triangle
-        Raylib.DrawTriangle(
-            new Vector2(x, baseY),
-            new Vector2(x + w, baseY),
-            new Vector2(x + w / 2, baseY - h),
-            c);
-    }
-
-    // "Updated Stats" panel (left, overlaid on scene) matching the reference exactly
-    private void DrawStatsPanel()
-    {
-        int x = GameConstants.SceneInset + 18;
-        int y = GameConstants.MainAreaTop + 16;
-        int w = GameConstants.StatsPanelWidth;
-        int h = GameConstants.StatsPanelHeight;
-
-        Raylib.DrawRectangle(x, y, w, h, Palette.OverlayBg);
-        Raylib.DrawRectangleLines(x, y, w, h, Palette.OverlayBorder);
-
-        var font = Raylib.GetFontDefault();
-        int tx = x + 12;
-        int cy = y + 10;
-
-        Raylib.DrawTextEx(font, "Updated Stats", new Vector2(tx, cy), 13, 0.7f, Palette.TextMuted);
+        // --- Status header ---
+        Raylib.DrawTextEx(font, "STATUS",
+            new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.6f, Palette.TextMuted);
         cy += 20;
 
-        DrawStatLine(ref cy, tx, "Suspicion", $"{_suspicion}%", "(down from moving)");
-        DrawStatLine(ref cy, tx, "Money", $"{_money:N0}", "+", deltaColor: Palette.Positive);
-        DrawStatLine(ref cy, tx, "Health", $"{_health}%", "(tired from hike)");
-        DrawStatLine(ref cy, tx, "Morale", $"{_morale}%", "");
-        DrawStatLine(ref cy, tx, "Documents", _documents, "");
-        DrawStatLine(ref cy, tx, "Status", _status, "");
-        DrawStatLine(ref cy, tx, "Exposure", $"{_exposure}%", "(reset lower)");
+        // Thin line under header
+        Raylib.DrawLine(tx, cy - 4, tx + 48, cy - 4, Palette.SubtleBorder);
+        cy += 6;
+
+        // --- Stats ---
+        DrawSidebarStat(ref cy, tx, "Suspicion", _suspicion, Palette.Suspicion, showBar: true);
+        DrawSidebarStat(ref cy, tx, "Health", _health, Palette.Health, showBar: true);
+        DrawSidebarStat(ref cy, tx, "Morale", _morale, Palette.Morale, showBar: true);
+        DrawSidebarStat(ref cy, tx, "Exposure", _exposure, Palette.Exposure, showBar: true);
+
+        cy += 4;
+
+        // Text-only stats
+        DrawSidebarTextStat(ref cy, tx, "Money", $"{_money:N0}", Palette.Money);
+        DrawSidebarTextStat(ref cy, tx, "Documents", _documents, null);
+        DrawSidebarTextStat(ref cy, tx, "Status", _status, null, wrap: true);
     }
 
-    private void DrawStatLine(ref int y, int x, string label, string value, string note, Color? deltaColor = null)
+    private void DrawSidebarStat(ref int y, int x, string label, int value, Color barColor, bool showBar)
     {
         var font = Raylib.GetFontDefault();
 
-        Raylib.DrawTextEx(font, label + ":", new Vector2(x, y), LayoutConstants.StatListFontSize, 0.7f, Palette.TextDim);
+        // Label
+        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.8f, Palette.TextSecondary);
 
-        int valX = x + 92;
-        Raylib.DrawTextEx(font, value, new Vector2(valX, y), LayoutConstants.StatListFontSize, 0.7f, Palette.TextPrimary);
+        // Value on the right
+        string val = $"{value}%";
+        int valWidth = (int)Raylib.MeasureTextEx(font, val, LayoutConstants.StatValueSize, 0.7f).X;
+        Raylib.DrawTextEx(font, val, new Vector2(x + GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2 - valWidth, y),
+            LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
 
-        if (!string.IsNullOrEmpty(note))
+        y += 16;
+
+        if (showBar)
         {
-            int noteX = valX + (int)Raylib.MeasureTextEx(font, value, LayoutConstants.StatListFontSize, 0.7f).X + 6;
-            Color nc = deltaColor ?? Palette.TextMuted;
-            Raylib.DrawTextEx(font, note, new Vector2(noteX, y), LayoutConstants.SmallNoteFontSize, 0.6f, nc);
-        }
+            int barWidth = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
+            int barHeight = 5;
 
-        y += 18;
+            // Track
+            Raylib.DrawRectangle(x, y, barWidth, barHeight, new Color((byte)20, (byte)22, (byte)26, (byte)255));
+            // Fill
+            float pct = Math.Clamp(value / 100f, 0f, 1f);
+            if (pct > 0)
+            {
+                Raylib.DrawRectangle(x, y, (int)(barWidth * pct), barHeight, barColor);
+            }
+            y += 10;
+        }
+        else
+        {
+            y += 6;
+        }
     }
 
-    // The two narrative text boxes overlaid on the scene (upper center + right side)
-    private void DrawNarrativeOverlays()
+    private void DrawSidebarTextStat(ref int y, int x, string label, string value, Color? valueColor, bool wrap = false)
     {
         var font = Raylib.GetFontDefault();
-        int sceneLeft = GameConstants.SceneInset;
-        int sceneTop = GameConstants.MainAreaTop;
 
-        // Short banner near top of scene (slightly left of center)
-        int shortX = sceneLeft + 70;
-        int shortY = sceneTop + 22;
-        Raylib.DrawRectangle(shortX, shortY, GameConstants.ShortNarrativeWidth, GameConstants.ShortNarrativeHeight, Palette.OverlayBg);
-        Raylib.DrawRectangleLines(shortX, shortY, GameConstants.ShortNarrativeWidth, GameConstants.ShortNarrativeHeight, Palette.OverlayBorder);
-        Raylib.DrawTextEx(font, ShortNarrative,
-            new Vector2(shortX + 10, shortY + 6),
-            LayoutConstants.NarrativeFontSize, 0.8f, Palette.TextPrimary);
+        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.8f, Palette.TextMuted);
+        y += 15;
 
-        // Longer right-side narrative box
-        int longX = _screenWidth - GameConstants.SceneInset - GameConstants.LongNarrativeWidth - 18;
-        int longY = sceneTop + 160;
-        Raylib.DrawRectangle(longX, longY, GameConstants.LongNarrativeWidth, GameConstants.LongNarrativeHeight, Palette.OverlayBg);
-        Raylib.DrawRectangleLines(longX, longY, GameConstants.LongNarrativeWidth, GameConstants.LongNarrativeHeight, Palette.OverlayBorder);
+        Color vc = valueColor ?? Palette.TextPrimary;
+        Raylib.DrawTextEx(font, value, new Vector2(x, y), LayoutConstants.StatValueSize, 0.7f, vc);
 
-        // Draw multi-line text
-        string[] lines = LongNarrative.Split('\n');
-        int lineY = longY + 10;
-        foreach (string line in lines)
-        {
-            Raylib.DrawTextEx(font, line, new Vector2(longX + 10, lineY), LayoutConstants.NarrativeFontSize, 0.75f, Palette.TextPrimary);
-            lineY += 18;
-        }
+        y += wrap ? 32 : 20;
+    }
 
-        // Temporary action result toast (fades out)
+    // =====================================================================
+    // CENTRAL SCENE — Rich, layered, cinematic night forest placeholder
+    // =====================================================================
+    private void DrawCentralScene()
+    {
+        var font = Raylib.GetFontDefault();
+
+        int left = GameConstants.SceneLeft;
+        int top = GameConstants.SceneTop;
+        int w = GameConstants.SceneWidth;
+        int h = GameConstants.SceneHeight;
+
+        // Outer dark stage
+        Raylib.DrawRectangle(left, top, w, h, Palette.SceneBg);
+
+        // Inner breathing room for the "art"
+        int artX = left + GameConstants.ScenePadding;
+        int artY = top + GameConstants.ScenePadding;
+        int artW = w - GameConstants.ScenePadding * 2;
+        int artH = h - GameConstants.ScenePadding * 2;
+
+        // Deep night base
+        Raylib.DrawRectangle(artX, artY, artW, artH, Palette.DeepNight);
+
+        // Ground plane (cold snow)
+        int groundY = artY + (int)(artH * 0.68f);
+        Raylib.DrawRectangle(artX, groundY, artW, artH - (groundY - artY), Palette.GroundCold);
+
+        // === Atmospheric layers (far to near) ===
+
+        // Far distant treeline (very dark, almost silhouette)
+        DrawLayeredForest(artX, groundY, artW, 0.35f, 0.55f, Palette.TreeFar);
+
+        // Mid distance trees
+        DrawLayeredForest(artX + 40, groundY - 8, artW - 80, 0.55f, 0.72f, Palette.TreeMid);
+
+        // Nearer, darker trees (more detail)
+        DrawLayeredForest(artX + 80, groundY - 18, artW - 160, 0.72f, 0.95f, Palette.TreeNear);
+
+        // === Shelter (left side, more detailed than before) ===
+        int shelterBaseX = artX + 110;
+        int shelterBaseY = groundY - 12;
+        DrawLeanToShelter(shelterBaseX, shelterBaseY);
+
+        // === Small human figure (walking toward shelter or away) ===
+        int figX = artX + artW / 2 + 70;
+        int figY = groundY - 58;
+        DrawSmallFigure(figX, figY);
+
+        // === Snow particles (layered for depth) ===
+        DrawAtmosphericSnow(artX, artY, artW, groundY, 68);
+
+        // === Very faint cold moonlight from upper right ===
+        int moonX = artX + artW - 90;
+        int moonY = artY + 70;
+        Raylib.DrawCircle(moonX, moonY, 38, Palette.MoonGlow);
+
+        // === Inner elegant frame + vignette for cinematic feel ===
+        Raylib.DrawRectangleLines(artX + 2, artY + 2, artW - 4, artH - 4, Palette.SubtleBorder);
+
+        // Stronger vignette on the edges
+        Raylib.DrawRectangle(artX, artY, artW, 18, new Color(0, 0, 0, 70));
+        Raylib.DrawRectangle(artX, artY + artH - 22, artW, 22, new Color(0, 0, 0, 80));
+        Raylib.DrawRectangle(artX, artY, 22, artH, new Color(0, 0, 0, 55));
+        Raylib.DrawRectangle(artX + artW - 22, artY, 22, artH, new Color(0, 0, 0, 55));
+
+        // === Narrative cards inside the scene (elegant placement) ===
+        DrawSceneNarrativeCards(artX, artY, artW, artH, groundY);
+
+        // Temporary action result toast (centered low in the image)
         if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
         {
-            float alpha = MathF.Min(1f, _actionMessageTimer / 0.6f);
-            int toastW = 380;
-            int toastX = sceneLeft + 90;
-            int toastY = sceneTop + 58;
+            float alpha = MathF.Min(1f, _actionMessageTimer / 0.55f);
+            int toastW = 420;
+            int toastX = artX + (artW - toastW) / 2;
+            int toastY = artY + artH - 68;
 
-            var toastColor = new Color((byte)20, (byte)22, (byte)26, (byte)(alpha * 230));
-            Raylib.DrawRectangle(toastX, toastY, toastW, 24, toastColor);
-            Raylib.DrawRectangleLines(toastX, toastY, toastW, 24, new Color((byte)70, (byte)75, (byte)85, (byte)(alpha * 200)));
+            var bg = new Color((byte)10, (byte)12, (byte)16, (byte)(alpha * 235));
+            Raylib.DrawRectangle(toastX, toastY, toastW, 26, bg);
+            Raylib.DrawRectangleLines(toastX, toastY, toastW, 26, new Color((byte)58, (byte)62, (byte)72, (byte)(alpha * 210)));
 
             var c = new Color((byte)Palette.ActionFlash.R, (byte)Palette.ActionFlash.G, (byte)Palette.ActionFlash.B, (byte)(alpha * 255));
-            Raylib.DrawTextEx(font, _actionMessage, new Vector2(toastX + 10, toastY + 5), 13, 0.7f, c);
+            Raylib.DrawTextEx(font, _actionMessage, new Vector2(toastX + 14, toastY + 6), 13, 0.7f, c);
         }
     }
 
-    // Bottom row of 4 large action buttons (horizontal)
-    private void DrawActionButtons()
+    private void DrawLayeredForest(int baseX, int baseY, int width, float density, float heightFactor, Color color)
     {
-        int y = _screenHeight - GameConstants.BottomButtonHeight - 4;
-        int totalGaps = (GameConstants.ButtonCount - 1) * GameConstants.ButtonGap;
-        int available = _screenWidth - (GameConstants.SceneInset * 2) - totalGaps;
-        int btnW = available / GameConstants.ButtonCount;
-        int btnH = GameConstants.BottomButtonHeight - 8;
-        int x = GameConstants.SceneInset;
+        int count = (int)(width / 38 * density) + 2;
+        for (int i = 0; i < count; i++)
+        {
+            int tx = baseX + (int)(i * (width / (float)count)) + (i % 3) * 7;
+            int th = (int)(62 + (i % 5) * 18 * heightFactor);
+            int tw = (int)(42 + (i % 4) * 11);
+
+            // trunk
+            Raylib.DrawRectangle(tx + tw / 2 - 2, baseY - th / 2, 4, th / 2, color);
+            // foliage
+            Raylib.DrawTriangle(
+                new Vector2(tx, baseY),
+                new Vector2(tx + tw, baseY),
+                new Vector2(tx + tw / 2, baseY - th),
+                color);
+        }
+    }
+
+    private void DrawLeanToShelter(int baseX, int baseY)
+    {
+        // Main triangular shelter
+        Raylib.DrawTriangle(
+            new Vector2(baseX, baseY),
+            new Vector2(baseX + 92, baseY),
+            new Vector2(baseX + 46, baseY - 72),
+            Palette.ShelterWood);
+
+        // Snow on the roof (lighter cap)
+        Raylib.DrawTriangle(
+            new Vector2(baseX - 3, baseY - 2),
+            new Vector2(baseX + 95, baseY - 2),
+            new Vector2(baseX + 46, baseY - 74),
+            Palette.SnowMid);
+
+        // Support poles
+        Raylib.DrawRectangle(baseX + 12, baseY - 48, 3, 48, new Color((byte)24, (byte)25, (byte)28, (byte)255));
+        Raylib.DrawRectangle(baseX + 76, baseY - 52, 3, 52, new Color((byte)24, (byte)25, (byte)28, (byte)255));
+
+        // Opening (darker)
+        Raylib.DrawTriangle(
+            new Vector2(baseX + 28, baseY),
+            new Vector2(baseX + 64, baseY),
+            new Vector2(baseX + 46, baseY - 38),
+            new Color(8, 9, 11, 255));
+    }
+
+    private void DrawSmallFigure(int x, int y)
+    {
+        // Head
+        Raylib.DrawCircle(x + 7, y + 7, 6, new Color(18, 19, 22, 255));
+        // Body + heavy backpack
+        Raylib.DrawRectangle(x + 1, y + 13, 13, 24, new Color((byte)23, (byte)25, (byte)29, (byte)255));
+        Raylib.DrawRectangle(x - 6, y + 15, 8, 18, new Color((byte)28, (byte)30, (byte)34, (byte)255)); // pack
+        // Legs (walking pose)
+        Raylib.DrawRectangle(x + 3, y + 36, 4, 15, new Color((byte)20, (byte)21, (byte)24, (byte)255));
+        Raylib.DrawRectangle(x + 8, y + 35, 4, 16, new Color((byte)20, (byte)21, (byte)24, (byte)255));
+    }
+
+    private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            // Use a simple hash for stable positions
+            int sx = artX + 18 + ((i * 47 + 11) % (artW - 36));
+            int sy = artY + 14 + ((i * 29 + 7) % (groundY - artY - 24));
+
+            byte alpha = (byte)(120 + (i % 5) * 18);
+            Raylib.DrawPixel(sx, sy, new Color((byte)175, (byte)178, (byte)185, alpha));
+
+            // Occasional larger flakes
+            if (i % 7 == 0)
+            {
+                Raylib.DrawPixel(sx + 1, sy, new Color((byte)190, (byte)193, (byte)198, (byte)(alpha - 30)));
+            }
+        }
+    }
+
+    private void DrawSceneNarrativeCards(int artX, int artY, int artW, int artH, int groundY)
+    {
+        var font = Raylib.GetFontDefault();
+
+        // Short headline near top of art
+        int shortW = 460;
+        int shortX = artX + 28;
+        int shortY = artY + 18;
+
+        Raylib.DrawRectangle(shortX, shortY, shortW, 26, Palette.CardBg);
+        Raylib.DrawRectangleLines(shortX, shortY, shortW, 26, Palette.CardBorder);
+        Raylib.DrawTextEx(font, ShortNarrative,
+            new Vector2(shortX + 12, shortY + 6),
+            LayoutConstants.NarrativeShortSize, 0.8f, Palette.TextPrimary);
+
+        // Longer reflective paragraph — anchored lower right inside the image
+        int longW = 262;
+        int longH = 104;
+        int longX = artX + artW - longW - 26;
+        int longY = artY + 92;
+
+        Raylib.DrawRectangle(longX, longY, longW, longH, Palette.CardBg);
+        Raylib.DrawRectangleLines(longX, longY, longW, longH, Palette.CardBorder);
+
+        string[] lines = LongNarrative.Split('\n');
+        int lineY = longY + 11;
+        foreach (string line in lines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(longX + 11, lineY),
+                LayoutConstants.NarrativeLongSize, 0.75f, Palette.TextPrimary);
+            lineY += 17;
+        }
+    }
+
+    // =====================================================================
+    // BOTTOM ACTION BAR — Strong visual weight, clear, tactile buttons
+    // =====================================================================
+    private void DrawActionBar()
+    {
+        int barY = _screenHeight - GameConstants.ActionBarHeight;
+        int barH = GameConstants.ActionBarHeight;
+
+        // Bar background
+        Raylib.DrawRectangle(0, barY, _screenWidth, barH, Palette.ActionBarBg);
+        Raylib.DrawLine(0, barY, _screenWidth, barY, Palette.Divider);
 
         var font = Raylib.GetFontDefault();
 
-        for (int i = 0; i < GameConstants.ButtonCount; i++)
+        int count = GameConstants.ActionButtonCount;
+        int gap = GameConstants.ActionButtonGap;
+        int paddingX = 22; // left/right margin inside the bar
+        int totalGap = gap * (count - 1);
+        int available = _screenWidth - paddingX * 2 - totalGap;
+        int btnW = available / count;
+        int btnH = barH - GameConstants.ActionBarPaddingY * 2;
+        int btnY = barY + GameConstants.ActionBarPaddingY;
+        int x = paddingX;
+
+        for (int i = 0; i < count; i++)
         {
             bool selected = i == _selectedIndex;
             Color bg = selected ? Palette.ButtonSelectedBg : Palette.ButtonBg;
             Color border = selected ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
 
-            Raylib.DrawRectangle(x, y, btnW, btnH, bg);
-            Raylib.DrawRectangleLines(x, y, btnW, btnH, border);
+            // Button body
+            Raylib.DrawRectangle(x, btnY, btnW, btnH, bg);
+            Raylib.DrawRectangleLines(x, btnY, btnW, btnH, border);
 
-            // Center the text
-            string label = _choices[i];
-            // Special case for the second button (shows the note from image)
-            if (i == 1)
+            // Thin top accent when selected (gives nice "pressed" or "lit" feel)
+            if (selected)
             {
-                label += " (harder now)";
+                Raylib.DrawRectangle(x + 1, btnY + 1, btnW - 2, 2, Palette.ButtonTopAccent);
             }
 
-            Vector2 size = Raylib.MeasureTextEx(font, label, LayoutConstants.ButtonFontSize, 0.8f);
-            int tx = x + (btnW - (int)size.X) / 2;
-            int ty = y + (btnH - (int)size.Y) / 2 - 1;
+            // Label
+            string label = _choices[i];
+            if (i == 1) label += "  (harder now)";
 
-            Raylib.DrawTextEx(font, label, new Vector2(tx, ty), LayoutConstants.ButtonFontSize, 0.8f,
+            Vector2 size = Raylib.MeasureTextEx(font, label, LayoutConstants.ActionButtonFontSize, 0.85f);
+            int tx = x + (btnW - (int)size.X) / 2;
+            int ty = btnY + (btnH - (int)size.Y) / 2 - 1;
+
+            Raylib.DrawTextEx(font, label, new Vector2(tx, ty),
+                LayoutConstants.ActionButtonFontSize, 0.85f,
                 selected ? Palette.TextPrimary : Palette.TextDim);
 
-            x += btnW + GameConstants.ButtonGap;
+            x += btnW + gap;
         }
 
-        // Tiny control hint under the buttons
-        Raylib.DrawTextEx(font, "← → or A/D  select   •   ENTER / 1-4  act   •   Q or ESC  quit",
-            new Vector2(GameConstants.SceneInset, y + btnH + 6),
-            12, 0.6f, Palette.TextMuted);
+        // Refined control hint centered below the buttons
+        string hint = "← →  or  A D    select        ENTER  or  1–4    act        Q  or  ESC    quit";
+        int hintWidth = (int)Raylib.MeasureTextEx(font, hint, LayoutConstants.SmallHintSize, 0.6f).X;
+        Raylib.DrawTextEx(font, hint,
+            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 13),
+            LayoutConstants.SmallHintSize, 0.6f, Palette.TextDim);
     }
 
     private static int Clamp(int v) => Math.Max(0, Math.Min(100, v));

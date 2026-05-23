@@ -1,32 +1,44 @@
 namespace Conscript.Constants;
 
+/// <summary>
+/// Core layout measurements for the cinematic survival UI.
+/// Designed for generous breathing room, clear hierarchy, and a dark, oppressive atmosphere.
+/// </summary>
 public static class GameConstants
 {
     public const int ScreenWidth = 1280;
     public const int ScreenHeight = 720;
 
-    // Top info bar
-    public const int TopBarHeight = 50;
+    // === Top Header Bar ===
+    public const int TopBarHeight = 58;
 
-    // Main visual area (below top bar, above bottom buttons)
-    public const int MainAreaTop = TopBarHeight + 6;
-    public const int BottomButtonHeight = 60;
-    public const int MainAreaBottom = ScreenHeight - BottomButtonHeight - 6;
+    // === Left Sidebar (Stats + Flavor) ===
+    public const int SidebarWidth = 268;
+    public const int SidebarPadding = 20;
+    public const int SidebarInternalGap = 14;
 
-    // Inset for the large scene rect inside the main area
-    public const int SceneInset = 12;
+    // === Central Scene Area (the "stage") ===
+    // Generous margins so the image breathes and never feels cramped
+    public const int SceneMarginTop = 12;      // gap under the top bar
+    public const int SceneMarginBottom = 12;   // gap above the action bar
+    public const int SceneMarginLeft = 14;     // gap to the right of the sidebar
+    public const int SceneMarginRight = 18;
 
-    // Stats panel (overlaid on left side of scene)
-    public const int StatsPanelWidth = 222;
-    public const int StatsPanelHeight = 198;
+    // The actual image rect inside the margins (this is where the "art" lives)
+    public const int ScenePadding = 18; // inner breathing room around the placeholder art
 
-    // Narrative overlays
-    public const int ShortNarrativeWidth = 440;
-    public const int ShortNarrativeHeight = 28;
-    public const int LongNarrativeWidth = 248;
-    public const int LongNarrativeHeight = 108;
+    // === Bottom Action Bar ===
+    public const int ActionBarHeight = 78;      // taller for visual weight and comfortable clicking
+    public const int ActionBarPaddingY = 10;
+    public const int ActionButtonGap = 10;
+    public const int ActionButtonCount = 4;
 
-    // Bottom action buttons row
-    public const int ButtonGap = 8;
-    public const int ButtonCount = 4;
+    // Computed helpers (used in drawing)
+    public static int SceneLeft => SidebarWidth + SceneMarginLeft;
+    public static int SceneTop => TopBarHeight + SceneMarginTop;
+    public static int SceneRight => ScreenWidth - SceneMarginRight;
+    public static int SceneBottom => ScreenHeight - ActionBarHeight - SceneMarginBottom;
+
+    public static int SceneWidth => SceneRight - SceneLeft;
+    public static int SceneHeight => SceneBottom - SceneTop;
 }

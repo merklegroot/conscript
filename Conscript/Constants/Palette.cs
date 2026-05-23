@@ -2,59 +2,63 @@ using Raylib_cs;
 
 namespace Conscript.Constants;
 
+/// <summary>
+/// A cold, desaturated, high-tension cinematic palette.
+/// Inspired by This War of Mine / Papers, Please but pushed darker and more oppressive.
+/// </summary>
 public static class Palette
 {
-    // Base tones - oppressive, cold, earth
-    public static readonly Color Bg = new Color(10, 12, 9, 255);
-    public static readonly Color PanelBg = new Color(16, 18, 14, 255);
-    public static readonly Color SceneBg = new Color(22, 24, 20, 255);
-    public static readonly Color Frame = new Color(45, 50, 42, 255);
-    public static readonly Color FrameLight = new Color(70, 75, 65, 255);
+    // === Foundational Backgrounds (very dark, cold) ===
+    public static readonly Color Bg = new Color(7, 8, 11, 255);           // near-black cold void
+    public static readonly Color HeaderBg = new Color(11, 12, 16, 255);   // top bar
+    public static readonly Color SidebarBg = new Color(13, 15, 19, 255);  // left panel
+    public static readonly Color SceneBg = new Color(9, 11, 15, 255);     // the "stage" behind the art
+    public static readonly Color ActionBarBg = new Color(10, 11, 15, 255);
 
-    // Text
-    public static readonly Color TextPrimary = new Color(220, 215, 200, 255);
-    public static readonly Color TextDim = new Color(150, 145, 130, 255);
-    public static readonly Color TextMuted = new Color(110, 105, 95, 255);
+    // Subtle structure
+    public static readonly Color Divider = new Color(28, 30, 36, 255);
+    public static readonly Color SubtleBorder = new Color(38, 41, 48, 255);
+    public static readonly Color StrongBorder = new Color(55, 58, 66, 255);
 
-    // Accent / state colors
-    public static readonly Color Suspicion = new Color(140, 70, 55, 255);
-    public static readonly Color Health = new Color(70, 120, 80, 255);
-    public static readonly Color Morale = new Color(80, 95, 130, 255);
-    public static readonly Color Exposure = new Color(110, 105, 70, 255);
-    public static readonly Color Supplies = new Color(120, 100, 60, 255);
+    // === Text Hierarchy (high contrast for tension) ===
+    public static readonly Color TextPrimary = new Color(232, 228, 218, 255);   // warm off-white, very readable
+    public static readonly Color TextSecondary = new Color(185, 180, 168, 255); // slightly warmer gray
+    public static readonly Color TextMuted = new Color(125, 122, 112, 255);     // for labels and notes
+    public static readonly Color TextDim = new Color(92, 90, 82, 255);          // very low priority
 
-    // UI interaction
-    public static readonly Color SelectedBg = new Color(35, 38, 30, 255);
-    public static readonly Color SelectedBorder = new Color(90, 95, 80, 255);
-    public static readonly Color ActionFlash = new Color(180, 160, 100, 255);
+    // === Core Stat Colors (desaturated, cold, uneasy) ===
+    public static readonly Color Suspicion = new Color(145, 68, 58, 255);      // cold blood red
+    public static readonly Color Health = new Color(78, 118, 92, 255);         // desaturated forest green
+    public static readonly Color Morale = new Color(82, 98, 132, 255);         // slate blue
+    public static readonly Color Exposure = new Color(118, 108, 72, 255);      // dirty ochre / cold yellow
+    public static readonly Color Money = new Color(138, 125, 78, 255);         // tarnished gold
 
-    // Scene elements (muted realistic)
-    public static readonly Color Wall = new Color(38, 36, 32, 255);
-    public static readonly Color Floor = new Color(28, 26, 22, 255);
-    public static readonly Color TableWood = new Color(55, 42, 30, 255);
-    public static readonly Color Envelope = new Color(235, 230, 220, 255);
-    public static readonly Color StampRed = new Color(120, 35, 30, 255);
-    public static readonly Color Person = new Color(30, 28, 26, 255);
-    public static readonly Color LampLight = new Color(90, 80, 55, 255);
+    // === UI State ===
+    public static readonly Color ActionFlash = new Color(195, 175, 105, 255);  // warm but desaturated highlight
 
-    // Night forest / winter scene tones (for placeholder)
-    public static readonly Color NightBg = new Color(8, 10, 16, 255);
-    public static readonly Color NightGround = new Color(18, 22, 28, 255);
-    public static readonly Color TreeDark = new Color(12, 14, 18, 255);
-    public static readonly Color Snow = new Color(170, 175, 185, 255);
-    public static readonly Color Shelter = new Color(25, 27, 30, 255);
+    // === Bottom Action Buttons (more visual weight) ===
+    public static readonly Color ButtonBg = new Color(16, 18, 23, 255);
+    public static readonly Color ButtonBorder = new Color(48, 51, 58, 255);
+    public static readonly Color ButtonSelectedBg = new Color(24, 27, 34, 255);
+    public static readonly Color ButtonSelectedBorder = new Color(92, 98, 110, 255);
+    public static readonly Color ButtonTopAccent = new Color(72, 78, 88, 255); // thin highlight line when active
 
-    // Overlay panels (slightly transparent feeling but solid for readability)
-    public static readonly Color OverlayBg = new Color(14, 16, 20, 235);
-    public static readonly Color OverlayBorder = new Color(55, 58, 65, 255);
+    // === Overlay Cards (semi-transparent dark panels for narrative) ===
+    public static readonly Color CardBg = new Color(12, 14, 18, 232);
+    public static readonly Color CardBorder = new Color(52, 55, 63, 255);
 
-    // Button styles
-    public static readonly Color ButtonBg = new Color(22, 24, 28, 255);
-    public static readonly Color ButtonBorder = new Color(60, 63, 70, 255);
-    public static readonly Color ButtonSelectedBg = new Color(30, 34, 40, 255);
-    public static readonly Color ButtonSelectedBorder = new Color(110, 115, 125, 255);
+    // === Atmospheric Scene Colors (for the rich placeholder art) ===
+    public static readonly Color DeepNight = new Color(6, 7, 12, 255);
+    public static readonly Color SnowMid = new Color(155, 160, 170, 255);
+    public static readonly Color SnowHighlight = new Color(195, 198, 205, 255);
+    public static readonly Color TreeFar = new Color(14, 16, 21, 255);
+    public static readonly Color TreeMid = new Color(18, 20, 26, 255);
+    public static readonly Color TreeNear = new Color(22, 24, 30, 255);
+    public static readonly Color ShelterWood = new Color(32, 34, 38, 255);
+    public static readonly Color GroundCold = new Color(16, 19, 24, 255);
+    public static readonly Color MoonGlow = new Color(120, 125, 140, 40); // very faint cold light
 
-    // Delta / status colors
-    public static readonly Color Positive = new Color(130, 175, 95, 255);
-    public static readonly Color Negative = new Color(175, 85, 75, 255);
+    // === Status / Delta ===
+    public static readonly Color Positive = new Color(118, 152, 92, 255);
+    public static readonly Color Negative = new Color(168, 78, 72, 255);
 }
