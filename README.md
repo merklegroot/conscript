@@ -58,3 +58,29 @@ Possible endings include reaching the border, becoming a hidden “ghost” in t
 
 ## Tone
 Oppressive, realistic, and claustrophobic. The game does not glorify war — it portrays the quiet fear, moral weight, and harsh realities of trying to dodge or desert military service in modern Russia.
+
+## Development
+
+**Tech stack:** .NET 10 + Raylib-cs (inspired by the Starflight reimplementation in `~/repo/starflt`).
+
+**Run the prototype:**
+
+```bash
+cd Conscript
+dotnet run
+```
+
+**Current state:** A single interactive screen — the "Day 1 City Apartment" starting scene.
+
+- Left sidebar: persistent stats (Suspicion / Health / Morale / Exposure / Provisions) with live-updating bars.
+- Central framed "image": procedurally drawn lonely apartment with table, seated figure, window, and the draft summons envelope.
+- Bottom choices: 4 starting decisions. Use ↑/↓ or W/S to highlight, ENTER or 1-4 to act.
+- Every choice immediately mutates the stats so you can feel the trade-offs and rising tension.
+- ESC/Q to quit.
+
+This is the foundation. Future work will add:
+- Additional locations (deep forest, on the run, bug harvest)
+- Proper scene art (PNG textures)
+- A custom font
+- Day/end-of-day random events
+- Win/lose conditions and multiple endings
