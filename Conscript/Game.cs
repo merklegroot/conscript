@@ -42,7 +42,8 @@ public sealed class Game : IGame
     private int _day = 3;
     private string _timeOfDay = "Morning";
     private string _warIntensity = "Low";
-    private string _season = "Early Winter";
+    private string _location = "Family Apartment";
+    private string _season = "Early Autumn";
 
     // === Core stats (values from the reference) ===
     private int _suspicion = 26;
@@ -91,6 +92,7 @@ public sealed class Game : IGame
                 _day = 0;
                 _timeOfDay = "Evening";
                 _warIntensity = "Rising";
+                _location = "Family Apartment";
                 _status = "At Home";
                 _season = "Early Autumn";   // Game starts in early autumn
                 _suspicion = 4;
@@ -111,6 +113,7 @@ public sealed class Game : IGame
                 _day = 3;
                 _timeOfDay = "Morning";
                 _warIntensity = "Low";
+                _location = "Deep Forest";
                 _status = "Fugitive - Deep Forest";
                 _season = "Early Autumn";   // carries over from opening (will evolve later)
                 break;
@@ -391,21 +394,21 @@ public sealed class Game : IGame
         int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
         Raylib.DrawLine(leftX, row1Y + 28, leftX + titleW, row1Y + 28, Palette.StrongBorder);
 
-        // CENTER ZONE — Day and War Intensity (centered in middle of screen)
+        // CENTER ZONE — Day/Time (upper) + Location (lower)
         string dayLine = $"Day {_day} - {_timeOfDay}";
-        string warLine = $"War Intensity: {_warIntensity}";
+        string locationLine = _location;
 
         int centerX = _screenWidth / 2;
         int dayW = (int)Raylib.MeasureTextEx(font, dayLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
-        int warW = (int)Raylib.MeasureTextEx(font, warLine, LayoutConstants.TopMetaFontSize, 0.7f).X;
+        int locW = (int)Raylib.MeasureTextEx(font, locationLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
 
         Raylib.DrawTextEx(font, dayLine,
             new Vector2(centerX - dayW / 2, row1Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
-        Raylib.DrawTextEx(font, warLine,
-            new Vector2(centerX - warW / 2, row2Y),
-            LayoutConstants.TopMetaFontSize, 0.7f, Palette.TextMuted);
+        Raylib.DrawTextEx(font, locationLine,
+            new Vector2(centerX - locW / 2, row2Y),
+            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
         // RIGHT ZONE — Season with icon (age is not shown; the character does not age)
         string seasonLine = _season;
@@ -557,6 +560,10 @@ public sealed class Game : IGame
         // Subtle underline
         Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
         cy += 10;
+
+        // War Intensity (moved here from top bar — high-level threat context)
+        DrawTextStatLine(ref cy, tx, "War Intensity", _warIntensity);
+        cy += 4;
 
         // === Clean vertical stat list ===
         // Numeric stats with bars (label + value on one line, bar underneath)
