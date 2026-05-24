@@ -31,6 +31,10 @@ public sealed class Game : IGame
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
 
+    // Restart button (top right, always available)
+    private Rectangle _restartButtonRect;
+    private bool _restartHovered;
+
     // === Game flow ===
     private enum Phase
     {
@@ -63,6 +67,10 @@ public sealed class Game : IGame
     private string _status = "Fugitive - Deep Forest";
     private int _exposure = 38;
 
+    // Custom death screen text (set before entering Phase.Death for specific endings)
+    private string _deathLine1 = "You died.";
+    private string _deathLine2 = "The war took you on the first day.";
+
     private int _selectedIndex;
 
     // Current choices (change per phase)
@@ -93,6 +101,13 @@ public sealed class Game : IGame
         _selectedIndex = 0;
         _actionMessage = "";
         _actionMessageTimer = 0;
+
+        // Reset custom death text unless we're deliberately entering the death screen
+        if (newPhase != Phase.Death)
+        {
+            _deathLine1 = "You died.";
+            _deathLine2 = "The war took you on the first day.";
+        }
 
         switch (newPhase)
         {
@@ -146,10 +161,10 @@ public sealed class Game : IGame
             case Phase.Outside:
                 _choices = new[]
                 {
-                    "RUN FOR THE TREES",
-                    "HIDE BEHIND THE BINS",
-                    "CIRCLE AROUND TO THE STREET",
-                    "QUICK SCAVENGE BY THE DOORS"
+                    "HIDE IN THE GARBAGE",
+                    "HEAD FOR THE TRAIN TRACKS",
+                    "GO TO UNCLE'S HOUSE",
+                    "HEAD FOR THE PARK"
                 };
                 _day = 0;
                 _timeOfDay = "Night";
@@ -326,6 +341,12 @@ public sealed class Game : IGame
             return;
         }
 
+        if (Raylib.IsKeyPressed(KeyboardKey.KEY_R))
+        {
+            RestartGame();
+            return;
+        }
+
         // Horizontal navigation for bottom action buttons
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
         {
@@ -357,6 +378,15 @@ public sealed class Game : IGame
         Rectangle[] buttonRects = ComputeActionButtonRects();
         Vector2 mouse = Raylib.GetMousePosition();
         bool leftClicked = Raylib.IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON);
+
+        // Restart button (top right)
+        UpdateRestartButtonLayout();
+        _restartHovered = Raylib.CheckCollisionPointRec(mouse, _restartButtonRect);
+        if (leftClicked && _restartHovered)
+        {
+            RestartGame();
+            return;
+        }
 
         for (int i = 0; i < buttonRects.Length; i++)
         {
@@ -411,12 +441,11 @@ public sealed class Game : IGame
     {
         switch (index)
         {
-            case 0: // Accept the summons
-                // Not implemented yet — placeholder
-                _actionMessage = "You open the door. The rest of this path is not yet written.";
-                _actionMessageTimer = 4.0f;
-                AdvanceTime();   // time passes while you deal with the officials
-                break;
+            case 0: // Open the door — conscripted and dies in the war shortly after
+                _deathLine1 = "You opened the door.";
+                _deathLine2 = "Conscripted. Dead on the front three weeks later.";
+                EnterPhase(Phase.Death);
+                return;
 
             case 1: // Flee
                 _actionMessage = "You climb out the window and drop into the yard behind the block.";
@@ -472,36 +501,76 @@ public sealed class Game : IGame
     {
         switch (index)
         {
-            case 0: // Commit — run for the trees
-                _suspicion = Clamp(_suspicion + 4);
-                _exposure  = Clamp(_exposure - 8);
-                _actionMessage = "You sprint across the open yard toward the dark line of trees.";
+            case 0: // Hide in the garbage → you get caught and lose
+                _deathLine1 = "They found you.";
+                _deathLine2 = "Dragged from the garbage like an animal.";
+                EnterPhase(Phase.Death);
+                return;
+
+            case 1: // Head for the train tracks — the real way out of the city
+                _suspicion = Clamp(_suspicion + 5);
+                _exposure = Clamp(_exposure - 5);
+                _actionMessage = "You slip along the service road toward the railyard. The tracks are your way out.";
                 AdvanceTime();
                 EnterPhase(Phase.Forest);
-                return;   // don't fall through to the generic timer
+                return;
 
-            case 1: // Hide by the bins
-                _exposure = Clamp(_exposure - 14);
-                _suspicion = Clamp(_suspicion - 1);
-                _morale = Clamp(_morale - 4);
-                _actionMessage = "You press against cold metal. The yard is still. For a moment you are invisible.";
-                break;
+            case 2: // Go to uncle's house — he turns you in
+                _deathLine1 = "You went to your uncle.";
+                _deathLine2 = "He called them before you could even sit down.";
+                EnterPhase(Phase.Death);
+                return;
 
-            case 2: // Circle to the street (risky)
-                _suspicion = Clamp(_suspicion + 9);
-                _morale = Clamp(_morale - 6);
-                _actionMessage = "You walk fast along the sidewalk, head down, trying to look like you belong. A car slows.";
-                break;
-
-            case 3: // Quick scavenge
-                _money += 420;   // found some cash and a cheap lighter near the service door
-                _suspicion = Clamp(_suspicion + 7);
-                _actionMessage = "A crumpled wad of notes and a disposable lighter by the loading bay. Small wins.";
+            case 3: // Head for the park — another pocket of darkness in the city
+                _exposure = Clamp(_exposure - 10);
+                _morale = Clamp(_morale + 4);
+                _health = Clamp(_health + 3);
+                _actionMessage = "The park is quiet and mostly empty. You drink from a fountain and rest on a bench under the trees.";
                 break;
         }
 
         AdvanceTime();
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void UpdateRestartButtonLayout()
+    {
+        const float size = 20f;
+        const float margin = 26f;
+        float x = _screenWidth - margin - size;
+        float y = 10f;
+        _restartButtonRect = new Rectangle(x, y, size, size);
+    }
+
+    private void RestartGame()
+    {
+        _actionMessage = "";
+        _actionMessageTimer = 0f;
+        _selectedIndex = 0;
+        _deathLine1 = "You died.";
+        _deathLine2 = "The war took you on the first day.";
+        EnterPhase(Phase.Opening);
+    }
+
+    private void DrawRestartButton()
+    {
+        if (_restartButtonRect.Width <= 0) return;
+
+        Color bg = _restartHovered
+            ? new Color(58, 63, 74, 255)
+            : new Color(32, 35, 42, 255);
+        Color border = _restartHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
+
+        Raylib.DrawRectangleRec(_restartButtonRect, bg);
+        Raylib.DrawRectangleLinesEx(_restartButtonRect, 1.0f, border);
+
+        // Clockwise circular arrow symbol (Unicode)
+        const string sym = "\u21BB";   // ↻
+        float symSize = 13f;
+        Vector2 m = Raylib.MeasureTextEx(_uiFont, sym, symSize, 0.6f);
+        float sx = _restartButtonRect.X + (_restartButtonRect.Width - m.X) / 2f;
+        float sy = _restartButtonRect.Y + (_restartButtonRect.Height - symSize) / 2f - 0.5f;
+        Raylib.DrawTextEx(_uiFont, sym, new Vector2(sx, sy), symSize, 0.6f, Palette.TextPrimary);
     }
 
     private void Draw()
@@ -573,16 +642,18 @@ public sealed class Game : IGame
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
         // RIGHT ZONE — Season with icon (age is not shown; the character does not age)
+        // Leave breathing room for the restart button in the top-right corner.
         string seasonLine = _season;
 
-        int rightMargin = 26;
         float iconSize = 13f;
         float iconTextGap = 7f;
 
         int seasonW = (int)Raylib.MeasureTextEx(font, seasonLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
         float totalWidth = iconSize + iconTextGap + seasonW;
 
-        float rightEdge = _screenWidth - rightMargin;
+        float rightEdge = _restartButtonRect.Width > 0
+            ? _restartButtonRect.X - 10f
+            : _screenWidth - 26f;
         float iconCenterX = rightEdge - totalWidth + iconSize / 2f;
         float iconCenterY = row1Y + 8f;   // vertically centered with the text
 
@@ -611,6 +682,8 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, tempLine,
             new Vector2(tempX, row2Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
+
+        DrawRestartButton();
     }
 
     /// <summary>
@@ -933,22 +1006,21 @@ public sealed class Game : IGame
 
         Font f = _uiFont;
 
-        string line1 = "You died.";
-        string line2 = "The war took you on the first day.";
+        int w1 = (int)Raylib.MeasureTextEx(f, _deathLine1, 42, 0.9f).X;
+        int w2 = (int)Raylib.MeasureTextEx(f, _deathLine2, 24, 0.85f).X;
 
-        int w1 = (int)Raylib.MeasureTextEx(f, line1, 42, 0.9f).X;
-        int w2 = (int)Raylib.MeasureTextEx(f, line2, 24, 0.85f).X;
-
-        Raylib.DrawTextEx(f, line1,
+        Raylib.DrawTextEx(f, _deathLine1,
             new Vector2((_screenWidth - w1) / 2, _screenHeight / 2 - 60),
             42, 0.9f, new Color(160, 70, 65, 255));
 
-        Raylib.DrawTextEx(f, line2,
+        Raylib.DrawTextEx(f, _deathLine2,
             new Vector2((_screenWidth - w2) / 2, _screenHeight / 2 - 10),
             24, 0.85f, Palette.TextSecondary);
 
         // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
         DrawActionBar();
+
+        DrawRestartButton();
     }
 
     private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
