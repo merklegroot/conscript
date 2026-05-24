@@ -48,6 +48,9 @@ public sealed class Game : IGame
     // Item names (inventory strings)
     private const string ItemBottledWater = "Bottled Water";
     private const string ItemEmptyBottle = "Empty Bottle of Water";
+    private const string ItemTrashBags = "Trash Bags";
+    private const string ItemDuctTape = "Duct Tape";
+    private const string BuildTrashBagTent = "Trash Bag Tent";
 
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
@@ -60,8 +63,8 @@ public sealed class Game : IGame
         [ItemEmptyBottle]          = "items.empty-bottle.png",
         ["Loaf of Bread"]          = "items.loaf-of-bread.png",
         ["Canned Soup"]            = "items.canned-soup.png",
-        ["Trash Bags"]             = "items.trash-bags.png",
-        ["Duct Tape"]              = "items.duct-tape.png",
+        [ItemTrashBags]            = "items.trash-bags.png",
+        [ItemDuctTape]             = "items.duct-tape.png",
     };
 
     // Restart + debug buttons (top right, always available)
@@ -168,11 +171,19 @@ public sealed class Game : IGame
 
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
+    private bool _hasTrashBagTent;
     private Rectangle _buildSidebarButtonRect;
     private bool _buildSidebarButtonHovered;
     private Rectangle _buildPanelRect;
     private Rectangle _buildCloseRect;
     private bool _buildCloseHovered;
+    private Rectangle _buildTentRowRect;
+    private Rectangle _buildTentButtonRect;
+    private bool _buildTentButtonHovered;
+    private string _buildFeedback = "";
+    private float _buildFeedbackTimer;
+    private const float BuildFeedbackDuration = 2.2f;
+    private const int TrashBagTentComfortBonus = 8;
 
     // Region map — sidebar thumbnail opens expanded view
     private bool _showRegionMap;
@@ -288,6 +299,7 @@ public sealed class Game : IGame
 
                 // Reset backpack to starting gear (knife, lighter, phone)
                 _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+                _hasTrashBagTent = false;
                 ClearEnvDeltas();
                 ClearActionDeltas();
                 break;
@@ -295,6 +307,7 @@ public sealed class Game : IGame
             case Phase.Forest:
                 _choices = new[] { "GO BACK TO TOWN", "WAIT" };
                 ClearEnvDeltas();
+                RefreshOutdoorComfortEnvironment();
                 // The existing forest values
                 _day = 3;
                 _timeOfDay = "Morning";
@@ -777,6 +790,21 @@ public sealed class Game : IGame
         if (_showBuildDialog)
         {
             _buildCloseHovered = Raylib.CheckCollisionPointRec(mouse, _buildCloseRect);
+            bool canBuildTent = CanBuildTrashBagTent(out _);
+            _buildTentButtonHovered = canBuildTent &&
+                Raylib.CheckCollisionPointRec(mouse, _buildTentButtonRect);
+
+            if (leftClicked && _buildTentButtonHovered)
+            {
+                TryBuildTrashBagTent();
+                return;
+            }
+
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _buildTentRowRect))
+            {
+                TryBuildTrashBagTent();
+                return;
+            }
 
             if (leftClicked && _buildCloseHovered)
             {
@@ -928,6 +956,13 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showBuildDialog && _buildFeedbackTimer > 0f)
+        {
+            _buildFeedbackTimer -= dt;
+            if (_buildFeedbackTimer <= 0f)
+                _buildFeedback = "";
+        }
+
         // === Update mouse cursor to indicate clickable elements ===
         bool overClickable = false;
 
@@ -1010,7 +1045,9 @@ public sealed class Game : IGame
         // Build dialog: close button + overlay
         if (_showBuildDialog)
         {
-            if (_buildCloseHovered || !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
+            if (_buildCloseHovered || _buildTentButtonHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _buildTentRowRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
                 overClickable = true;
         }
 
@@ -1195,6 +1232,8 @@ public sealed class Game : IGame
         _showStoreBuyMenu = false;
         CloseRegionMap();
         CloseBuildDialog();
+        _hasTrashBagTent = false;
+        _buildFeedback = "";
         _storeBuyFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
@@ -1211,6 +1250,8 @@ public sealed class Game : IGame
         _showStoreBuyMenu = false;
         CloseRegionMap();
         CloseBuildDialog();
+        _hasTrashBagTent = false;
+        _buildFeedback = "";
         _storeBuyFeedback = "";
         _storeBuyFeedbackTimer = 0f;
         _deathLine1 = "You died.";
@@ -1254,12 +1295,84 @@ public sealed class Game : IGame
     {
         _showBuildDialog = true;
         _buildCloseHovered = false;
+        _buildTentButtonHovered = false;
     }
 
     private void CloseBuildDialog()
     {
         _showBuildDialog = false;
         _buildCloseHovered = false;
+        _buildTentButtonHovered = false;
+    }
+
+    private static bool IsOutdoorsPhase(Phase phase) =>
+        phase is Phase.Outside or Phase.Forest;
+
+    private bool HasBackpackItem(string itemName) =>
+        _backpack.Any(i => string.Equals(i, itemName, StringComparison.OrdinalIgnoreCase));
+
+    private bool TryConsumeBackpackItem(string itemName)
+    {
+        for (int i = 0; i < _backpack.Length; i++)
+        {
+            if (string.Equals(_backpack[i], itemName, StringComparison.OrdinalIgnoreCase))
+            {
+                _backpack[i] = null;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool CanBuildTrashBagTent(out string reason)
+    {
+        if (_hasTrashBagTent)
+        {
+            reason = "Already built.";
+            return false;
+        }
+
+        if (!IsOutdoorsPhase(_phase))
+        {
+            reason = "Must be outdoors.";
+            return false;
+        }
+
+        if (!HasBackpackItem(ItemTrashBags))
+        {
+            reason = "Need trash bags.";
+            return false;
+        }
+
+        if (!HasBackpackItem(ItemDuctTape))
+        {
+            reason = "Need duct tape.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    private void TryBuildTrashBagTent()
+    {
+        if (!CanBuildTrashBagTent(out string reason))
+        {
+            _buildFeedback = reason;
+            _buildFeedbackTimer = BuildFeedbackDuration;
+            return;
+        }
+
+        TryConsumeBackpackItem(ItemTrashBags);
+        TryConsumeBackpackItem(ItemDuctTape);
+        _hasTrashBagTent = true;
+        RefreshOutdoorComfortEnvironment();
+
+        _buildFeedback = "You rig a crude shelter from plastic and tape.";
+        _buildFeedbackTimer = BuildFeedbackDuration;
+        _actionMessage = "Trash bag tent pitched. A little warmer out here.";
+        _actionMessageTimer = ActionMessageDuration;
     }
 
     private static bool CanDrinkItem(string itemName) =>
@@ -1475,8 +1588,8 @@ public sealed class Game : IGame
 
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
-        int panelW = 420;
-        int panelH = 300;
+        int panelW = 460;
+        int panelH = 320;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 10;
 
@@ -1492,27 +1605,113 @@ public sealed class Game : IGame
 
         Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
 
-        string subtitle = "Construct tools and shelter from what you carry.";
+        string subtitle = "Construct shelter and tools from what you carry.";
         Raylib.DrawTextEx(font, subtitle,
             new Vector2(panelX + 22, panelY + 58), 14, 0.6f, Palette.TextSecondary);
 
-        int listY = panelY + 92;
-        int listH = panelH - 92 - 56;
-        Raylib.DrawRectangle(panelX + 22, listY, panelW - 44, listH, new Color(16, 18, 22, 255));
-        Raylib.DrawRectangleLines(panelX + 22, listY, panelW - 44, listH, Palette.SubtleBorder);
+        int rowY = panelY + 88;
+        int rowH = 56;
+        int rowX = panelX + 22;
+        int rowW = panelW - 44;
+        _buildTentRowRect = new Rectangle(rowX, rowY, rowW, rowH);
 
-        string placeholder = "No recipes available yet.";
-        int phSize = 15;
-        int phW = (int)Raylib.MeasureTextEx(font, placeholder, phSize, 0.55f).X;
-        Raylib.DrawTextEx(font, placeholder,
-            new Vector2(panelX + (panelW - phW) / 2, listY + listH / 2 - 8),
-            phSize, 0.55f, Palette.TextDim);
+        bool canBuild = CanBuildTrashBagTent(out string blockReason);
+        bool built = _hasTrashBagTent;
+        bool outdoors = IsOutdoorsPhase(_phase);
+        bool hasBags = HasBackpackItem(ItemTrashBags);
+        bool hasTape = HasBackpackItem(ItemDuctTape);
 
-        int btnW = 120;
-        int btnH = 36;
-        int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - btnH - 16;
-        _buildCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        Color rowBg = _buildTentButtonHovered
+            ? Palette.ButtonSelectedBg
+            : new Color(16, 18, 22, 255);
+        Raylib.DrawRectangleRec(_buildTentRowRect, rowBg);
+        Raylib.DrawRectangleLinesEx(_buildTentRowRect, 1f, Palette.SubtleBorder);
+
+        const int iconSize = 28;
+        int iconY = rowY + (rowH - iconSize) / 2;
+        DrawItemIcon(ItemTrashBags, new Rectangle(rowX + 10, iconY, iconSize, iconSize),
+            hasBags || built ? Color.WHITE : new Color(255, 255, 255, 90));
+        DrawItemIcon(ItemDuctTape, new Rectangle(rowX + 10 + iconSize + 4, iconY, iconSize, iconSize),
+            hasTape || built ? Color.WHITE : new Color(255, 255, 255, 90));
+
+        int textX = rowX + 10 + iconSize * 2 + 14;
+        Raylib.DrawTextEx(font, BuildTrashBagTent,
+            new Vector2(textX, rowY + 10), 16, 0.65f,
+            built ? Palette.TextDim : Palette.TextPrimary);
+
+        string reqLine = built
+            ? "Shelter pitched — +comfort outdoors"
+            : "Trash Bags + Duct Tape · Outdoors only";
+        Raylib.DrawTextEx(font, reqLine,
+            new Vector2(textX, rowY + 30), 11, 0.5f, Palette.TextDim);
+
+        if (!built && !outdoors)
+        {
+            Raylib.DrawTextEx(font, "Leave the building first",
+                new Vector2(textX, rowY + 42), 10, 0.45f, new Color(180, 120, 100, 255));
+        }
+        else if (!built && outdoors && (!hasBags || !hasTape))
+        {
+            string missing = !hasBags && !hasTape ? "Missing both materials"
+                : !hasBags ? "Missing trash bags" : "Missing duct tape";
+            Raylib.DrawTextEx(font, missing,
+                new Vector2(textX, rowY + 42), 10, 0.45f, new Color(180, 120, 100, 255));
+        }
+
+        int btnW = 72;
+        int btnH = 30;
+        int btnX = rowX + rowW - btnW - 10;
+        int btnY = rowY + (rowH - btnH) / 2;
+        _buildTentButtonRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        if (built)
+        {
+            string done = "BUILT";
+            int doneW = (int)Raylib.MeasureTextEx(font, done, 12, 0.5f).X;
+            Raylib.DrawTextEx(font, done,
+                new Vector2(btnX + (btnW - doneW) / 2f, btnY + 8), 12, 0.5f, Palette.Positive);
+        }
+        else
+        {
+            if (canBuild)
+                DrawDialogButton(_buildTentButtonRect, "BUILD", _buildTentButtonHovered, font);
+            else
+            {
+                Raylib.DrawRectangleRec(_buildTentButtonRect, new Color(24, 26, 30, 255));
+                Raylib.DrawRectangleLinesEx(_buildTentButtonRect, 1f, Palette.SubtleBorder);
+                int labelSize = 14;
+                int labelW = (int)Raylib.MeasureTextEx(font, "BUILD", labelSize, 0.55f).X;
+                Raylib.DrawTextEx(font, "BUILD",
+                    new Vector2(btnX + (btnW - labelW) / 2f, btnY + 7),
+                    labelSize, 0.55f, Palette.TextDim);
+            }
+        }
+
+        if (!string.IsNullOrEmpty(_buildFeedback))
+        {
+            int fbSize = 13;
+            int fbW = (int)Raylib.MeasureTextEx(font, _buildFeedback, fbSize, 0.55f).X;
+            Color fbColor = _buildFeedback.Contains("crude shelter", StringComparison.OrdinalIgnoreCase)
+                ? Palette.Positive
+                : new Color(200, 130, 110, 255);
+            Raylib.DrawTextEx(font, _buildFeedback,
+                new Vector2(panelX + (panelW - fbW) / 2, panelY + panelH - 78),
+                fbSize, 0.55f, fbColor);
+        }
+        else if (!built && !canBuild && !string.IsNullOrEmpty(blockReason))
+        {
+            int hintSize = 11;
+            int hintW = (int)Raylib.MeasureTextEx(font, blockReason, hintSize, 0.5f).X;
+            Raylib.DrawTextEx(font, blockReason,
+                new Vector2(panelX + (panelW - hintW) / 2, panelY + panelH - 78),
+                hintSize, 0.5f, Palette.TextDim);
+        }
+
+        int closeW = 120;
+        int closeH = 36;
+        int closeX = panelX + (panelW - closeW) / 2;
+        int closeY = panelY + panelH - closeH - 16;
+        _buildCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
         DrawDialogButton(_buildCloseRect, "CLOSE", _buildCloseHovered, font);
     }
 
@@ -2917,14 +3116,14 @@ public sealed class Game : IGame
 
     private void ApplyEnvironmentOnAction()
     {
-        if (_phase != Phase.Outside) return;
+        if (!IsOutdoorsPhase(_phase)) return;
         ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, OutdoorComfortPerActionPenalty());
     }
 
     private void ApplyEnvironmentOutside()
     {
         ClearNonComfortEnvDeltas();
-        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF));
+        RefreshOutdoorComfortEnvironment();
     }
 
     private void ApplyEnvironmentHeatedBuilding()
@@ -2961,10 +3160,13 @@ public sealed class Game : IGame
     private int OutdoorComfortPerActionPenalty() =>
         OutdoorComfortPerActionPenalty(_temperatureF);
 
+    private int OutdoorShelterComfortBonus() =>
+        _hasTrashBagTent && IsOutdoorsPhase(_phase) ? TrashBagTentComfortBonus : 0;
+
     private void RefreshOutdoorComfortEnvironment()
     {
-        if (_phase != Phase.Outside) return;
-        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF));
+        if (!IsOutdoorsPhase(_phase)) return;
+        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
     }
 
     private static int StatArrowCount(int delta)
