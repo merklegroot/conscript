@@ -104,7 +104,7 @@ public sealed class Game : IGame
     private int _actionHydrationDelta;
     private int _actionComfortDelta;
     private float _actionDeltaTimer;
-    private const float ActionDeltaDisplayDuration = 5f;
+    private const float ActionDeltaDisplayDuration = 2f;
     private const int EnvComfortPerAction = -3;   // cold yard tax on every action while outside
 
     // Backpack inventory grid (prototype: 8 slots = 2×4)
