@@ -43,6 +43,7 @@ public sealed class Game : IGame
     private string _timeOfDay = "Morning";
     private string _warIntensity = "Low";
     private string _location = "Family Apartment";
+    private string _city = "Ulan-Ude, Republic of Buryatia";
     private string _season = "Early Autumn";
 
     // === Core stats (values from the reference) ===
@@ -93,6 +94,7 @@ public sealed class Game : IGame
                 _timeOfDay = "Evening";
                 _warIntensity = "Rising";
                 _location = "Family Apartment";
+                _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "At Home";
                 _season = "Early Autumn";   // Game starts in early autumn
                 _suspicion = 4;
@@ -115,6 +117,7 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _warIntensity = "Low";
                 _location = "Deep Forest";
+                _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "Fugitive - Deep Forest";
                 _season = "Early Autumn";   // carries over from opening (will evolve later)
                 // _money carries over from the Opening phase (starts at 10,000 ₽)
@@ -396,9 +399,9 @@ public sealed class Game : IGame
         int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
         Raylib.DrawLine(leftX, row1Y + 28, leftX + titleW, row1Y + 28, Palette.StrongBorder);
 
-        // CENTER ZONE — Day/Time (upper) + Location (lower)
+        // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
         string dayLine = $"Day {_day} - {_timeOfDay}";
-        string locationLine = _location;
+        string locationLine = $"{_city} • {_location}";
 
         int centerX = _screenWidth / 2;
         int dayW = (int)Raylib.MeasureTextEx(font, dayLine, LayoutConstants.TopInfoFontSize, 0.8f).X;

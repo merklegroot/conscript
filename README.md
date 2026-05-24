@@ -3,7 +3,7 @@
 A minimalist, tense survival roguelike about dodging conscription and deserting during the Russia-Ukraine war.
 
 ## Overview
-**Conscript** puts you in the shoes of Sergei Kravchenko, a 20-year-old from Achinsk in Siberia's Krasnoyarsk Krai. Living with his parents in a small apartment, he burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
+**Conscript** puts you in the shoes of Sergei Badmaev, a 20-year-old from Ulan-Ude in the Republic of Buryatia. Living with his parents in a small apartment, he burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
 
 ## Sergei's Starting Gear (when he climbs out the window)
 In the opening scene, when Sergei chooses to flee the military commissariat, he only manages to grab a very limited set of items before disappearing into the night:
