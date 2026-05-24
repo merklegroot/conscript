@@ -36,10 +36,10 @@ public sealed class Game : IGame
 
     // Geographic bounds for region-map.png — keep in sync with img/region-map.bounds.json
     // (regenerate via: python3 scripts/generate_region_map.py)
-    private const double RegionMapMinLon = 103.0;
-    private const double RegionMapMaxLon = 110.8;
-    private const double RegionMapMinLat = 50.0;
-    private const double RegionMapMaxLat = 54.2;
+    private const double RegionMapMinLon = 22.0;
+    private const double RegionMapMaxLon = 175.0;
+    private const double RegionMapMinLat = 35.0;
+    private const double RegionMapMaxLat = 74.0;
     private const double UlanUdeLon = 107.584;
     private const double UlanUdeLat = 51.834;
     private const double ForestCampLon = 107.35;
@@ -186,7 +186,7 @@ public sealed class Game : IGame
     private double _mapPanStartCenterLon;
     private double _mapPanStartCenterLat;
 
-    private static readonly float[] MapZoomLevels = { 1f, 2f, 3f, 4f, 6f };
+    private static readonly float[] MapZoomLevels = { 1f, 2f, 3f, 4f, 6f, 8f, 12f, 18f };
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
@@ -2030,7 +2030,7 @@ public sealed class Game : IGame
         (double lon, double lat) = GetMapPlayerGeoPosition();
         _mapViewCenterLon = lon;
         _mapViewCenterLat = lat;
-        _mapZoomLevelIndex = 0;
+        _mapZoomLevelIndex = 3;   // start at 4× — local area; zoom out to full Russia
         _mapPanning = false;
         _showRegionMap = true;
     }
@@ -2203,7 +2203,7 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, title,
             new Vector2(panelX + 22, panelY + 16), 18, 0.75f, Palette.TextMuted);
 
-        string subtitle = "Republic of Buryatia — eastern Siberia";
+        string subtitle = "Russia — zoom out to see where you are";
         Raylib.DrawTextEx(font, subtitle,
             new Vector2(panelX + 22, panelY + 38), 13, 0.6f, Palette.TextSecondary);
 

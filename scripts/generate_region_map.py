@@ -23,10 +23,10 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 OUT_PNG = OUT_DIR / "region-map.png"
 OUT_META = OUT_DIR / "region-map.bounds.json"
 
-# Eastern Buryatia / southern Baikal — enough context to orient the player
-BOUNDS = (103.0, 110.8, 50.0, 54.2)  # min_lon, max_lon, min_lat, max_lat
+# Russia-centric view — Urals to Pacific, Arctic to Central Asia (orient the player globally)
+BOUNDS = (22.0, 175.0, 35.0, 74.0)  # min_lon, max_lon, min_lat, max_lat
 WIDTH_PX = 2048
-HEIGHT_PX = 1104
+HEIGHT_PX = 480   # matches lon/lat aspect (~153° × 39°)
 DPI = 100
 
 NE_50M_ADMIN1 = (
@@ -66,9 +66,7 @@ def main() -> None:
     admin1 = load_layer(NE_50M_ADMIN1, "ne_50m_admin_1_states_provinces")
     lakes = load_layer(NE_50M_LAKES, "ne_50m_lakes")
 
-    region_countries = countries[
-        countries["NAME"].isin(["Russia", "Mongolia", "China"])
-    ].clip(clip_box)
+    region_countries = countries.clip(clip_box)
 
     buryatia = admin1[
         admin1["name"].str.contains("Buryat", case=False, na=False)
@@ -111,10 +109,10 @@ def main() -> None:
     if not baikal.empty:
         c = baikal.geometry.representative_point().iloc[0]
         ax.text(
-            c.x - 0.35,
-            c.y + 0.15,
+            c.x - 0.8,
+            c.y + 0.4,
             "Lake Baikal",
-            fontsize=6,
+            fontsize=8,
             color="#6a8a9a",
             ha="right",
             va="bottom",
@@ -125,29 +123,65 @@ def main() -> None:
             c.x,
             c.y,
             "Buryatia",
-            fontsize=6,
+            fontsize=8,
             color="#7a7668",
             ha="center",
             va="center",
         )
 
     ax.text(
-        min_lon + 0.15,
-        max_lat - 0.12,
-        "Siberia",
-        fontsize=5.5,
+        min_lon + 2.0,
+        max_lat - 1.5,
+        "Europe",
+        fontsize=7,
         color="#5a5d64",
         ha="left",
         va="top",
     )
     ax.text(
+        37.6,
+        55.8,
+        "Moscow",
+        fontsize=7,
+        color="#6a6a72",
+        ha="left",
+        va="bottom",
+    )
+    ax.text(
+        100.0,
+        62.0,
+        "Siberia",
+        fontsize=8,
+        color="#5a5d64",
+        ha="center",
+        va="center",
+    )
+    ax.text(
+        max_lon - 1.5,
+        (min_lat + max_lat) / 2,
+        "Pacific",
+        fontsize=7,
+        color="#5a5d64",
+        ha="right",
+        va="center",
+    )
+    ax.text(
         (min_lon + max_lon) / 2,
-        min_lat + 0.08,
+        min_lat + 1.0,
         "Mongolia",
-        fontsize=5.5,
+        fontsize=7,
         color="#5a5d64",
         ha="center",
         va="bottom",
+    )
+    ax.text(
+        (min_lon + max_lon) / 2,
+        max_lat - 1.0,
+        "Arctic Ocean",
+        fontsize=7,
+        color="#5a5d64",
+        ha="center",
+        va="top",
     )
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
