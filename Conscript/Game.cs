@@ -70,8 +70,33 @@ public sealed class Game : IGame
 
     private Phase _phase = Phase.Opening;
 
-    // Simple day/night cycle used for time advancement
-    private readonly string[] _timeSlots = { "Morning", "Afternoon", "Evening", "Night" };
+    // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
+    private readonly string[] _timeSlots =
+    {
+        "Morning",
+        "Late Morning",
+        "Midday",
+        "Afternoon",
+        "Dusk",
+        "Evening",
+        "Night",
+        "Late Night"
+    };
+
+    private const int EnergyDrainPerTimeSlot = 4;   // 8 slots × 4 ≈ former 4 slots × 8
+
+    // Player-facing time text (clock + mood); index matches _timeSlots.
+    private static readonly string[] TimeOfDayDisplay =
+    {
+        "6:00 AM, early morning",
+        "9:00 AM, late morning",
+        "12:00 PM, midday",
+        "3:00 PM, afternoon",
+        "6:00 PM, dusk",
+        "8:00 PM, evening",
+        "11:00 PM, night",
+        "2:00 AM, late night"
+    };
 
     // === Top bar context (matches reference image) ===
     private int _day = 3;
@@ -289,14 +314,13 @@ public sealed class Game : IGame
 
     /// <summary>
     /// Advances the time of day by the given number of slots.
-    /// When we pass "Night", we roll over to the next day's "Morning".
+    /// Wrapping from Late Night to Morning starts a new day.
     /// </summary>
     private void AdvanceTime(int steps = 1)
     {
         if (steps <= 0) return;
 
-        int idx = Array.IndexOf(_timeSlots, _timeOfDay);
-        if (idx < 0) idx = 0;
+        int idx = GetTimeSlotIndex();
 
         int newIdx = (idx + steps) % _timeSlots.Length;
         _timeOfDay = _timeSlots[newIdx];
@@ -307,19 +331,37 @@ public sealed class Game : IGame
         }
 
         // Actions and time passing wear you down
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -8 * steps);
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyDrainPerTimeSlot * steps);
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
         if (_phase == Phase.Outside || _phase == Phase.Forest)
         {
-            if (_timeOfDay == "Night")
+            if (IsNightTimeSlot())
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
-            else if (_timeOfDay == "Morning")
+            else if (IsMorningTimeSlot())
                 _temperatureF = Math.Min(60, _temperatureF + 1);
 
             if (_phase == Phase.Outside)
                 RefreshOutdoorComfortEnvironment();
         }
+    }
+
+    private int GetTimeSlotIndex()
+    {
+        int idx = Array.IndexOf(_timeSlots, _timeOfDay);
+        return idx < 0 ? 0 : idx;
+    }
+
+    private bool IsNightTimeSlot() =>
+        _timeOfDay is "Night" or "Late Night";
+
+    private bool IsMorningTimeSlot() =>
+        _timeOfDay is "Morning" or "Late Morning";
+
+    private string GetTimeOfDayDisplay()
+    {
+        int idx = GetTimeSlotIndex();
+        return idx < TimeOfDayDisplay.Length ? TimeOfDayDisplay[idx] : _timeOfDay;
     }
 
     /// <summary>
@@ -441,12 +483,16 @@ public sealed class Game : IGame
     /// Multiplicative tint for outdoor background photos by time of day.
     /// </summary>
     private Color GetOutdoorTimeOfDayTint() =>
-        _timeOfDay switch
+        GetTimeSlotIndex() switch
         {
-            "Morning" => new Color(195, 208, 228, 255),    // cool dawn light
-            "Afternoon" => new Color(255, 252, 242, 255),  // brightest, neutral-warm
-            "Evening" => new Color(218, 178, 138, 255),  // low golden hour
-            "Night" => new Color(88, 98, 128, 255),      // dark blue night
+            0 => new Color(195, 208, 228, 255),   // Morning — cool dawn
+            1 => new Color(215, 220, 232, 255),   // Late Morning
+            2 => new Color(255, 252, 242, 255),   // Midday — brightest
+            3 => new Color(255, 248, 235, 255),   // Afternoon
+            4 => new Color(235, 200, 160, 255),   // Dusk
+            5 => new Color(218, 178, 138, 255),   // Evening
+            6 => new Color(130, 138, 165, 255),   // Night
+            7 => new Color(88, 98, 128, 255),     // Late Night — darkest
             _ => Color.WHITE
         };
 
@@ -454,12 +500,16 @@ public sealed class Game : IGame
     /// Extra color wash on top of the tinted photo (mostly for dusk/night depth).
     /// </summary>
     private Color GetOutdoorTimeOfDayOverlay() =>
-        _timeOfDay switch
+        GetTimeSlotIndex() switch
         {
-            "Morning" => new Color(180, 200, 230, 18),
-            "Afternoon" => new Color(0, 0, 0, 0),
-            "Evening" => new Color(40, 25, 10, 45),
-            "Night" => new Color(8, 12, 28, 72),
+            0 => new Color(180, 200, 230, 18),
+            1 => new Color(160, 185, 220, 10),
+            2 => new Color(0, 0, 0, 0),
+            3 => new Color(0, 0, 0, 0),
+            4 => new Color(35, 22, 8, 30),
+            5 => new Color(40, 25, 10, 45),
+            6 => new Color(8, 12, 28, 55),
+            7 => new Color(8, 12, 28, 72),
             _ => new Color(0, 0, 0, 0)
         };
 
@@ -1388,7 +1438,7 @@ public sealed class Game : IGame
         Raylib.DrawLine(leftX, row1Y + 28, leftX + titleW, row1Y + 28, Palette.StrongBorder);
 
         // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
-        string dayLine = $"Day {_day} - {_timeOfDay}";
+        string dayLine = $"Day {_day} — {GetTimeOfDayDisplay()}";
         string locationLine = $"{_city} • {_location}";
 
         int centerX = _screenWidth / 2;
