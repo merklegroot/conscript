@@ -33,18 +33,23 @@ public sealed class Game : IGame
     private Texture2D _forestBackground;
     private Texture2D _storeBackground;
 
+    // Item names (inventory strings)
+    private const string ItemBottledWater = "Bottled Water";
+    private const string ItemEmptyBottle = "Empty Bottle of Water";
+
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> ItemIconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Knife"]          = "items.knife.png",
-        ["Lighter"]        = "items.lighter.png",
-        ["Phone"]          = "items.phone.png",
-        ["Bottled Water"]  = "items.bottled-water.png",
-        ["Loaf of Bread"]  = "items.loaf-of-bread.png",
-        ["Canned Soup"]    = "items.canned-soup.png",
-        ["Trash Bags"]     = "items.trash-bags.png",
-        ["Duct Tape"]      = "items.duct-tape.png",
+        ["Knife"]                  = "items.knife.png",
+        ["Lighter"]                = "items.lighter.png",
+        ["Phone"]                  = "items.phone.png",
+        [ItemBottledWater]         = "items.bottled-water.png",
+        [ItemEmptyBottle]          = "items.empty-bottle.png",
+        ["Loaf of Bread"]          = "items.loaf-of-bread.png",
+        ["Canned Soup"]            = "items.canned-soup.png",
+        ["Trash Bags"]             = "items.trash-bags.png",
+        ["Duct Tape"]              = "items.duct-tape.png",
     };
 
     // Restart + debug buttons (top right, always available)
@@ -93,6 +98,8 @@ public sealed class Game : IGame
     private string _dialogItemName = "";
     private Rectangle _dialogCloseRect;
     private bool _dialogCloseHovered;
+    private Rectangle _dialogActionRect;
+    private bool _dialogActionHovered;
     private Rectangle _dialogPanelRect;
 
     // Convenience store buy menu (modal)
@@ -520,17 +527,25 @@ public sealed class Game : IGame
             return;
         }
 
-        // === Item dialog close button (highest priority when visible) ===
+        // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
+            bool canDrink = CanDrinkItem(_dialogItemName);
+            _dialogActionHovered = canDrink && Raylib.CheckCollisionPointRec(mouse, _dialogActionRect);
             _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
+
+            if (leftClicked && _dialogActionHovered)
+            {
+                TryDrinkBottledWater();
+                return;
+            }
             if (leftClicked && _dialogCloseHovered)
             {
                 CloseItemDialog();
                 return;
             }
-            // Clicking anywhere else on the overlay also closes (common UX)
-            if (leftClicked)
+            // Clicking the dark overlay outside the panel closes the dialog
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
             {
                 CloseItemDialog();
                 return;
@@ -657,17 +672,13 @@ public sealed class Game : IGame
             }
         }
 
-        // Item dialog: close button + clicking the panel/overlay dismisses it
+        // Item dialog: action + close buttons, or overlay dismiss
         if (_showItemDialog)
         {
             if (Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect) ||
-                Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
+                Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
             {
-                overClickable = true;
-            }
-            else
-            {
-                // Any click on the overlay closes the dialog → show hand cursor
                 overClickable = true;
             }
         }
@@ -900,6 +911,7 @@ public sealed class Game : IGame
         _dialogItemName = item;
         _showItemDialog = true;
         _dialogCloseHovered = false;
+        _dialogActionHovered = false;
     }
 
     private void CloseItemDialog()
@@ -907,6 +919,22 @@ public sealed class Game : IGame
         _showItemDialog = false;
         _dialogItemIndex = -1;
         _dialogItemName = "";
+        _dialogActionHovered = false;
+    }
+
+    private static bool CanDrinkItem(string itemName) =>
+        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase);
+
+    private void TryDrinkBottledWater()
+    {
+        if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
+        if (!CanDrinkItem(_backpack[_dialogItemIndex] ?? "")) return;
+
+        _backpack[_dialogItemIndex] = ItemEmptyBottle;
+        _hydration = 100;
+        _actionMessage = "You drink the water. Fully hydrated.";
+        _actionMessageTimer = ActionMessageDuration;
+        CloseItemDialog();
     }
 
     private bool TryAddToBackpack(string item)
@@ -999,8 +1027,7 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // SIMPLE ITEM DIALOG (modal)
-    // Only "Close" for now — placeholder for future use / examine / drop / etc.
+    // ITEM DIALOG (modal) — use / examine / close per item
     // =====================================================================
     private void DrawItemDialog()
     {
@@ -1009,6 +1036,8 @@ public sealed class Game : IGame
 
         // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
+
+        bool canDrink = CanDrinkItem(_dialogItemName);
 
         // Centered dialog panel
         int panelW = 380;
@@ -1043,37 +1072,55 @@ public sealed class Game : IGame
         // Subtle separator
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
-        // Placeholder body text
-        string body = "No special actions defined for this item yet.";
+        string body = canDrink
+            ? "Drink it to fully restore hydration."
+            : string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
+                ? "An empty plastic bottle. Nothing left to drink."
+                : "No special actions defined for this item yet.";
         int bodySize = 16;
         int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
         Raylib.DrawTextEx(font, body,
             new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
             bodySize, 0.6f, Palette.TextSecondary);
 
-        // "CLOSE" button (styled similarly to action buttons)
-        int btnW = 120;
+        int btnW = canDrink ? 108 : 120;
         int btnH = 36;
-        int btnX = panelX + (panelW - btnW) / 2;
         int btnY = panelY + panelH - 52;
 
-        _dialogCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        if (canDrink)
+        {
+            int gap = 14;
+            int totalW = btnW * 2 + gap;
+            int startX = panelX + (panelW - totalW) / 2;
+            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
 
-        Color btnBg = _dialogCloseHovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
-        Color btnBorder = _dialogCloseHovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
+            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
+            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+        }
+        else
+        {
+            _dialogActionRect = new Rectangle(0, 0, 0, 0);
+            int btnX = panelX + (panelW - btnW) / 2;
+            _dialogCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+        }
+    }
 
-        Raylib.DrawRectangleRec(_dialogCloseRect, btnBg);
-        Raylib.DrawRectangleLinesEx(_dialogCloseRect, 1.5f, btnBorder);
+    private void DrawDialogButton(Rectangle rect, string label, bool hovered, Font font)
+    {
+        Color btnBg = hovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
+        Color btnBorder = hovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
 
-        // Top accent line (matches action button style)
-        Raylib.DrawRectangle(btnX + 2, btnY + 2, btnW - 4, 2, Palette.ButtonTopAccent);
+        Raylib.DrawRectangleRec(rect, btnBg);
+        Raylib.DrawRectangleLinesEx(rect, 1.5f, btnBorder);
+        Raylib.DrawRectangle((int)rect.X + 2, (int)rect.Y + 2, (int)rect.Width - 4, 2, Palette.ButtonTopAccent);
 
-        string closeText = "CLOSE";
-        int closeSize = 18;
-        int closeW = (int)Raylib.MeasureTextEx(font, closeText, closeSize, 0.7f).X;
-        Raylib.DrawTextEx(font, closeText,
-            new Vector2(btnX + (btnW - closeW) / 2, btnY + 9),
-            closeSize, 0.7f, Palette.TextPrimary);
+        int labelSize = 18;
+        int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.7f).X;
+        Raylib.DrawTextEx(font, label,
+            new Vector2(rect.X + (rect.Width - labelW) / 2, rect.Y + 9),
+            labelSize, 0.7f, Palette.TextPrimary);
     }
 
     // =====================================================================
