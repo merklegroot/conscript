@@ -32,9 +32,11 @@ public sealed class Game : IGame
     private Texture2D _forestBackground;
     private Texture2D _storeBackground;
 
-    // Restart button (top right, always available)
+    // Restart + debug buttons (top right, always available)
     private Rectangle _restartButtonRect;
+    private Rectangle _debugStartButtonRect;
     private bool _restartHovered;
+    private bool _debugStartHovered;
 
     // === Game flow ===
     private enum Phase
@@ -461,12 +463,18 @@ public sealed class Game : IGame
         Vector2 mouse = Raylib.GetMousePosition();
         bool leftClicked = Raylib.IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON);
 
-        // Restart button (top right)
-        UpdateRestartButtonLayout();
+        // Top-right utility buttons
+        UpdateTopRightButtonsLayout();
         _restartHovered = Raylib.CheckCollisionPointRec(mouse, _restartButtonRect);
+        _debugStartHovered = Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect);
         if (leftClicked && _restartHovered)
         {
             RestartGame();
+            return;
+        }
+        if (leftClicked && _debugStartHovered)
+        {
+            DebugStartGame();
             return;
         }
 
@@ -578,8 +586,9 @@ public sealed class Game : IGame
         // === Update mouse cursor to indicate clickable elements ===
         bool overClickable = false;
 
-        // Restart button (always available)
-        if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect))
+        // Top-right utility buttons (always available)
+        if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect))
             overClickable = true;
 
         if (!_showItemDialog && !_showStoreBuyMenu)
@@ -793,13 +802,14 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private void UpdateRestartButtonLayout()
+    private void UpdateTopRightButtonsLayout()
     {
         const float size = 20f;
+        const float gap = 6f;
         const float margin = 26f;
         float x = _screenWidth - margin - size;
-        float y = 10f;
-        _restartButtonRect = new Rectangle(x, y, size, size);
+        _restartButtonRect = new Rectangle(x, 10f, size, size);
+        _debugStartButtonRect = new Rectangle(x, 10f + size + gap, size, size);
     }
 
     private void RestartGame()
@@ -813,6 +823,29 @@ public sealed class Game : IGame
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
         EnterPhase(Phase.Opening);
+    }
+
+    /// <summary>
+    /// Jump to a reproducible debug snapshot: late-night kiosk after fleeing the apartment.
+    /// Resets stats, money, and backpack to a clean starting point for store testing.
+    /// </summary>
+    private void DebugStartGame()
+    {
+        _showItemDialog = false;
+        _showStoreBuyMenu = false;
+        _storeBuyFeedback = "";
+        _storeBuyFeedbackTimer = 0f;
+        _deathLine1 = "You died.";
+        _deathLine2 = "The war took you on the first day.";
+
+        _health = 96;
+        _satiation = 69;    // ate at home, then lost some fleeing the courtyard
+        _hydration = 76;
+        _comfort = 80;      // warm kiosk after the cold yard
+        _money = 10000;
+        _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+
+        EnterPhase(Phase.Store);
     }
 
     private void OpenItemDialog(int slotIndex)
@@ -895,6 +928,32 @@ public sealed class Game : IGame
         float sx = _restartButtonRect.X + (_restartButtonRect.Width - m.X) / 2f;
         float sy = _restartButtonRect.Y + (_restartButtonRect.Height - symSize) / 2f - 0.5f;
         Raylib.DrawTextEx(_uiFont, sym, new Vector2(sx, sy), symSize, 0.6f, Palette.TextPrimary);
+    }
+
+    private void DrawDebugStartButton()
+    {
+        if (_debugStartButtonRect.Width <= 0) return;
+
+        Color bg = _debugStartHovered
+            ? new Color(58, 63, 74, 255)
+            : new Color(32, 35, 42, 255);
+        Color border = _debugStartHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
+
+        Raylib.DrawRectangleRec(_debugStartButtonRect, bg);
+        Raylib.DrawRectangleLinesEx(_debugStartButtonRect, 1.0f, border);
+
+        const string label = "DBG";
+        float labelSize = 8f;
+        Vector2 m = Raylib.MeasureTextEx(_uiFont, label, labelSize, 0.5f);
+        float lx = _debugStartButtonRect.X + (_debugStartButtonRect.Width - m.X) / 2f;
+        float ly = _debugStartButtonRect.Y + (_debugStartButtonRect.Height - labelSize) / 2f - 0.5f;
+        Raylib.DrawTextEx(_uiFont, label, new Vector2(lx, ly), labelSize, 0.5f, Palette.TextSecondary);
+    }
+
+    private void DrawTopRightButtons()
+    {
+        DrawRestartButton();
+        DrawDebugStartButton();
     }
 
     // =====================================================================
@@ -1196,7 +1255,7 @@ public sealed class Game : IGame
             new Vector2(tempX, row2Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
-        DrawRestartButton();
+        DrawTopRightButtons();
     }
 
     /// <summary>
@@ -1645,7 +1704,7 @@ public sealed class Game : IGame
         // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
         DrawActionBar();
 
-        DrawRestartButton();
+        DrawTopRightButtons();
     }
 
     private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
