@@ -79,6 +79,13 @@ Possible endings include reaching the border, becoming a hidden “ghost” in t
 ## Tone
 Oppressive, realistic, and claustrophobic. The game does not glorify war — it portrays the quiet fear, moral weight, and harsh realities of trying to dodge or desert military service in modern Russia.
 
+## Resources for real conscripts
+
+If you or someone you know is facing conscription, these organizations provide confidential legal help, hotlines, and practical support:
+
+- **[OVD-Info](https://ovdinfo.org)** — Legal help, hotlines, and mobilization tracking
+- **[Idite Lesom](https://iditelesom.org)** ("Go to the Forest") — Project specifically helping people avoid mobilization
+
 ## Development
 
 **Tech stack:** .NET 10 + Raylib-cs (inspired by the Starflight reimplementation in `~/repo/starflt`).
