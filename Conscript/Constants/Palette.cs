@@ -30,7 +30,7 @@ public static class Palette
     public static readonly Color Health = new Color(78, 118, 92, 255);         // desaturated forest green
     public static readonly Color Satiation = new Color(168, 105, 68, 255);     // dull clay / warmth (higher = better)
     public static readonly Color Hydration = new Color(72, 118, 138, 255);       // cold desaturated blue
-    public static readonly Color Exposure = new Color(118, 108, 72, 255);      // dirty ochre / cold yellow
+    public static readonly Color Comfort = new Color(138, 122, 88, 255);         // warm sheltered ochre (higher = better)
     public static readonly Color Money = new Color(138, 125, 78, 255);         // tarnished gold
 
     // === UI State ===

@@ -65,7 +65,7 @@ public sealed class Game : IGame
     private int _satiation = 63;   // how fed you are (higher = better)
     private int _hydration = 72;   // how hydrated you are (higher = better)
     private string _status = "Fugitive - Deep Forest";
-    private int _exposure = 38;
+    private int _comfort = 62;   // protection from the elements (higher = better)
 
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
@@ -168,7 +168,7 @@ public sealed class Game : IGame
                 _health = 96;
                 _satiation = 78;   // just ate at home
                 _hydration = 80;
-                _exposure = 2;
+                _comfort = 98;   // warm and dry inside the apartment
                 _money = 10000;   // Starting with 10,000 ₽
 
                 // Reset backpack to starting gear (knife, lighter, phone)
@@ -213,7 +213,7 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
-                _exposure  = Clamp(_exposure + 18);
+                _comfort  = Clamp(_comfort - 18);   // cold night in the open courtyard
                 _satiation = Clamp(_satiation - 9);   // the adrenaline and cold wear you down
                 _hydration = Clamp(_hydration - 4);
                 // money, health etc. carry over from the apartment
@@ -709,7 +709,7 @@ public sealed class Game : IGame
         switch (index)
         {
             case 0:
-                _exposure = Clamp(_exposure - 11);
+                _comfort = Clamp(_comfort + 11);
                 _satiation = Clamp(_satiation + 11);   // eating foraged food or cooking
                 _health = Clamp(_health - 3);
                 _actionMessage = "Better shelter. The wind is less cruel tonight.";
@@ -717,12 +717,12 @@ public sealed class Game : IGame
 
             case 1:
                 _money = Math.Max(0, _money - 180);
-                _exposure = Clamp(_exposure + 7);
+                _comfort = Clamp(_comfort - 7);
                 _actionMessage = "You found dry branches and a few cans. Exhausting work.";
                 break;
 
             case 2:
-                _exposure = Clamp(_exposure - 18);
+                _comfort = Clamp(_comfort + 18);
                 _satiation = Clamp(_satiation - 14);   // hard physical labor burns calories fast
                 _health = Clamp(_health + 5);
                 _actionMessage = "The walls are tighter. The cold bites less.";
@@ -749,7 +749,7 @@ public sealed class Game : IGame
                 return;
 
             case 1: // Head for the train tracks — the real way out of the city
-                _exposure = Clamp(_exposure - 5);
+                _comfort = Clamp(_comfort - 5);   // out in the cold, moving toward the railyard
                 _actionMessage = "You slip along the service road toward the railyard. The tracks are your way out.";
                 AdvanceTime();
                 EnterPhase(Phase.Forest);
@@ -1333,7 +1333,7 @@ public sealed class Game : IGame
         DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
         DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, Palette.Satiation);
         DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, Palette.Hydration);
-        DrawCleanStatLine(ref cy, tx, "Exposure", _exposure, Palette.Exposure);
+        DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, Palette.Comfort);
 
         cy += 6;
 

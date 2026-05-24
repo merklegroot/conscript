@@ -28,8 +28,8 @@ This extremely constrained starting inventory is a core source of early-game ten
 ## Core Stats
 - **Health** — Your physical condition
 - **Satiation** — How well fed you are (low satiation weakens you and forces desperate choices)
-- **Hydration** — How well hydrated you are (dehydration slows you and worsens cold exposure)
-- **Exposure** — How visible your shelter and tracks are to search parties
+- **Hydration** — How well hydrated you are (dehydration slows you and worsens the cold)
+- **Comfort** — How protected you are from the elements: warmth, dryness, and shelter
 - **Supplies** — Food, firewood, and essential resources
 - **Season** — Early Winter (resources decay faster and survival becomes much harder)
 
@@ -45,7 +45,7 @@ The game is played in **daily turns**. You receive **3 Action Points** each day 
 - Resting or listening to the radio for news
 
 **Every action involves meaningful trade-offs.**  
-Risky choices (lighting fires, staying in one place too long, or moving during the day) can raise **Exposure**. The game uses simple hidden rolls modified by your stats, preparations, and current conditions. Poor decisions can quickly lead to patrols closing in, illness, or freezing to death.
+Risky choices (lighting fires, staying in one place too long, or moving during the day) can lower **Comfort**. The game uses simple hidden rolls modified by your stats, preparations, and current conditions. Poor decisions can quickly lead to patrols closing in, illness, or freezing to death.
 
 At the end of each day, a random event occurs — ranging from harsh weather and supply discoveries to military search sweeps.
 
@@ -60,12 +60,12 @@ The game uses a clean, atmospheric UI with a large central image and persistent 
 
 **Deep Forest Camp (Mid-Game)**  
 - Central image: Moss-covered lean-to or hollow stump in heavy snow.
-- Stats: Declining Health, Exposure meter visible.
+- Stats: Declining Health, Comfort meter visible.
 - Choices: “Gather Firewood”, “Improve Camouflage”, “Check Traps”, “Move Deeper”.
 
 **On the Run (High Tension)**  
 - Central image: You running at night with distant patrol flashlights behind you.
-- Stats: High Exposure, low Health, low Satiation and Hydration.
+- Stats: Low Comfort, low Health, low Satiation and Hydration.
 - Choices: “Push Deeper”, “Create False Trail”, “Hide in Stump”, etc.
 
 **Bug Harvest Mini-Game**  
@@ -101,7 +101,7 @@ dotnet run
 
 **Layout & Polish:**
 - Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time and current Location (center), and Season with icon (right).
-- Fixed-width left sidebar (Status panel) containing clean, well-spaced stats with elegant thin colored progress bars for Health / Satiation / Hydration / Exposure, plus Money (shown in ₽) and current Status.
+- Fixed-width left sidebar (Status panel) containing clean, well-spaced stats with elegant thin colored progress bars for Health / Satiation / Hydration / Comfort, plus Money (shown in ₽) and current Status.
 - Large central scene area with richer atmospheric placeholder art (different art for the opening apartment scene vs. the forest).
 - Large central scene area with **much richer atmospheric placeholder art**:
   - Layered forest (far → mid → near trees)
