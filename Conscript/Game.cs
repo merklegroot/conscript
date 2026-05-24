@@ -51,7 +51,6 @@ public sealed class Game : IGame
     };
 
     // Narrative text for the current scene (from reference)
-    private const string ShortNarrative = "Deeper now. The trees are closing in. Winter is coming early.";
     private const string LongNarrative =
         "You pushed deeper into the forest.\nThe city is far behind. First light snow\nhas begun to fall — winter is arriving\nsooner than expected. This will not be easy.";
 
@@ -214,8 +213,8 @@ public sealed class Game : IGame
         Font font = _uiFont;
 
         // We use two text rows for center and right zones for clarity + breathing room
-        int row1Y = 11;   // upper line
-        int row2Y = 30;   // lower line
+        int row1Y = 16;   // upper line (36pt title)
+        int row2Y = 40;   // lower line
 
         // LEFT ZONE — prominent title
         int leftX = 26;
@@ -223,9 +222,9 @@ public sealed class Game : IGame
             new Vector2(leftX, row1Y),
             LayoutConstants.TitleFontSize, 0.85f, Palette.TextPrimary);
 
-        // Elegant underline
+        // Elegant underline (positioned for the 36pt title)
         int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
-        Raylib.DrawLine(leftX, row1Y + 22, leftX + titleW, row1Y + 22, Palette.StrongBorder);
+        Raylib.DrawLine(leftX, row1Y + 28, leftX + titleW, row1Y + 28, Palette.StrongBorder);
 
         // CENTER ZONE — Day and War Intensity (centered in middle of screen)
         string dayLine = $"Day {_day} - {_timeOfDay}";
@@ -278,19 +277,7 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
         int tx = x + GameConstants.SidebarPadding;
-        int cy = y + 16;
-
-        // === Small flavor text box at the very top (above STATUS) ===
-        int flavorH = 46;
-        Raylib.DrawRectangle(tx - 2, cy, w - GameConstants.SidebarPadding * 2 + 4, flavorH, Palette.CardBg);
-        Raylib.DrawRectangleLines(tx - 2, cy, w - GameConstants.SidebarPadding * 2 + 4, flavorH, Palette.CardBorder);
-
-        // Just the narrative text, no extra "THE FOREST" label — clean and atmospheric
-        Raylib.DrawTextEx(font, ShortNarrative,
-            new Vector2(tx + 4, cy + 12),
-            LayoutConstants.SidebarFlavorSize, 0.8f, Palette.TextPrimary);
-
-        cy += flavorH + 18;
+        int cy = y + 28;   // comfortable top padding for the STATUS section with larger fonts
 
         // === STATUS header ===
         Raylib.DrawTextEx(font, "STATUS",
@@ -578,12 +565,12 @@ public sealed class Game : IGame
     {
         Font font = _uiFont;   // the nice readable font (falls back to default if none present)
         float fontSize = LayoutConstants.NarrativeLongSize;
-        float spacing = 0.95f; // slightly tighter than default for clean paragraphs
-        int lineHeight = (int)(fontSize * 1.35f); // comfortable line spacing for readability
+        float spacing = 0.9f;  // a touch tighter for 18pt body text
+        int lineHeight = (int)(fontSize * 1.42f); // generous, readable line spacing at the larger size
 
-        int maxCardWidth = 280;                    // target width for the card
-        int horizontalPadding = 14;
-        int verticalPadding = 12;
+        int maxCardWidth = 320;                    // wider to accommodate the larger 18pt narrative text with fewer wraps
+        int horizontalPadding = 18;
+        int verticalPadding = 16;                  // generous padding so the bigger text feels comfortable and airy
 
         int textMaxWidth = maxCardWidth - horizontalPadding * 2;
 
@@ -683,7 +670,7 @@ public sealed class Game : IGame
         string hint = "← →  or  A D    select        ENTER  or  1–4    act        Q  or  ESC    quit";
         int hintWidth = (int)Raylib.MeasureTextEx(font, hint, LayoutConstants.SmallHintSize, 0.6f).X;
         Raylib.DrawTextEx(font, hint,
-            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 18),
+            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 24),
             LayoutConstants.SmallHintSize, 0.6f, Palette.TextDim);
     }
 

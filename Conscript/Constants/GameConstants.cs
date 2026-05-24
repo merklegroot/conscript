@@ -10,7 +10,7 @@ public static class GameConstants
     public const int ScreenHeight = 720;
 
     // === Top Header Bar ===
-    public const int TopBarHeight = 62;   // more breathing room, less cramped
+    public const int TopBarHeight = 78;   // extra height for 36pt title + two-row layout
 
     // === Left Sidebar (Stats + Flavor) ===
     public const int SidebarWidth = 292;  // wider for clean list + long status text
@@ -28,7 +28,7 @@ public static class GameConstants
     public const int ScenePadding = 24;
 
     // === Bottom Action Bar ===
-    public const int ActionBarHeight = 86;      // taller for visual weight and comfortable padding
+    public const int ActionBarHeight = 94;      // taller for 21pt buttons + hint
     public const int ActionBarPaddingY = 13;
     public const int ActionButtonGap = 12;
     public const int ActionButtonCount = 4;
