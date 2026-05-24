@@ -84,6 +84,7 @@ public sealed class Game : IGame
     // === Core stats (values from the reference) ===
     private int _money = 10000;   // Starting money in Russian Rubles (₽)
     private int _health = 81;
+    private int _energy = 70;    // how rested you are (higher = better; low energy will eventually force sleep)
     private int _satiation = 63;   // how fed you are (higher = better)
     private int _hydration = 72;   // how hydrated you are (higher = better)
     private string _status = "Fugitive - Deep Forest";
@@ -190,6 +191,7 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 34;   // tense night outside the apartment
                 _health = 96;
+                _energy = 85;   // tense evening, but still rested from a day at home
                 _satiation = 78;   // just ate at home
                 _hydration = 80;
                 _comfort = 98;   // warm and dry inside the apartment
@@ -232,6 +234,7 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
                 _comfort  = Clamp(_comfort - 18);   // cold night in the open courtyard
+                _energy   = Clamp(_energy - 15);   // adrenaline crash after the escape
                 _satiation = Clamp(_satiation - 9);   // the adrenaline and cold wear you down
                 _hydration = Clamp(_hydration - 4);
                 // money, health etc. carry over from the apartment
@@ -283,6 +286,9 @@ public sealed class Game : IGame
         {
             _day++;
         }
+
+        // Actions and time passing wear you down
+        _energy = Clamp(_energy - 8 * steps);
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
         if (_phase == Phase.Outside || _phase == Phase.Forest)
@@ -857,6 +863,7 @@ public sealed class Game : IGame
         _deathLine2 = "The war took you on the first day.";
 
         _health = 96;
+        _energy = 58;       // exhausted after fleeing the apartment
         _satiation = 69;    // ate at home, then lost some fleeing the courtyard
         _hydration = 76;
         _comfort = 80;      // warm kiosk after the cold yard
@@ -1459,6 +1466,7 @@ public sealed class Game : IGame
         // === Clean vertical stat list ===
         // Numeric stats with bars (label + value on one line, bar underneath)
         DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
+        DrawCleanStatLine(ref cy, tx, "Energy", _energy, Palette.Energy);
         DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, Palette.Satiation);
         DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, Palette.Hydration);
         DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, Palette.Comfort);
