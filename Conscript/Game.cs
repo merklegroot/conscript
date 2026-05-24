@@ -105,7 +105,7 @@ public sealed class Game : IGame
     private int _actionComfortDelta;
     private float _actionDeltaTimer;
     private const float ActionDeltaDisplayDuration = 2f;
-    private const int EnvComfortPerAction = -3;   // cold yard tax on every action while outside
+    // Sergei fled wearing his winter jacket (on his body, not in the backpack grid).
 
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
@@ -221,7 +221,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Forest:
-                _choices = new[] { "GO BACK TO TOWN" };
+                _choices = new[] { "GO BACK TO TOWN", "WAIT" };
                 ClearEnvDeltas();
                 // The existing forest values
                 _day = 3;
@@ -244,7 +244,8 @@ public sealed class Game : IGame
                     "HIDE IN THE GARBAGE",
                     "HEAD FOR THE FOREST",
                     "GO TO UNCLE'S HOUSE",
-                    "CONVENIENCE STORE"
+                    "CONVENIENCE STORE",
+                    "WAIT"
                 };
                 _day = 0;
                 _timeOfDay = "Night";
@@ -260,9 +261,10 @@ public sealed class Game : IGame
                 _choices = new[]
                 {
                     "BROWSE SHELVES",
-                    "LEAVE THE WAY YOU CAME"
+                    "LEAVE THE WAY YOU CAME",
+                    "WAIT"
                 };
-                ClearEnvDeltas();
+                ApplyEnvironmentHeatedBuilding();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Late-Night Kiosk";
@@ -314,6 +316,9 @@ public sealed class Game : IGame
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
             else if (_timeOfDay == "Morning")
                 _temperatureF = Math.Min(60, _temperatureF + 1);
+
+            if (_phase == Phase.Outside)
+                RefreshOutdoorComfortEnvironment();
         }
     }
 
@@ -739,6 +744,7 @@ public sealed class Game : IGame
 
     private void PerformChoice(int index)
     {
+        ClearActionDeltas();
         switch (_phase)
         {
             case Phase.Opening:
@@ -792,8 +798,15 @@ public sealed class Game : IGame
 
     private void HandleForestChoice(int index)
     {
-        if (index == 0)
-            EnterPhase(Phase.Outside);
+        switch (index)
+        {
+            case 0:
+                EnterPhase(Phase.Outside);
+                break;
+            case 1:
+                PerformIdle();
+                break;
+        }
     }
 
     private void HandleOutsideChoice(int index)
@@ -826,6 +839,10 @@ public sealed class Game : IGame
                 _actionMessageTimer = 1.8f;
                 EnterPhase(Phase.Store);
                 return;
+
+            case 4: // Wait in the courtyard
+                PerformIdle();
+                return;
         }
 
         AdvanceTime();
@@ -848,9 +865,37 @@ public sealed class Game : IGame
                 AdvanceTime();
                 EnterPhase(Phase.Outside);
                 return;
+
+            case 2: // Wait inside the kiosk
+                PerformIdle();
+                return;
         }
 
         AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void PerformIdle()
+    {
+        switch (_phase)
+        {
+            case Phase.Outside:
+                _actionMessage = "You press yourself into the shadows and listen. Nothing moves.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.Store:
+                _actionMessage = "You linger by the shelves, pretending to read labels.";
+                break;
+            case Phase.Forest:
+                _actionMessage = "You stay low and motionless. The forest is quiet.";
+                break;
+            default:
+                return;
+        }
+
+        AdvanceTime();
+        // Waiting costs time but recovers a little energy (net gain after AdvanceTime's drain).
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, 12);
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -933,6 +978,7 @@ public sealed class Game : IGame
         if (!CanDrinkItem(_backpack[_dialogItemIndex] ?? "")) return;
 
         _backpack[_dialogItemIndex] = ItemEmptyBottle;
+        ClearActionDeltas();
         SetStatFromAction(ref _hydration, ref _actionHydrationDelta, 100);
         _actionMessage = "You drink the water. Fully hydrated.";
         _actionMessageTimer = ActionMessageDuration;
@@ -973,6 +1019,7 @@ public sealed class Game : IGame
         }
 
         _money -= price;
+        ClearActionDeltas();
         ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, satiationDelta);
         ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, hydrationDelta);
         ModifyStatFromAction(ref _health, ref _actionHealthDelta, healthDelta);
@@ -2092,6 +2139,14 @@ public sealed class Game : IGame
         _envComfortDelta = 0;
     }
 
+    private void ClearNonComfortEnvDeltas()
+    {
+        _envHealthDelta = 0;
+        _envEnergyDelta = 0;
+        _envSatiationDelta = 0;
+        _envHydrationDelta = 0;
+    }
+
     private void ClearActionDeltas()
     {
         _actionHealthDelta = 0;
@@ -2128,20 +2183,53 @@ public sealed class Game : IGame
     private void ApplyEnvironmentOnAction()
     {
         if (_phase != Phase.Outside) return;
-        ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, EnvComfortPerAction);
+        ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, OutdoorComfortPerActionPenalty());
     }
 
     private void ApplyEnvironmentOutside()
     {
-        ClearEnvDeltas();
-        ApplyEnvChange(ref _comfort, ref _envComfortDelta, -18);   // cold night in the open courtyard
+        ClearNonComfortEnvDeltas();
+        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF));
     }
 
-    private static void ApplyEnvChange(ref int stat, ref int envDelta, int amount)
+    private void ApplyEnvironmentHeatedBuilding()
     {
-        if (amount == 0) return;
-        envDelta = amount;
-        stat = Clamp(stat + amount);
+        ClearNonComfortEnvDeltas();
+        SetEnvironmentComfort(HeatedBuildingComfortBonus);
+    }
+
+    private const int HeatedBuildingComfortBonus = 4;   // 1 green arrow — warmed up a little indoors
+
+    private void SetEnvironmentComfort(int targetDelta)
+    {
+        int diff = targetDelta - _envComfortDelta;
+        if (diff == 0) return;
+        _envComfortDelta = targetDelta;
+        _comfort = Clamp(_comfort + diff);
+    }
+
+    /// <summary>
+    /// Steady outdoor discomfort while wearing a winter coat (maps to 1–3 arrows).
+    /// </summary>
+    private static int OutdoorComfortPenaltyForTemp(int tempF)
+    {
+        if (tempF >= 40) return -2;   // 1 arrow — cool air, mostly fine
+        if (tempF >= 22) return -4;   // 1 arrow — chilly courtyard in a winter coat (~27°F)
+        if (tempF >= 12) return -8;   // 2 arrows — cold night in the open
+        if (tempF >= 0) return -12;   // 2 arrows — biting cold
+        return -18;                   // 3 arrows — brutal / hypothermia risk
+    }
+
+    private static int OutdoorComfortPerActionPenalty(int tempF) =>
+        tempF >= 22 ? -1 : tempF >= 12 ? -2 : -3;
+
+    private int OutdoorComfortPerActionPenalty() =>
+        OutdoorComfortPerActionPenalty(_temperatureF);
+
+    private void RefreshOutdoorComfortEnvironment()
+    {
+        if (_phase != Phase.Outside) return;
+        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF));
     }
 
     private static int StatArrowCount(int delta)
