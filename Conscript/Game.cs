@@ -54,14 +54,12 @@ public sealed class Game : IGame
     // === Top bar context (matches reference image) ===
     private int _day = 3;
     private string _timeOfDay = "Morning";
-    private string _warIntensity = "Low";
     private string _location = "Family Apartment";
     private string _city = "Ulan-Ude, Republic of Buryatia";
     private string _season = "Early Autumn";
     private int _temperatureF = 34;   // default Fahrenheit ( Buryatia autumn nights are cold )
 
     // === Core stats (values from the reference) ===
-    private int _suspicion = 26;
     private int _money = 10000;   // Starting money in Russian Rubles (₽)
     private int _health = 81;
     private int _hunger = 37;   // starts moderately hungry (higher = worse)
@@ -83,7 +81,7 @@ public sealed class Game : IGame
     private bool _showStoreBuyMenu;
     private string _storeBuyFeedback = "";
     private float _storeBuyFeedbackTimer;
-    private Rectangle[] _storeBuyItemRects = new Rectangle[3];  // populated during DrawStoreBuyMenu
+    private Rectangle[] _storeBuyItemRects = new Rectangle[5];  // populated during DrawStoreBuyMenu
     private Rectangle _storeBuyPanelRect;
     private Rectangle _storeBuyCloseRect;
     private bool _storeBuyCloseHovered;
@@ -92,11 +90,13 @@ public sealed class Game : IGame
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
 
     // Items available in the convenience store kiosk
-    private readonly (string name, int price, int hungerDelta, int healthDelta, int suspicionDelta)[] _storeCatalog = new[]
+    private readonly (string name, int price, int hungerDelta, int healthDelta)[] _storeCatalog = new[]
     {
-        ("Bottled Water",  65,  -7, +2, +1),
-        ("Loaf of Bread", 140, -22, +3, +2),
-        ("Canned Soup",  195, -28, +5, +2),
+        ("Bottled Water",  65,  -7, +2),
+        ("Loaf of Bread", 140, -22, +3),
+        ("Canned Soup",  195, -28, +5),
+        ("Trash Bags",    85,   0,  0),
+        ("Duct Tape",    120,   0,  0),
     };
 
     // Custom death screen text (set before entering Phase.Death for specific endings)
@@ -159,13 +159,11 @@ public sealed class Game : IGame
                 // Starting values for the very first moment
                 _day = 0;
                 _timeOfDay = "Evening";
-                _warIntensity = "Rising";
                 _location = "Family Apartment";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "At Home";
                 _season = "Early Autumn";
                 _temperatureF = 34;   // tense night outside the apartment
-                _suspicion = 4;
                 _health = 96;
                 _hunger = 22;   // just ate at home, not very hungry yet
                 _exposure = 2;
@@ -186,7 +184,6 @@ public sealed class Game : IGame
                 // The existing forest values
                 _day = 3;
                 _timeOfDay = "Morning";
-                _warIntensity = "Low";
                 _location = "Deep Forest";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "Fugitive - Deep Forest";
@@ -209,13 +206,11 @@ public sealed class Game : IGame
                 };
                 _day = 0;
                 _timeOfDay = "Night";
-                _warIntensity = "Rising";
                 _location = "Apartment Courtyard";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
-                _suspicion = Clamp(_suspicion + 10);
                 _exposure  = Clamp(_exposure + 18);
                 _hunger    = Clamp(_hunger + 9);   // the adrenaline and cold make you hungrier
                 // money, health etc. carry over from the apartment
@@ -229,7 +224,6 @@ public sealed class Game : IGame
                 };
                 _day = 0;
                 _timeOfDay = "Night";
-                _warIntensity = "Rising";
                 _location = "Late-Night Kiosk";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
@@ -732,7 +726,6 @@ public sealed class Game : IGame
                 break;
 
             case 3:
-                _suspicion = Clamp(_suspicion + 5);
                 _hunger = Clamp(_hunger - 3);    // small comfort from the radio, but not much food
                 _actionMessage = "Static. A name you know. Nothing about you yet.";
                 break;
@@ -753,7 +746,6 @@ public sealed class Game : IGame
                 return;
 
             case 1: // Head for the train tracks — the real way out of the city
-                _suspicion = Clamp(_suspicion + 5);
                 _exposure = Clamp(_exposure - 5);
                 _actionMessage = "You slip along the service road toward the railyard. The tracks are your way out.";
                 AdvanceTime();
@@ -856,7 +848,7 @@ public sealed class Game : IGame
     {
         if (index < 0 || index >= _storeCatalog.Length) return;
 
-        var (name, price, hungerDelta, healthDelta, suspicionDelta) = _storeCatalog[index];
+        var (name, price, hungerDelta, healthDelta) = _storeCatalog[index];
 
         if (_money < price)
         {
@@ -875,7 +867,6 @@ public sealed class Game : IGame
         _money -= price;
         _hunger = Clamp(_hunger + hungerDelta);
         _health = Clamp(_health + healthDelta);
-        _suspicion = Clamp(_suspicion + suspicionDelta);
 
         _storeBuyFeedback = $"Bought {name}";
         _storeBuyFeedbackTimer = 1.2f;
@@ -1020,7 +1011,7 @@ public sealed class Game : IGame
 
         for (int i = 0; i < _storeCatalog.Length; i++)
         {
-            var (name, price, _, _, _) = _storeCatalog[i];
+            var (name, price, _, _) = _storeCatalog[i];
 
             int rowY = rowStartY + i * rowHeight;
 
@@ -1333,13 +1324,8 @@ public sealed class Game : IGame
         Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
         cy += 10;
 
-        // War Intensity (moved here from top bar — high-level threat context)
-        DrawTextStatLine(ref cy, tx, "War Intensity", _warIntensity);
-        cy += 4;
-
         // === Clean vertical stat list ===
         // Numeric stats with bars (label + value on one line, bar underneath)
-        DrawCleanStatLine(ref cy, tx, "Suspicion", _suspicion, Palette.Suspicion);
         DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
         DrawCleanStatLine(ref cy, tx, "Hunger", _hunger, Palette.Hunger);
         DrawCleanStatLine(ref cy, tx, "Exposure", _exposure, Palette.Exposure);

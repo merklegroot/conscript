@@ -26,7 +26,6 @@ This extremely constrained starting inventory is a core source of early-game ten
 - Flee the war after being conscripted
 
 ## Core Stats
-- **Suspicion** — How close the authorities are to finding you (0-100%)
 - **Health** — Your physical condition
 - **Hunger** — How empty your stomach is (high hunger weakens you and forces desperate choices)
 - **Exposure** — How visible your shelter and tracks are to search parties
@@ -45,7 +44,7 @@ The game is played in **daily turns**. You receive **3 Action Points** each day 
 - Resting or listening to the radio for news
 
 **Every action involves meaningful trade-offs.**  
-Risky choices (lighting fires, staying in one place too long, or moving during the day) can raise **Suspicion** and **Exposure**. The game uses simple hidden rolls modified by your stats, preparations, and current conditions. Poor decisions can quickly lead to patrols closing in, illness, or freezing to death.
+Risky choices (lighting fires, staying in one place too long, or moving during the day) can raise **Exposure**. The game uses simple hidden rolls modified by your stats, preparations, and current conditions. Poor decisions can quickly lead to patrols closing in, illness, or freezing to death.
 
 At the end of each day, a random event occurs — ranging from harsh weather and supply discoveries to military search sweeps.
 
@@ -55,17 +54,17 @@ The game uses a clean, atmospheric UI with a large central image and persistent 
 
 **Day 1 - City Apartment (Starting Screen)**  
 - Central image: You sitting at a table staring at the draft summons envelope.
-- Stats: Very low Suspicion, high Health, low Hunger.
+- Stats: High Health, low Hunger.
 - Choices: “Burn the Letter and Run”, “Ignore It For Now”, “Call Family”, etc.
 
 **Deep Forest Camp (Mid-Game)**  
 - Central image: Moss-covered lean-to or hollow stump in heavy snow.
-- Stats: Medium Suspicion, declining Health, Exposure meter visible.
+- Stats: Declining Health, Exposure meter visible.
 - Choices: “Gather Firewood”, “Improve Camouflage”, “Check Traps”, “Move Deeper”.
 
 **On the Run (High Tension)**  
 - Central image: You running at night with distant patrol flashlights behind you.
-- Stats: High Suspicion and Exposure, low Health, high Hunger.
+- Stats: High Exposure, low Health, high Hunger.
 - Choices: “Push Deeper”, “Create False Trail”, “Hide in Stump”, etc.
 
 **Bug Harvest Mini-Game**  
@@ -101,7 +100,7 @@ dotnet run
 
 **Layout & Polish:**
 - Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time and current Location (center), and Season with icon (right).
-- Fixed-width left sidebar (Status panel) containing War Intensity + clean, well-spaced stats with elegant thin colored progress bars for Suspicion / Health / Hunger / Exposure, plus Money (shown in ₽) and current Status.
+- Fixed-width left sidebar (Status panel) containing clean, well-spaced stats with elegant thin colored progress bars for Health / Hunger / Exposure, plus Money (shown in ₽) and current Status.
 - Large central scene area with richer atmospheric placeholder art (different art for the opening apartment scene vs. the forest).
 - Large central scene area with **much richer atmospheric placeholder art**:
   - Layered forest (far → mid → near trees)

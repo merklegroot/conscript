@@ -27,7 +27,6 @@ public static class Palette
     public static readonly Color TextDim = new Color(92, 90, 82, 255);          // very low priority
 
     // === Core Stat Colors (desaturated, cold, uneasy) ===
-    public static readonly Color Suspicion = new Color(145, 68, 58, 255);      // cold blood red
     public static readonly Color Health = new Color(78, 118, 92, 255);         // desaturated forest green
     public static readonly Color Hunger = new Color(168, 105, 68, 255);        // dull clay / hunger ochre (higher = worse)
     public static readonly Color Exposure = new Color(118, 108, 72, 255);      // dirty ochre / cold yellow
