@@ -1531,6 +1531,7 @@ public sealed class Game : IGame
             case Phase.Forest:
                 DrawTopBar();
                 DrawLeftSidebar();
+                DrawRightSidebar();
                 DrawCinematicScene();
                 DrawActionBar();
                 break;
@@ -1789,8 +1790,24 @@ public sealed class Game : IGame
 
         // Backpack grid (visual inventory)
         cy += 20;
-        cy = DrawBackpack(cy, tx);
-        cy += 10;
+        DrawBackpack(cy, tx);
+    }
+
+    // =====================================================================
+    // RIGHT PANEL — Region map
+    // =====================================================================
+    private void DrawRightSidebar()
+    {
+        int x = GameConstants.RightPanelLeft;
+        int y = GameConstants.TopBarHeight;
+        int w = GameConstants.RightPanelWidth;
+        int h = _screenHeight - y - GameConstants.ActionBarHeight;
+
+        Raylib.DrawRectangle(x, y, w, h, Palette.SidebarBg);
+        Raylib.DrawLine(x, y, x, y + h, Palette.Divider);
+
+        int tx = x + GameConstants.SidebarPadding;
+        int cy = y + 28;
         DrawWorldMap(cy, tx);
     }
 
@@ -2173,7 +2190,7 @@ public sealed class Game : IGame
     private void DrawWorldMap(int startY, int x)
     {
         Font font = _uiFont;
-        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
         const int mapH = 100;
         int sectionTop = startY;
 
@@ -2451,6 +2468,7 @@ public sealed class Game : IGame
 
         DrawTopBar();
         DrawLeftSidebar();
+        DrawRightSidebar();
 
         // Central area — apartment
         int left = GameConstants.SceneLeft;

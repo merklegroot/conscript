@@ -17,12 +17,15 @@ public static class GameConstants
     public const int SidebarPadding = 22;
     public const int SidebarInternalGap = 16;
 
+    // === Right Panel (Region map) ===
+    public const int RightPanelWidth = 292;
+
     // === Central Scene Area (the "stage") ===
     // Generous margins + padding so the art and overlays have room to breathe
     public const int SceneMarginTop = 14;
     public const int SceneMarginBottom = 14;
     public const int SceneMarginLeft = 16;
-    public const int SceneMarginRight = 20;
+    public const int SceneMarginRight = 16;
 
     // Inner padding around the actual artwork
     public const int ScenePadding = 24;
@@ -36,7 +39,8 @@ public static class GameConstants
     // Computed helpers (used in drawing)
     public static int SceneLeft => SidebarWidth + SceneMarginLeft;
     public static int SceneTop => TopBarHeight + SceneMarginTop;
-    public static int SceneRight => ScreenWidth - SceneMarginRight;
+    public static int RightPanelLeft => ScreenWidth - RightPanelWidth;
+    public static int SceneRight => RightPanelLeft - SceneMarginRight;
     public static int SceneBottom => ScreenHeight - ActionBarHeight - SceneMarginBottom;
 
     public static int SceneWidth => SceneRight - SceneLeft;
