@@ -79,8 +79,22 @@ public sealed class Game : IGame
     private bool _dialogCloseHovered;
     private Rectangle _dialogPanelRect;
 
+    // Convenience store buy menu (modal)
+    private bool _showStoreBuyMenu;
+    private string _storeBuyFeedback = "";
+    private float _storeBuyFeedbackTimer;
+    private Rectangle[] _storeBuyItemRects = new Rectangle[3];  // populated during DrawStoreBuyMenu
+
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
+
+    // Items available in the convenience store kiosk
+    private readonly (string name, int price, int hungerDelta, int healthDelta, int suspicionDelta)[] _storeCatalog = new[]
+    {
+        ("Bottled Water",  65,  -7, +2, +1),
+        ("Loaf of Bread", 140, -22, +3, +2),
+        ("Canned Soup",  195, -28, +5, +2),
+    };
 
     // Custom death screen text (set before entering Phase.Death for specific endings)
     private string _deathLine1 = "You died.";
@@ -207,9 +221,7 @@ public sealed class Game : IGame
             case Phase.Store:
                 _choices = new[]
                 {
-                    "BUY FOOD & DRINK",
-                    "BUY PHONE CARD + CALL",
-                    "STEAL SNACKS",
+                    "BROWSE SHELVES",
                     "LEAVE THE WAY YOU CAME"
                 };
                 _day = 0;
@@ -389,6 +401,12 @@ public sealed class Game : IGame
                 CloseItemDialog();
                 return;
             }
+            if (_showStoreBuyMenu)
+            {
+                _showStoreBuyMenu = false;
+                _storeBuyFeedback = "";
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -479,7 +497,7 @@ public sealed class Game : IGame
         }
 
         // === Backpack item click (opens simple interaction dialog) ===
-        if (!_showItemDialog)
+        if (!_showItemDialog && !_showStoreBuyMenu)
         {
             for (int i = 0; i < _backpackSlotRects.Length; i++)
             {
@@ -495,12 +513,51 @@ public sealed class Game : IGame
             }
         }
 
+        // === Store buy menu input (when open) ===
+        if (_showStoreBuyMenu)
+        {
+            // Close with Enter/Space already handled above
+            // Number keys 1-6 to buy
+            for (int i = 0; i < _storeCatalog.Length && i < 6; i++)
+            {
+                KeyboardKey key = (KeyboardKey)((int)KeyboardKey.KEY_ONE + i);
+                if (Raylib.IsKeyPressed(key))
+                {
+                    TryBuyStoreItem(i);
+                    return;
+                }
+            }
+
+            // Mouse clicks on item rows
+            for (int i = 0; i < _storeCatalog.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
+                {
+                    if (leftClicked)
+                    {
+                        TryBuyStoreItem(i);
+                        return;
+                    }
+                }
+            }
+        }
+
         if (_actionMessageTimer > 0f)
         {
             _actionMessageTimer -= dt;
             if (_actionMessageTimer <= 0f)
             {
                 _actionMessage = "";
+            }
+        }
+
+        // Store buy menu feedback timer
+        if (_showStoreBuyMenu && _storeBuyFeedbackTimer > 0f)
+        {
+            _storeBuyFeedbackTimer -= dt;
+            if (_storeBuyFeedbackTimer <= 0f)
+            {
+                _storeBuyFeedback = "";
             }
         }
 
@@ -547,6 +604,19 @@ public sealed class Game : IGame
             {
                 // Any click on the overlay closes the dialog → show hand cursor
                 overClickable = true;
+            }
+        }
+
+        // Store buy menu rows
+        if (_showStoreBuyMenu)
+        {
+            for (int i = 0; i < _storeBuyItemRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
             }
         }
 
@@ -683,27 +753,13 @@ public sealed class Game : IGame
     {
         switch (index)
         {
-            case 0: // Buy actual food and a drink
-                _money = Math.Max(0, _money - 280);
-                _hunger = Clamp(_hunger - 22);
-                _health = Clamp(_health + 6);
-                _suspicion = Clamp(_suspicion + 8);
-                _actionMessage = "You eat a plastic-wrapped sandwich and a too-sweet energy drink standing by the window. It helps. The clerk never looks away from his screen.";
-                break;
+            case 0: // Browse shelves → open the buy menu
+                _showStoreBuyMenu = true;
+                _storeBuyFeedback = "";
+                _storeBuyFeedbackTimer = 0;
+                return;   // do not advance time or close the store phase yet
 
-            case 1: // Buy a phone card and try to make a call
-                _money = Math.Max(0, _money - 150);
-                _suspicion = Clamp(_suspicion + 18);   // using a phone is extremely risky
-                _actionMessage = "The card works. You dial the only number you trust. It rings once, then a stranger answers. You hang up immediately.";
-                break;
-
-            case 2: // Steal some snacks
-                _hunger = Clamp(_hunger - 14);
-                _suspicion = Clamp(_suspicion + 22);   // high risk
-                _actionMessage = "You palm two chocolate bars and a bag of seeds while the clerk steps into the back. Your heart is hammering.";
-                break;
-
-            case 3: // Leave the way you came
+            case 1: // Leave the way you came
                 _actionMessage = "You push back out into the cold dark yard.";
                 AdvanceTime();
                 EnterPhase(Phase.Outside);
@@ -728,6 +784,9 @@ public sealed class Game : IGame
         _actionMessage = "";
         _actionMessageTimer = 0f;
         _selectedIndex = 0;
+        _showItemDialog = false;
+        _showStoreBuyMenu = false;
+        _storeBuyFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
         EnterPhase(Phase.Opening);
@@ -750,6 +809,48 @@ public sealed class Game : IGame
         _showItemDialog = false;
         _dialogItemIndex = -1;
         _dialogItemName = "";
+    }
+
+    private bool TryAddToBackpack(string item)
+    {
+        for (int i = 0; i < _backpack.Length; i++)
+        {
+            if (string.IsNullOrEmpty(_backpack[i]))
+            {
+                _backpack[i] = item;
+                return true;
+            }
+        }
+        return false; // backpack full
+    }
+
+    private void TryBuyStoreItem(int index)
+    {
+        if (index < 0 || index >= _storeCatalog.Length) return;
+
+        var (name, price, hungerDelta, healthDelta, suspicionDelta) = _storeCatalog[index];
+
+        if (_money < price)
+        {
+            _storeBuyFeedback = "Not enough money.";
+            _storeBuyFeedbackTimer = 1.6f;
+            return;
+        }
+
+        if (!TryAddToBackpack(name))
+        {
+            _storeBuyFeedback = "Backpack is full.";
+            _storeBuyFeedbackTimer = 1.6f;
+            return;
+        }
+
+        _money -= price;
+        _hunger = Clamp(_hunger + hungerDelta);
+        _health = Clamp(_health + healthDelta);
+        _suspicion = Clamp(_suspicion + suspicionDelta);
+
+        _storeBuyFeedback = $"Bought {name}";
+        _storeBuyFeedbackTimer = 1.2f;
     }
 
     private void DrawRestartButton()
@@ -843,6 +944,107 @@ public sealed class Game : IGame
             closeSize, 0.7f, Palette.TextPrimary);
     }
 
+    // =====================================================================
+    // STORE BUY MENU (modal shopping interface)
+    // =====================================================================
+    private void DrawStoreBuyMenu()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        // Dark overlay
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 160));
+
+        // Larger panel for the list
+        int panelW = 460;
+        int panelH = 340;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        // Title
+        string title = "SHELVES";
+        int titleSize = 22;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
+            titleSize, 0.8f, Palette.TextPrimary);
+
+        // Current money
+        string moneyStr = $"{_money:N0} ₽";
+        int moneyW = (int)Raylib.MeasureTextEx(font, moneyStr, 16, 0.6f).X;
+        Raylib.DrawTextEx(font, moneyStr,
+            new Vector2(panelX + panelW - 30 - moneyW, panelY + 20),
+            16, 0.6f, Palette.TextSecondary);
+
+        // Separator
+        Raylib.DrawLine(panelX + 30, panelY + 48, panelX + panelW - 30, panelY + 48, Palette.SubtleBorder);
+
+        // Item list
+        int rowStartY = panelY + 60;
+        int rowHeight = 38;
+
+        for (int i = 0; i < _storeCatalog.Length; i++)
+        {
+            var (name, price, hungerDelta, healthDelta, suspicionDelta) = _storeCatalog[i];
+
+            int rowY = rowStartY + i * rowHeight;
+
+            bool canAfford = _money >= price;
+            bool hasSpace = _backpack.Any(s => string.IsNullOrEmpty(s));
+
+            bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _storeBuyItemRects[i]);
+
+            // Row background
+            if (rowHovered && canAfford && hasSpace)
+                Raylib.DrawRectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4, new Color(48, 46, 40, 180));
+
+            // Store the rect for input
+            _storeBuyItemRects[i] = new Rectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4);
+
+            // Item name
+            Color nameColor = (canAfford && hasSpace) ? Palette.TextPrimary : Palette.TextMuted;
+            Raylib.DrawTextEx(font, name, new Vector2(panelX + 32, rowY + 8), 17, 0.6f, nameColor);
+
+            // Price (right aligned)
+            string priceStr = $"{price} ₽";
+            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 16, 0.6f).X;
+            Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
+            Raylib.DrawTextEx(font, priceStr,
+                new Vector2(panelX + panelW - 32 - pW, rowY + 9), 16, 0.6f, priceColor);
+
+            // Small effect hints (very subtle)
+            if (hungerDelta < 0)
+            {
+                Raylib.DrawTextEx(font, "↓H", new Vector2(panelX + 200, rowY + 10), 11, 0.4f, new Color(120, 140, 90, 160));
+            }
+            if (healthDelta > 0)
+            {
+                Raylib.DrawTextEx(font, "↑HP", new Vector2(panelX + 230, rowY + 10), 11, 0.4f, new Color(100, 130, 100, 160));
+            }
+        }
+
+        // Feedback line at bottom of list area
+        if (_storeBuyFeedbackTimer > 0f && !string.IsNullOrEmpty(_storeBuyFeedback))
+        {
+            int fbW = (int)Raylib.MeasureTextEx(font, _storeBuyFeedback, 15, 0.5f).X;
+            Raylib.DrawTextEx(font, _storeBuyFeedback,
+                new Vector2(panelX + (panelW - fbW) / 2, panelY + panelH - 68),
+                15, 0.5f, Palette.TextSecondary);
+        }
+
+        // Instructions
+        string hint = "Click item or press 1-6 to buy  •  ESC to leave shelves";
+        int hintW = (int)Raylib.MeasureTextEx(font, hint, 12, 0.4f).X;
+        Raylib.DrawTextEx(font, hint,
+            new Vector2(panelX + (panelW - hintW) / 2, panelY + panelH - 32),
+            12, 0.4f, Palette.TextDim);
+    }
+
     private void Draw()
     {
         Raylib.BeginDrawing();
@@ -871,6 +1073,11 @@ public sealed class Game : IGame
         if (_showItemDialog)
         {
             DrawItemDialog();
+        }
+
+        if (_showStoreBuyMenu)
+        {
+            DrawStoreBuyMenu();
         }
 
         Raylib.EndDrawing();
