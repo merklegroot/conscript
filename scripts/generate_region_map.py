@@ -25,8 +25,8 @@ OUT_META = OUT_DIR / "region-map.bounds.json"
 
 # Eastern Buryatia / southern Baikal — enough context to orient the player
 BOUNDS = (103.0, 110.8, 50.0, 54.2)  # min_lon, max_lon, min_lat, max_lat
-WIDTH_PX = 496
-HEIGHT_PX = 200
+WIDTH_PX = 2048
+HEIGHT_PX = 1104
 DPI = 100
 
 NE_50M_ADMIN1 = (
