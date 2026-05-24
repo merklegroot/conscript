@@ -32,6 +32,18 @@ public sealed class Game : IGame
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
     private Texture2D _storeBackground;
+    private Texture2D _regionMapTexture;
+
+    // Geographic bounds for region-map.png — keep in sync with img/region-map.bounds.json
+    // (regenerate via: python3 scripts/generate_region_map.py)
+    private const double RegionMapMinLon = 103.0;
+    private const double RegionMapMaxLon = 110.8;
+    private const double RegionMapMinLat = 50.0;
+    private const double RegionMapMaxLat = 54.2;
+    private const double UlanUdeLon = 107.584;
+    private const double UlanUdeLat = 51.834;
+    private const double ForestCampLon = 107.35;
+    private const double ForestCampLat = 51.95;
 
     // Item names (inventory strings)
     private const string ItemBottledWater = "Bottled Water";
@@ -546,6 +558,7 @@ public sealed class Game : IGame
         _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
         _forestBackground    = LoadEmbeddedTexture("trees.png");
         _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        _regionMapTexture    = LoadEmbeddedTexture("region-map.png");
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -563,6 +576,8 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_forestBackground);
         if (_storeBackground.Id != 0)
             Raylib.UnloadTexture(_storeBackground);
+        if (_regionMapTexture.Id != 0)
+            Raylib.UnloadTexture(_regionMapTexture);
         UnloadItemIcons();
 
         Raylib.CloseWindow();
@@ -1643,7 +1658,9 @@ public sealed class Game : IGame
 
         // Backpack grid (visual inventory)
         cy += 20;
-        DrawBackpack(cy, tx);
+        cy = DrawBackpack(cy, tx);
+        cy += 10;
+        DrawWorldMap(cy, tx);
     }
 
     // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
@@ -1768,7 +1785,7 @@ public sealed class Game : IGame
     // BACKPACK — simple visual grid with a "fabric pack" border treatment
     // =====================================================================
 
-    private void DrawBackpack(int startY, int x)
+    private int DrawBackpack(int startY, int x)
     {
         Font font = _uiFont;
         int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
@@ -1878,6 +1895,70 @@ public sealed class Game : IGame
                 }
             }
         }
+
+        return packY + bodyH;
+    }
+
+    // =====================================================================
+    // WORLD MAP — real geography (Natural Earth via scripts/generate_region_map.py)
+    // =====================================================================
+    private void DrawWorldMap(int startY, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
+        const int mapH = 100;
+
+        Raylib.DrawTextEx(font, "REGION",
+            new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
+
+        startY += 15;
+        Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
+        startY += 8;
+
+        int mapX = x;
+        int mapY = startY;
+        int mapW = available;
+
+        if (_regionMapTexture.Id != 0)
+        {
+            Rectangle src = new Rectangle(0, 0, _regionMapTexture.Width, _regionMapTexture.Height);
+            Rectangle dst = new Rectangle(mapX, mapY, mapW, mapH);
+            Raylib.DrawTexturePro(_regionMapTexture, src, dst, Vector2.Zero, 0f, Color.WHITE);
+        }
+        else
+        {
+            Raylib.DrawRectangle(mapX, mapY, mapW, mapH, new Color(12, 14, 18, 255));
+        }
+
+        Raylib.DrawRectangleLines(mapX, mapY, mapW, mapH, Palette.SubtleBorder);
+
+        (double lon, double lat) = GetMapPlayerGeoPosition();
+        Vector2 player = GeoToMapPixel(mapX, mapY, mapW, mapH, lon, lat);
+        int px = (int)player.X;
+        int py = (int)player.Y;
+        Raylib.DrawCircle(px, py, 6f, new Color(195, 175, 105, 50));
+        Raylib.DrawCircle(px, py, 3.5f, Palette.ActionFlash);
+        Raylib.DrawCircleLines(px, py, 5, Palette.TextPrimary);
+
+        string markerLabel = _phase == Phase.Forest ? "You" : "Ulan-Ude";
+        float labelSize = 8f;
+        int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelSize, 0.35f).X;
+        Raylib.DrawTextEx(font, markerLabel,
+            new Vector2(player.X - labelW / 2f, player.Y + 8), labelSize, 0.35f, Palette.TextPrimary);
+    }
+
+    private (double lon, double lat) GetMapPlayerGeoPosition() =>
+        _phase == Phase.Forest
+            ? (ForestCampLon, ForestCampLat)
+            : (UlanUdeLon, UlanUdeLat);
+
+    private Vector2 GeoToMapPixel(int mapX, int mapY, int mapW, int mapH, double lon, double lat)
+    {
+        double nx = (lon - RegionMapMinLon) / (RegionMapMaxLon - RegionMapMinLon);
+        double ny = (RegionMapMaxLat - lat) / (RegionMapMaxLat - RegionMapMinLat);
+        nx = Math.Clamp(nx, 0, 1);
+        ny = Math.Clamp(ny, 0, 1);
+        return new Vector2(mapX + (float)(nx * mapW), mapY + (float)(ny * mapH));
     }
 
     private string GetSceneNarrative()

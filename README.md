@@ -97,6 +97,15 @@ cd Conscript
 dotnet run
 ```
 
+**Regenerate the sidebar region map** (Natural Earth boundaries via GeoPandas):
+
+```bash
+python3 -m pip install -r scripts/requirements.txt
+python3 scripts/generate_region_map.py
+```
+
+This writes `Conscript/img/region-map.png` and `region-map.bounds.json`. Rebuild the game afterward so the embedded PNG updates.
+
 **Current state:** The prototype now begins with a tense opening scene in the family apartment (Day 0, Evening, Early Autumn) where Sergei must decide how to react to the military knocking. Choosing to flee leads to the current Deep Forest survival screen (with the limited starting gear listed above). The UI is significantly polished, cinematic, and high-tension.
 
 **Layout & Polish:**
