@@ -1550,14 +1550,15 @@ public sealed class Game : IGame
 
         y += 18;
 
-        // Thin progress bar underneath
-        int barW = available;
+        // Thin progress bar underneath the label (not under arrow slots)
+        int barX = labelX;
+        int barW = StatLabelColumnW;
         int barH = 5;
-        Raylib.DrawRectangle(x, y, barW, barH, new Color((byte)22, (byte)24, (byte)28, (byte)255));
+        Raylib.DrawRectangle(barX, y, barW, barH, new Color((byte)22, (byte)24, (byte)28, (byte)255));
         float pct = Math.Clamp(value / 100f, 0f, 1f);
         if (pct > 0.01f)
         {
-            Raylib.DrawRectangle(x, y, (int)(barW * pct), barH, barColor);
+            Raylib.DrawRectangle(barX, y, (int)(barW * pct), barH, barColor);
         }
 
         y += 14; // good spacing to next row
