@@ -25,11 +25,21 @@ public sealed class Game : IGame
     // UI font (loaded TTF for much better readability than the default bitmap font)
     private Font _uiFont;
 
+    // === Game flow ===
+    private enum Phase
+    {
+        Opening,   // At home with family — the knock on the door
+        Forest,    // Deep forest survival (current prototype screen)
+        Death
+    }
+
+    private Phase _phase = Phase.Opening;
+
     // === Top bar context (matches reference image) ===
     private int _day = 3;
     private string _timeOfDay = "Morning";
     private string _warIntensity = "Low";
-    private int _age = 28;
+    private int _age = 20;
     private string _season = "Early Winter";
 
     // === Core stats (values from the reference) ===
@@ -42,20 +52,70 @@ public sealed class Game : IGame
     private int _exposure = 38;
 
     private int _selectedIndex;
-    private readonly string[] _choices =
-    {
-        "SET UP IMPROVED CAMP",
-        "GATHER WINTER SUPPLIES",
-        "FORTIFY SHELTER FOR COLD",
-        "CHECK RADIO / LISTEN FOR NEWS"
-    };
 
-    // Narrative text for the current scene (from reference)
-    private const string LongNarrative =
+    // Current choices (change per phase)
+    private string[] _choices = Array.Empty<string>();
+
+    // Opening scene narrative (the knock)
+    private const string OpeningNarrative =
+        "The knock is loud, final, and exactly what you have been dreading.\n\n" +
+        "“Military Commissariat! Open up!”\n\n" +
+        "Your mother’s hand finds yours under the table. Your little sister has gone completely silent in the next room. Your father stands frozen by the window. There is nowhere left to hide.";
+
+    // Forest narrative (existing)
+    private const string ForestNarrative =
         "You pushed deeper into the forest.\nThe city is far behind. First light snow\nhas begun to fall — winter is arriving\nsooner than expected. This will not be easy.";
 
     private string _actionMessage = "";
     private float _actionMessageTimer;
+
+    private void EnterPhase(Phase newPhase)
+    {
+        _phase = newPhase;
+        _selectedIndex = 0;
+        _actionMessage = "";
+        _actionMessageTimer = 0;
+
+        switch (newPhase)
+        {
+            case Phase.Opening:
+                _choices = new[]
+                {
+                    "Open the door",
+                    "Flee out the window",
+                    "Bar the door and fight"
+                };
+                // Starting values for the very first moment
+                _day = 0;
+                _timeOfDay = "Evening";
+                _warIntensity = "Rising";
+                _status = "At Home";
+                _suspicion = 4;
+                _health = 96;
+                _morale = 82;
+                _exposure = 2;
+                break;
+
+            case Phase.Forest:
+                _choices = new[]
+                {
+                    "SET UP IMPROVED CAMP",
+                    "GATHER WINTER SUPPLIES",
+                    "FORTIFY SHELTER FOR COLD",
+                    "CHECK RADIO / LISTEN FOR NEWS"
+                };
+                // The existing forest values
+                _day = 3;
+                _timeOfDay = "Morning";
+                _warIntensity = "Low";
+                _status = "Fugitive - Deep Forest";
+                break;
+
+            case Phase.Death:
+                _choices = new[] { "Try again" };
+                break;
+        }
+    }
 
     /// <summary>
     /// Loads a high-quality TTF font for crisp, readable UI text.
@@ -95,6 +155,7 @@ public sealed class Game : IGame
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
         _uiFont = LoadUiFont();
+        EnterPhase(Phase.Opening);
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
         {
@@ -154,31 +215,76 @@ public sealed class Game : IGame
 
     private void PerformChoice(int index)
     {
-        // Forest camp actions (Day 3). Simple trade-offs for the prototype.
+        switch (_phase)
+        {
+            case Phase.Opening:
+                HandleOpeningChoice(index);
+                break;
+
+            case Phase.Forest:
+                HandleForestChoice(index);
+                break;
+
+            case Phase.Death:
+                if (index == 0)
+                {
+                    EnterPhase(Phase.Opening);
+                }
+                break;
+        }
+    }
+
+    private void HandleOpeningChoice(int index)
+    {
         switch (index)
         {
-            case 0: // Set up improved camp
+            case 0: // Accept the summons
+                // Not implemented yet — placeholder
+                _actionMessage = "You open the door. The rest of this path is not yet written.";
+                _actionMessageTimer = 4.0f;
+                break;
+
+            case 1: // Flee
+                // For now, this is the only playable path — move to the forest survival prototype
+                _actionMessage = "You grab your coat and disappear into the stairwell.";
+                _actionMessageTimer = 2.5f;
+                // Transition to the forest (stub)
+                EnterPhase(Phase.Forest);
+                break;
+
+            case 2: // Fight
+                // Immediate death
+                EnterPhase(Phase.Death);
+                break;
+        }
+    }
+
+    private void HandleForestChoice(int index)
+    {
+        // Existing forest actions
+        switch (index)
+        {
+            case 0:
                 _exposure = Clamp(_exposure - 11);
                 _morale = Clamp(_morale + 8);
                 _health = Clamp(_health - 3);
                 _actionMessage = "Better shelter. The wind is less cruel tonight.";
                 break;
 
-            case 1: // Gather winter supplies (harder now)
+            case 1:
                 _money = Math.Max(0, _money - 180);
-                // (provisions conceptually increased; not shown on this screen)
                 _exposure = Clamp(_exposure + 7);
                 _actionMessage = "You found dry branches and a few cans. Exhausting work.";
                 break;
 
-            case 2: // Fortify for cold
+            case 2:
                 _exposure = Clamp(_exposure - 18);
                 _morale = Clamp(_morale - 6);
                 _health = Clamp(_health + 5);
                 _actionMessage = "The walls are tighter. The cold bites less.";
                 break;
 
-            case 3: // Check radio / listen for news
+            case 3:
                 _suspicion = Clamp(_suspicion + 5);
                 _morale = Clamp(_morale + 4);
                 _actionMessage = "Static. A name you know. Nothing about you yet.";
@@ -193,10 +299,23 @@ public sealed class Game : IGame
         Raylib.BeginDrawing();
         Raylib.ClearBackground(Palette.Bg);
 
-        DrawTopBar();
-        DrawLeftSidebar();
-        DrawCentralScene();
-        DrawActionBar();
+        switch (_phase)
+        {
+            case Phase.Opening:
+                DrawOpening();
+                break;
+
+            case Phase.Forest:
+                DrawTopBar();
+                DrawLeftSidebar();
+                DrawForestScene();   // forest version
+                DrawActionBar();
+                break;
+
+            case Phase.Death:
+                DrawDeathScreen();
+                break;
+        }
 
         Raylib.EndDrawing();
     }
@@ -350,7 +469,7 @@ public sealed class Game : IGame
     // =====================================================================
     // CENTRAL SCENE — Rich, layered, cinematic night forest placeholder
     // =====================================================================
-    private void DrawCentralScene()
+    private void DrawForestScene()
     {
         Font font = _uiFont;
 
@@ -414,7 +533,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(artX + artW - 22, artY, 22, artH, new Color(0, 0, 0, 55));
 
         // === Main narrative / flavor text box — clean, anchored to the right side of the image ===
-        DrawRightSideNarrative(artX, artY, artW, artH);
+        DrawRightSideNarrative(artX, artY, artW, artH, ForestNarrative);
 
         // Temporary action result toast (centered low in the image)
         if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
@@ -431,6 +550,132 @@ public sealed class Game : IGame
             var c = new Color((byte)Palette.ActionFlash.R, (byte)Palette.ActionFlash.G, (byte)Palette.ActionFlash.B, (byte)(alpha * 255));
             Raylib.DrawTextEx(font, _actionMessage, new Vector2(toastX + 14, toastY + 6), 13, 0.7f, c);
         }
+    }
+
+    // =====================================================================
+    // OPENING SCENE — Home apartment, the knock on the door
+    // =====================================================================
+    private void DrawOpening()
+    {
+        // We reuse the polished top bar, left stats, action bar, and right narrative card.
+        // Only the central "art" area is different (tense apartment instead of forest).
+
+        DrawTopBar();
+        DrawLeftSidebar();
+
+        // Central area — apartment
+        int left = GameConstants.SceneLeft;
+        int top = GameConstants.SceneTop;
+        int w = GameConstants.SceneWidth;
+        int h = GameConstants.SceneHeight;
+
+        Raylib.DrawRectangle(left, top, w, h, Palette.SceneBg);
+
+        int artX = left + GameConstants.ScenePadding;
+        int artY = top + GameConstants.ScenePadding;
+        int artW = w - GameConstants.ScenePadding * 2;
+        int artH = h - GameConstants.ScenePadding * 2;
+
+        // Dim apartment at night
+        Raylib.DrawRectangle(artX, artY, artW, artH, new Color(18, 16, 14, 255));
+
+        // Back wall
+        Raylib.DrawRectangle(artX, artY, artW, artH - 90, new Color(32, 28, 24, 255));
+
+        // Floor
+        Raylib.DrawRectangle(artX, artY + artH - 90, artW, 90, new Color(24, 20, 17, 255));
+
+        // Small window with night outside (left side)
+        int winX = artX + 40;
+        int winY = artY + 30;
+        Raylib.DrawRectangle(winX, winY, 110, 85, new Color(8, 10, 18, 255));
+        Raylib.DrawRectangleLines(winX, winY, 110, 85, Palette.SubtleBorder);
+        Raylib.DrawLine(winX + 55, winY, winX + 55, winY + 85, Palette.SubtleBorder);
+        Raylib.DrawLine(winX, winY + 42, winX + 110, winY + 42, Palette.SubtleBorder);
+
+        // Door (right side) — the source of dread
+        int doorX = artX + artW - 130;
+        int doorY = artY + 20;
+        Raylib.DrawRectangle(doorX, doorY, 95, 160, new Color(28, 24, 20, 255));
+        Raylib.DrawRectangleLines(doorX, doorY, 95, 160, Palette.StrongBorder);
+
+        // Door handle
+        Raylib.DrawCircle(doorX + 75, doorY + 80, 5, new Color(60, 55, 48, 255));
+
+        // Two menacing shadows / silhouettes under the door (the commissariat)
+        Raylib.DrawRectangle(doorX + 15, doorY + 175, 22, 8, new Color(8, 8, 10, 200));
+        Raylib.DrawRectangle(doorX + 55, doorY + 175, 26, 8, new Color(8, 8, 10, 200));
+
+        // Family — parents and siblings (he's 20 and lives at home)
+        // Mother at the table (left)
+        Raylib.DrawCircle(artX + 70, artY + artH - 95, 6, new Color(40, 36, 34, 255));           // head
+        Raylib.DrawRectangle(artX + 65, artY + artH - 88, 10, 20, new Color(35, 30, 28, 255));    // body
+
+        // Father standing near the window (tense)
+        Raylib.DrawCircle(artX + 130, artY + 55, 7, new Color(38, 34, 32, 255));
+        Raylib.DrawRectangle(artX + 124, artY + 63, 12, 28, new Color(30, 28, 26, 255));
+
+        // Younger brother (teen) sitting at the table
+        Raylib.DrawCircle(artX + 110, artY + artH - 90, 5, new Color(36, 32, 30, 255));
+        Raylib.DrawRectangle(artX + 106, artY + artH - 84, 9, 16, new Color(28, 26, 24, 255));
+
+        // Little sister hiding behind the table / furniture
+        Raylib.DrawCircle(artX + 85, artY + artH - 68, 4, new Color(40, 34, 32, 255));
+        Raylib.DrawRectangle(artX + 82, artY + artH - 63, 7, 12, new Color(32, 28, 26, 255));
+
+        // Table
+        Raylib.DrawRectangle(artX + 50, artY + artH - 78, 120, 12, new Color(45, 38, 30, 255));
+
+        // The right-side narrative card (20pt, the one we kept larger)
+        DrawRightSideNarrative(artX, artY, artW, artH, OpeningNarrative);
+
+        // Bottom action bar (3 choices for the opening)
+        DrawActionBar();
+
+        // Toast for "not implemented" messages
+        if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
+        {
+            Font f = _uiFont;
+            float alpha = MathF.Min(1f, _actionMessageTimer / 0.8f);
+            int toastW = 520;
+            int toastX = artX + (artW - toastW) / 2;
+            int toastY = artY + 50;
+
+            var bg = new Color((byte)12, (byte)14, (byte)18, (byte)(alpha * 240));
+            Raylib.DrawRectangle(toastX, toastY, toastW, 30, bg);
+            Raylib.DrawRectangleLines(toastX, toastY, toastW, 30, new Color((byte)70, (byte)75, (byte)85, (byte)(alpha * 200)));
+
+            var c = new Color((byte)Palette.ActionFlash.R, (byte)Palette.ActionFlash.G, (byte)Palette.ActionFlash.B, (byte)(alpha * 255));
+            Raylib.DrawTextEx(f, _actionMessage, new Vector2(toastX + 16, toastY + 7), 15, 0.8f, c);
+        }
+    }
+
+    // =====================================================================
+    // DEATH SCREEN — simple, brutal, final
+    // =====================================================================
+    private void DrawDeathScreen()
+    {
+        // Dark, oppressive full-screen death
+        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(5, 5, 6, 255));
+
+        Font f = _uiFont;
+
+        string line1 = "You died.";
+        string line2 = "The war took you on the first day.";
+
+        int w1 = (int)Raylib.MeasureTextEx(f, line1, 42, 0.9f).X;
+        int w2 = (int)Raylib.MeasureTextEx(f, line2, 24, 0.85f).X;
+
+        Raylib.DrawTextEx(f, line1,
+            new Vector2((_screenWidth - w1) / 2, _screenHeight / 2 - 60),
+            42, 0.9f, new Color(160, 70, 65, 255));
+
+        Raylib.DrawTextEx(f, line2,
+            new Vector2((_screenWidth - w2) / 2, _screenHeight / 2 - 10),
+            24, 0.85f, Palette.TextSecondary);
+
+        // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
+        DrawActionBar();
     }
 
     private void DrawLayeredForest(int baseX, int baseY, int width, float density, float heightFactor, Color color)
@@ -561,22 +806,21 @@ public sealed class Game : IGame
     /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
     /// is computed from the actual measured text. No more hard-coded boxes that clip or look wrong.
     /// </summary>
-    private void DrawRightSideNarrative(int artX, int artY, int artW, int artH)
+    private void DrawRightSideNarrative(int artX, int artY, int artW, int artH, string narrativeText)
     {
-        Font font = _uiFont;   // the nice readable font (falls back to default if none present)
+        Font font = _uiFont;
         float fontSize = LayoutConstants.NarrativeLongSize;
-        float spacing = 0.9f;  // a touch tighter for 18pt body text
-        int lineHeight = (int)(fontSize * 1.42f); // generous, readable line spacing at the larger size
+        float spacing = 0.9f;
+        int lineHeight = (int)(fontSize * 1.42f);
 
-        int maxCardWidth = 320;                    // wider to accommodate the larger 18pt narrative text with fewer wraps
+        int maxCardWidth = 320;
         int horizontalPadding = 18;
-        int verticalPadding = 16;                  // generous padding so the bigger text feels comfortable and airy
+        int verticalPadding = 16;
 
         int textMaxWidth = maxCardWidth - horizontalPadding * 2;
 
-        // Measure what we actually need
         var (wrappedLines, textHeight) = WrapTextForBox(
-            LongNarrative,
+            narrativeText,
             font,
             fontSize,
             spacing,
@@ -625,7 +869,9 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
-        int count = GameConstants.ActionButtonCount;
+        int count = _choices.Length;
+        if (count == 0) count = 4;
+
         int gap = GameConstants.ActionButtonGap;
         int paddingX = 28; // generous left/right margin for breathing room
         int totalGap = gap * (count - 1);
@@ -653,7 +899,6 @@ public sealed class Game : IGame
 
             // Label
             string label = _choices[i];
-            if (i == 1) label += "  (harder now)";
 
             Vector2 size = Raylib.MeasureTextEx(font, label, LayoutConstants.ActionButtonFontSize, 0.85f);
             int tx = x + (btnW - (int)size.X) / 2;
