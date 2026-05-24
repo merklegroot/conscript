@@ -77,6 +77,7 @@ public sealed class Game : IGame
     private string _dialogItemName = "";
     private Rectangle _dialogCloseRect;
     private bool _dialogCloseHovered;
+    private Rectangle _dialogPanelRect;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
@@ -502,6 +503,56 @@ public sealed class Game : IGame
                 _actionMessage = "";
             }
         }
+
+        // === Update mouse cursor to indicate clickable elements ===
+        bool overClickable = false;
+
+        // Restart button (always available)
+        if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect))
+            overClickable = true;
+
+        if (!_showItemDialog)
+        {
+            // Bottom action buttons
+            for (int i = 0; i < buttonRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
+            }
+
+            // Backpack slots that contain items
+            for (int i = 0; i < _backpackSlotRects.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(_backpack[i]) &&
+                    Raylib.CheckCollisionPointRec(mouse, _backpackSlotRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
+            }
+        }
+
+        // Item dialog: close button + clicking the panel/overlay dismisses it
+        if (_showItemDialog)
+        {
+            if (Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
+            {
+                overClickable = true;
+            }
+            else
+            {
+                // Any click on the overlay closes the dialog → show hand cursor
+                overClickable = true;
+            }
+        }
+
+        Raylib.SetMouseCursor(overClickable
+            ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
+            : MouseCursor.MOUSE_CURSOR_DEFAULT);
     }
 
     private void PerformChoice(int index)
@@ -739,6 +790,8 @@ public sealed class Game : IGame
         int panelH = 210;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 20;
+
+        _dialogPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
 
         // Card background + border (matches existing card style)
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
