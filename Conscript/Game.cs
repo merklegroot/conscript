@@ -35,11 +35,13 @@ public sealed class Game : IGame
 
     private Phase _phase = Phase.Opening;
 
+    // Simple day/night cycle used for time advancement
+    private readonly string[] _timeSlots = { "Morning", "Afternoon", "Evening", "Night" };
+
     // === Top bar context (matches reference image) ===
     private int _day = 3;
     private string _timeOfDay = "Morning";
     private string _warIntensity = "Low";
-    private int _age = 20;
     private string _season = "Early Winter";
 
     // === Core stats (values from the reference) ===
@@ -90,6 +92,7 @@ public sealed class Game : IGame
                 _timeOfDay = "Evening";
                 _warIntensity = "Rising";
                 _status = "At Home";
+                _season = "Early Autumn";   // Game starts in early autumn
                 _suspicion = 4;
                 _health = 96;
                 _morale = 82;
@@ -109,11 +112,32 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _warIntensity = "Low";
                 _status = "Fugitive - Deep Forest";
+                _season = "Early Autumn";   // carries over from opening (will evolve later)
                 break;
 
             case Phase.Death:
                 _choices = new[] { "Try again" };
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Advances the time of day by the given number of slots.
+    /// When we pass "Night", we roll over to the next day's "Morning".
+    /// </summary>
+    private void AdvanceTime(int steps = 1)
+    {
+        if (steps <= 0) return;
+
+        int idx = Array.IndexOf(_timeSlots, _timeOfDay);
+        if (idx < 0) idx = 0;
+
+        int newIdx = (idx + steps) % _timeSlots.Length;
+        _timeOfDay = _timeSlots[newIdx];
+
+        if (newIdx < idx)   // wrapped around → new day
+        {
+            _day++;
         }
     }
 
@@ -261,12 +285,14 @@ public sealed class Game : IGame
                 // Not implemented yet — placeholder
                 _actionMessage = "You open the door. The rest of this path is not yet written.";
                 _actionMessageTimer = 4.0f;
+                AdvanceTime();   // time passes while you deal with the officials
                 break;
 
             case 1: // Flee
                 // For now, this is the only playable path — move to the forest survival prototype
                 _actionMessage = "You grab your coat and disappear into the stairwell.";
                 _actionMessageTimer = 2.5f;
+                AdvanceTime();   // fleeing into the night takes time
                 // Transition to the forest (stub)
                 EnterPhase(Phase.Forest);
                 break;
@@ -310,6 +336,7 @@ public sealed class Game : IGame
                 break;
         }
 
+        AdvanceTime();   // most actions advance the time of day
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -380,24 +407,129 @@ public sealed class Game : IGame
             new Vector2(centerX - warW / 2, row2Y),
             LayoutConstants.TopMetaFontSize, 0.7f, Palette.TextMuted);
 
-        // RIGHT ZONE — right-aligned, two lines
-        string ageLine = $"{_age} years old";
+        // RIGHT ZONE — Season with icon (age is not shown; the character does not age)
         string seasonLine = _season;
 
         int rightMargin = 26;
-        int ageW = (int)Raylib.MeasureTextEx(font, ageLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+        float iconSize = 13f;
+        float iconTextGap = 7f;
+
         int seasonW = (int)Raylib.MeasureTextEx(font, seasonLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+        float totalWidth = iconSize + iconTextGap + seasonW;
 
-        int rightXAge = _screenWidth - rightMargin - ageW;
-        int rightXSeason = _screenWidth - rightMargin - seasonW;
+        float rightEdge = _screenWidth - rightMargin;
+        float iconCenterX = rightEdge - totalWidth + iconSize / 2f;
+        float iconCenterY = row1Y + 8f;   // vertically centered with the text
 
-        Raylib.DrawTextEx(font, ageLine,
-            new Vector2(rightXAge, row1Y),
-            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
+        DrawSeasonIcon(iconCenterX, iconCenterY, _season, iconSize);
 
+        float textX = iconCenterX + iconSize / 2f + iconTextGap;
         Raylib.DrawTextEx(font, seasonLine,
-            new Vector2(rightXSeason, row2Y),
+            new Vector2(textX, row1Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextPrimary);
+    }
+
+    /// <summary>
+    /// Draws a small, minimalist seasonal icon at the given center.
+    /// Keeps everything vector-based so it matches the rest of the UI style.
+    /// </summary>
+    private void DrawSeasonIcon(float cx, float cy, string season, float size)
+    {
+        float s = size;
+
+        if (season.Contains("Autumn", StringComparison.OrdinalIgnoreCase))
+        {
+            // Stylized autumn leaf (warm ochre)
+            Color leafColor = new Color(165, 115, 65, 255);
+            Color stemColor = new Color(90, 70, 45, 255);
+
+            // Leaf body (pointed oval made from two triangles)
+            Raylib.DrawTriangle(
+                new Vector2(cx, cy - s * 0.55f),           // tip
+                new Vector2(cx - s * 0.38f, cy + s * 0.35f),
+                new Vector2(cx + s * 0.38f, cy + s * 0.35f),
+                leafColor);
+
+            // Side lobes
+            Raylib.DrawTriangle(
+                new Vector2(cx - s * 0.12f, cy - s * 0.1f),
+                new Vector2(cx - s * 0.42f, cy + s * 0.15f),
+                new Vector2(cx - s * 0.18f, cy + s * 0.38f),
+                leafColor);
+
+            Raylib.DrawTriangle(
+                new Vector2(cx + s * 0.12f, cy - s * 0.1f),
+                new Vector2(cx + s * 0.42f, cy + s * 0.15f),
+                new Vector2(cx + s * 0.18f, cy + s * 0.38f),
+                leafColor);
+
+            // Central vein
+            Raylib.DrawLineEx(
+                new Vector2(cx, cy - s * 0.48f),
+                new Vector2(cx, cy + s * 0.32f),
+                1.2f, stemColor);
+
+            // Short stem at bottom
+            Raylib.DrawLineEx(
+                new Vector2(cx, cy + s * 0.32f),
+                new Vector2(cx, cy + s * 0.55f),
+                1.5f, stemColor);
+        }
+        else if (season.Contains("Winter", StringComparison.OrdinalIgnoreCase))
+        {
+            // Simple 6-point snowflake (cold blue-white)
+            Color snow = new Color(195, 200, 210, 255);
+            float r = s * 0.48f;
+
+            for (int i = 0; i < 6; i++)
+            {
+                float angle = i * MathF.PI / 3f;
+                float dx = MathF.Cos(angle) * r;
+                float dy = MathF.Sin(angle) * r;
+
+                Raylib.DrawLineEx(
+                    new Vector2(cx, cy),
+                    new Vector2(cx + dx, cy + dy),
+                    1.6f, snow);
+            }
+
+            // Small center dot
+            Raylib.DrawCircleV(new Vector2(cx, cy), 1.8f, snow);
+        }
+        else if (season.Contains("Spring", StringComparison.OrdinalIgnoreCase))
+        {
+            // Placeholder: small sprouting bud / three lines
+            Color bud = new Color(120, 145, 95, 255);
+            Raylib.DrawCircleV(new Vector2(cx, cy), s * 0.22f, bud);
+
+            // Three short upward shoots
+            for (int i = -1; i <= 1; i++)
+            {
+                float angle = -MathF.PI / 2f + i * 0.35f;
+                Raylib.DrawLineEx(
+                    new Vector2(cx, cy - s * 0.15f),
+                    new Vector2(cx + MathF.Cos(angle) * s * 0.42f,
+                                cy + MathF.Sin(angle) * s * 0.42f - s * 0.15f),
+                    1.4f, bud);
+            }
+        }
+        else
+        {
+            // Summer or unknown — simple sun placeholder
+            Color sun = new Color(180, 155, 80, 255);
+            Raylib.DrawCircleV(new Vector2(cx, cy), s * 0.28f, sun);
+
+            for (int i = 0; i < 8; i++)
+            {
+                float angle = i * MathF.PI / 4f;
+                Raylib.DrawLineEx(
+                    new Vector2(cx + MathF.Cos(angle) * s * 0.32f,
+                                cy + MathF.Sin(angle) * s * 0.32f),
+                    new Vector2(cx + MathF.Cos(angle) * s * 0.52f,
+                                cy + MathF.Sin(angle) * s * 0.52f),
+                    1.3f, sun);
+            }
+        }
     }
 
     // =====================================================================
