@@ -14,12 +14,10 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
   </ItemGroup>
 
-  <!-- Future assets: fonts and scene textures will be added here and copied to output -->
-  <!--
+  <!-- Fonts and future scene textures are copied to the output folder -->
   <ItemGroup>
     <None Include="Fonts\**\*" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="Textures\**\*" CopyToOutputDirectory="PreserveNewest" />
+    <!-- <None Include="Textures\**\*" CopyToOutputDirectory="PreserveNewest" /> -->
   </ItemGroup>
-  -->
 
 </Project>

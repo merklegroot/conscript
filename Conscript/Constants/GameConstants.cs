@@ -10,27 +10,27 @@ public static class GameConstants
     public const int ScreenHeight = 720;
 
     // === Top Header Bar ===
-    public const int TopBarHeight = 58;
+    public const int TopBarHeight = 62;   // more breathing room, less cramped
 
     // === Left Sidebar (Stats + Flavor) ===
-    public const int SidebarWidth = 268;
-    public const int SidebarPadding = 20;
-    public const int SidebarInternalGap = 14;
+    public const int SidebarWidth = 292;  // wider for clean list + long status text
+    public const int SidebarPadding = 22;
+    public const int SidebarInternalGap = 16;
 
     // === Central Scene Area (the "stage") ===
-    // Generous margins so the image breathes and never feels cramped
-    public const int SceneMarginTop = 12;      // gap under the top bar
-    public const int SceneMarginBottom = 12;   // gap above the action bar
-    public const int SceneMarginLeft = 14;     // gap to the right of the sidebar
-    public const int SceneMarginRight = 18;
+    // Generous margins + padding so the art and overlays have room to breathe
+    public const int SceneMarginTop = 14;
+    public const int SceneMarginBottom = 14;
+    public const int SceneMarginLeft = 16;
+    public const int SceneMarginRight = 20;
 
-    // The actual image rect inside the margins (this is where the "art" lives)
-    public const int ScenePadding = 18; // inner breathing room around the placeholder art
+    // Inner padding around the actual artwork
+    public const int ScenePadding = 24;
 
     // === Bottom Action Bar ===
-    public const int ActionBarHeight = 78;      // taller for visual weight and comfortable clicking
-    public const int ActionBarPaddingY = 10;
-    public const int ActionButtonGap = 10;
+    public const int ActionBarHeight = 86;      // taller for visual weight and comfortable padding
+    public const int ActionBarPaddingY = 13;
+    public const int ActionButtonGap = 12;
     public const int ActionButtonCount = 4;
 
     // Computed helpers (used in drawing)

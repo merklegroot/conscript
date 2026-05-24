@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Numerics;
 using Conscript.Constants;
 using Raylib_cs;
@@ -19,6 +21,9 @@ public sealed class Game : IGame
 
     private bool _shouldExit;
     public bool ShouldExit => _shouldExit;
+
+    // UI font (loaded TTF for much better readability than the default bitmap font)
+    private Font _uiFont;
 
     // === Top bar context (matches reference image) ===
     private int _day = 3;
@@ -53,11 +58,44 @@ public sealed class Game : IGame
     private string _actionMessage = "";
     private float _actionMessageTimer;
 
+    /// <summary>
+    /// Loads a high-quality TTF font for crisp, readable UI text.
+    /// Falls back to Raylib's default bitmap font if no TTF is present.
+    /// 
+    /// Recommended: copy OpenSans.ttf from ~/repo/starflt/StarGame/Fonts/
+    /// into Conscript/Fonts/ (the .csproj will copy it to the output directory).
+    /// </summary>
+    private Font LoadUiFont()
+    {
+        string baseDir = AppContext.BaseDirectory;
+        string[] candidates =
+        {
+            Path.Combine(baseDir, "Fonts", "OpenSans.ttf"),
+            Path.Combine(baseDir, "Fonts", "OpenSans-Regular.ttf"),
+            Path.Combine(baseDir, "Fonts", "Inter.ttf"),
+            Path.Combine(baseDir, "Fonts", "Roboto-Regular.ttf"),
+        };
+
+        foreach (string path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                // 32 is the base pixel size; we control actual size via DrawTextEx fontSize param
+                return Raylib.LoadFontEx(path, 32, null, 0);
+            }
+        }
+
+        // No custom font found — the UI will still work, just using the default (less pretty) font.
+        return Raylib.GetFontDefault();
+    }
+
     public void Run()
     {
         Raylib.InitWindow(_screenWidth, _screenHeight, "CONSCRIPT");
         Raylib.SetTargetFPS(60);
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
+
+        _uiFont = LoadUiFont();
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
         {
@@ -165,52 +203,64 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // TOP BAR — Clean, cinematic header with generous breathing room
+    // TOP BAR — Clean, well-spaced, three-zone layout (no more cramped segments or cutoff)
     // =====================================================================
     private void DrawTopBar()
     {
         int h = GameConstants.TopBarHeight;
-
-        // Deep header background
         Raylib.DrawRectangle(0, 0, _screenWidth, h, Palette.HeaderBg);
-
-        // Very subtle bottom divider
         Raylib.DrawLine(0, h, _screenWidth, h, Palette.Divider);
 
-        var font = Raylib.GetFontDefault();
-        int centerY = (h - 18) / 2; // vertical center for primary text
+        Font font = _uiFont;
 
-        // --- Left: Title ---
+        // We use two text rows for center and right zones for clarity + breathing room
+        int row1Y = 11;   // upper line
+        int row2Y = 30;   // lower line
+
+        // LEFT ZONE — prominent title
+        int leftX = 26;
         Raylib.DrawTextEx(font, "CONSCRIPT",
-            new Vector2(24, centerY - 2),
-            LayoutConstants.TitleFontSize, 0.9f, Palette.TextPrimary);
+            new Vector2(leftX, row1Y),
+            LayoutConstants.TitleFontSize, 0.85f, Palette.TextPrimary);
 
-        // Thin elegant underline under the title for presence
-        int titleWidth = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.9f).X;
-        Raylib.DrawLine(24, centerY + 20, 24 + titleWidth, centerY + 20, Palette.StrongBorder);
+        // Elegant underline
+        int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
+        Raylib.DrawLine(leftX, row1Y + 22, leftX + titleW, row1Y + 22, Palette.StrongBorder);
 
-        // --- Center-left: Day + Time ---
-        int x = 210;
-        Raylib.DrawTextEx(font, $"Day {_day}  •  {_timeOfDay}",
-            new Vector2(x, centerY), LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
+        // CENTER ZONE — Day and War Intensity (centered in middle of screen)
+        string dayLine = $"Day {_day} - {_timeOfDay}";
+        string warLine = $"War Intensity: {_warIntensity}";
 
-        // Subtle vertical divider
-        x += 155;
-        Raylib.DrawLine(x, 14, x, h - 14, Palette.Divider);
+        int centerX = _screenWidth / 2;
+        int dayW = (int)Raylib.MeasureTextEx(font, dayLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+        int warW = (int)Raylib.MeasureTextEx(font, warLine, LayoutConstants.TopMetaFontSize, 0.7f).X;
 
-        // --- Center-right: War Intensity ---
-        x += 18;
-        Raylib.DrawTextEx(font, "War Intensity",
-            new Vector2(x, centerY - 9), LayoutConstants.TopMetaFontSize, 0.6f, Palette.TextMuted);
-        Raylib.DrawTextEx(font, _warIntensity,
-            new Vector2(x, centerY + 3), LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
-
-        // --- Far Right: Age + Season ---
-        string rightText = $"{_age} years  •  {_season}";
-        int rightWidth = (int)Raylib.MeasureTextEx(font, rightText, LayoutConstants.TopInfoFontSize, 0.8f).X;
-        Raylib.DrawTextEx(font, rightText,
-            new Vector2(_screenWidth - 28 - rightWidth, centerY),
+        Raylib.DrawTextEx(font, dayLine,
+            new Vector2(centerX - dayW / 2, row1Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
+
+        Raylib.DrawTextEx(font, warLine,
+            new Vector2(centerX - warW / 2, row2Y),
+            LayoutConstants.TopMetaFontSize, 0.7f, Palette.TextMuted);
+
+        // RIGHT ZONE — right-aligned, two lines
+        string ageLine = $"{_age} years old";
+        string seasonLine = _season;
+
+        int rightMargin = 26;
+        int ageW = (int)Raylib.MeasureTextEx(font, ageLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+        int seasonW = (int)Raylib.MeasureTextEx(font, seasonLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+
+        int rightXAge = _screenWidth - rightMargin - ageW;
+        int rightXSeason = _screenWidth - rightMargin - seasonW;
+
+        Raylib.DrawTextEx(font, ageLine,
+            new Vector2(rightXAge, row1Y),
+            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
+
+        Raylib.DrawTextEx(font, seasonLine,
+            new Vector2(rightXSeason, row2Y),
+            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextPrimary);
     }
 
     // =====================================================================
@@ -223,99 +273,91 @@ public sealed class Game : IGame
         int w = GameConstants.SidebarWidth;
         int h = _screenHeight - y - GameConstants.ActionBarHeight;
 
-        // Main sidebar background
         Raylib.DrawRectangle(x, y, w, h, Palette.SidebarBg);
-
-        // Right edge divider (subtle but present)
         Raylib.DrawLine(w, y, w, y + h, Palette.Divider);
 
-        var font = Raylib.GetFontDefault();
+        Font font = _uiFont;
         int tx = x + GameConstants.SidebarPadding;
-        int cy = y + 18;
+        int cy = y + 16;
 
-        // --- Flavor / Situation box (the "Deeper now..." message) ---
-        int flavorH = 52;
-        Raylib.DrawRectangle(tx - 4, cy, w - GameConstants.SidebarPadding * 2 + 8, flavorH, Palette.CardBg);
-        Raylib.DrawRectangleLines(tx - 4, cy, w - GameConstants.SidebarPadding * 2 + 8, flavorH, Palette.CardBorder);
+        // === Small flavor text box at the very top (above STATUS) ===
+        int flavorH = 46;
+        Raylib.DrawRectangle(tx - 2, cy, w - GameConstants.SidebarPadding * 2 + 4, flavorH, Palette.CardBg);
+        Raylib.DrawRectangleLines(tx - 2, cy, w - GameConstants.SidebarPadding * 2 + 4, flavorH, Palette.CardBorder);
 
-        Raylib.DrawTextEx(font, "THE FOREST",
-            new Vector2(tx, cy + 6), LayoutConstants.SidebarHeaderSize, 0.6f, Palette.TextMuted);
-
+        // Just the narrative text, no extra "THE FOREST" label — clean and atmospheric
         Raylib.DrawTextEx(font, ShortNarrative,
-            new Vector2(tx, cy + 22), LayoutConstants.SidebarFlavorSize, 0.75f, Palette.TextPrimary);
+            new Vector2(tx + 4, cy + 12),
+            LayoutConstants.SidebarFlavorSize, 0.8f, Palette.TextPrimary);
 
-        cy += flavorH + GameConstants.SidebarInternalGap + 6;
+        cy += flavorH + 18;
 
-        // --- Status header ---
+        // === STATUS header ===
         Raylib.DrawTextEx(font, "STATUS",
-            new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.6f, Palette.TextMuted);
-        cy += 20;
+            new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
+        cy += 16;
 
-        // Thin line under header
-        Raylib.DrawLine(tx, cy - 4, tx + 48, cy - 4, Palette.SubtleBorder);
+        // Subtle underline
+        Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
+        cy += 10;
+
+        // === Clean vertical stat list ===
+        // Numeric stats with bars (label + value on one line, bar underneath)
+        DrawCleanStatLine(ref cy, tx, "Suspicion", _suspicion, Palette.Suspicion);
+        DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
+        DrawCleanStatLine(ref cy, tx, "Morale", _morale, Palette.Morale);
+        DrawCleanStatLine(ref cy, tx, "Exposure", _exposure, Palette.Exposure);
+
         cy += 6;
 
-        // --- Stats ---
-        DrawSidebarStat(ref cy, tx, "Suspicion", _suspicion, Palette.Suspicion, showBar: true);
-        DrawSidebarStat(ref cy, tx, "Health", _health, Palette.Health, showBar: true);
-        DrawSidebarStat(ref cy, tx, "Morale", _morale, Palette.Morale, showBar: true);
-        DrawSidebarStat(ref cy, tx, "Exposure", _exposure, Palette.Exposure, showBar: true);
-
-        cy += 4;
-
-        // Text-only stats
-        DrawSidebarTextStat(ref cy, tx, "Money", $"{_money:N0}", Palette.Money);
-        DrawSidebarTextStat(ref cy, tx, "Documents", _documents, null);
-        DrawSidebarTextStat(ref cy, tx, "Status", _status, null, wrap: true);
+        // Simple text stats (same line for label + value to reduce clutter)
+        DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0}");
+        DrawTextStatLine(ref cy, tx, "Documents", _documents);
+        DrawTextStatLine(ref cy, tx, "Status", _status);
     }
 
-    private void DrawSidebarStat(ref int y, int x, string label, int value, Color barColor, bool showBar)
+    // Clean single-line stat row:  Label          26%  [thin colored bar]
+    private void DrawCleanStatLine(ref int y, int x, string label, int value, Color barColor)
     {
-        var font = Raylib.GetFontDefault();
+        Font font = _uiFont;
+        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
 
-        // Label
-        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.8f, Palette.TextSecondary);
+        // Label (left)
+        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextSecondary);
 
-        // Value on the right
+        // Value (right of label area)
         string val = $"{value}%";
-        int valWidth = (int)Raylib.MeasureTextEx(font, val, LayoutConstants.StatValueSize, 0.7f).X;
-        Raylib.DrawTextEx(font, val, new Vector2(x + GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2 - valWidth, y),
-            LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
+        int valW = (int)Raylib.MeasureTextEx(font, val, LayoutConstants.StatValueSize, 0.7f).X;
+        int valX = x + available - valW;
+        Raylib.DrawTextEx(font, val, new Vector2(valX, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
 
-        y += 16;
+        y += 18;
 
-        if (showBar)
+        // Thin progress bar underneath
+        int barW = available;
+        int barH = 5;
+        Raylib.DrawRectangle(x, y, barW, barH, new Color((byte)22, (byte)24, (byte)28, (byte)255));
+        float pct = Math.Clamp(value / 100f, 0f, 1f);
+        if (pct > 0.01f)
         {
-            int barWidth = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
-            int barHeight = 5;
+            Raylib.DrawRectangle(x, y, (int)(barW * pct), barH, barColor);
+        }
 
-            // Track
-            Raylib.DrawRectangle(x, y, barWidth, barHeight, new Color((byte)20, (byte)22, (byte)26, (byte)255));
-            // Fill
-            float pct = Math.Clamp(value / 100f, 0f, 1f);
-            if (pct > 0)
-            {
-                Raylib.DrawRectangle(x, y, (int)(barWidth * pct), barHeight, barColor);
-            }
-            y += 10;
-        }
-        else
-        {
-            y += 6;
-        }
+        y += 14; // good spacing to next row
     }
 
-    private void DrawSidebarTextStat(ref int y, int x, string label, string value, Color? valueColor, bool wrap = false)
+    // Simple text-only row:  Label          Value
+    private void DrawTextStatLine(ref int y, int x, string label, string value)
     {
-        var font = Raylib.GetFontDefault();
+        Font font = _uiFont;
+        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
 
-        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.8f, Palette.TextMuted);
-        y += 15;
+        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextMuted);
 
-        Color vc = valueColor ?? Palette.TextPrimary;
-        Raylib.DrawTextEx(font, value, new Vector2(x, y), LayoutConstants.StatValueSize, 0.7f, vc);
+        int valW = (int)Raylib.MeasureTextEx(font, value, LayoutConstants.StatValueSize, 0.7f).X;
+        Raylib.DrawTextEx(font, value, new Vector2(x + available - valW, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
 
-        y += wrap ? 32 : 20;
+        y += 20;
     }
 
     // =====================================================================
@@ -323,7 +365,7 @@ public sealed class Game : IGame
     // =====================================================================
     private void DrawCentralScene()
     {
-        var font = Raylib.GetFontDefault();
+        Font font = _uiFont;
 
         int left = GameConstants.SceneLeft;
         int top = GameConstants.SceneTop;
@@ -384,8 +426,8 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(artX, artY, 22, artH, new Color(0, 0, 0, 55));
         Raylib.DrawRectangle(artX + artW - 22, artY, 22, artH, new Color(0, 0, 0, 55));
 
-        // === Narrative cards inside the scene (elegant placement) ===
-        DrawSceneNarrativeCards(artX, artY, artW, artH, groundY);
+        // === Main narrative / flavor text box — clean, anchored to the right side of the image ===
+        DrawRightSideNarrative(artX, artY, artW, artH);
 
         // Temporary action result toast (centered low in the image)
         if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
@@ -483,37 +525,102 @@ public sealed class Game : IGame
         }
     }
 
-    private void DrawSceneNarrativeCards(int artX, int artY, int artW, int artH, int groundY)
+    // Clean narrative box anchored to the right edge of the central image.
+    // This is the main flavor text for the current scene.
+    /// <summary>
+    /// Word-wraps text to fit within maxWidth, returning the lines and the total
+    /// pixel height required when drawn with the given font/size/spacing.
+    /// This is what makes the narrative card size itself correctly.
+    /// </summary>
+    private (List<string> lines, int height) WrapTextForBox(string text, Font font, float fontSize, float spacing, int maxWidth, int lineHeight)
     {
-        var font = Raylib.GetFontDefault();
+        if (string.IsNullOrWhiteSpace(text))
+            return (new List<string>(), 0);
 
-        // Short headline near top of art
-        int shortW = 460;
-        int shortX = artX + 28;
-        int shortY = artY + 18;
+        // Normalize the provided multi-line string into words (respecting existing line breaks as strong breaks)
+        var paragraphs = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        var lines = new List<string>();
 
-        Raylib.DrawRectangle(shortX, shortY, shortW, 26, Palette.CardBg);
-        Raylib.DrawRectangleLines(shortX, shortY, shortW, 26, Palette.CardBorder);
-        Raylib.DrawTextEx(font, ShortNarrative,
-            new Vector2(shortX + 12, shortY + 6),
-            LayoutConstants.NarrativeShortSize, 0.8f, Palette.TextPrimary);
-
-        // Longer reflective paragraph — anchored lower right inside the image
-        int longW = 262;
-        int longH = 104;
-        int longX = artX + artW - longW - 26;
-        int longY = artY + 92;
-
-        Raylib.DrawRectangle(longX, longY, longW, longH, Palette.CardBg);
-        Raylib.DrawRectangleLines(longX, longY, longW, longH, Palette.CardBorder);
-
-        string[] lines = LongNarrative.Split('\n');
-        int lineY = longY + 11;
-        foreach (string line in lines)
+        foreach (string paragraph in paragraphs)
         {
-            Raylib.DrawTextEx(font, line, new Vector2(longX + 11, lineY),
-                LayoutConstants.NarrativeLongSize, 0.75f, Palette.TextPrimary);
-            lineY += 17;
+            string[] words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            string current = "";
+
+            foreach (string word in words)
+            {
+                string candidate = current.Length == 0 ? word : current + " " + word;
+                Vector2 size = Raylib.MeasureTextEx(font, candidate, fontSize, spacing);
+
+                if (size.X > maxWidth && current.Length > 0)
+                {
+                    lines.Add(current.Trim());
+                    current = word;
+                }
+                else
+                {
+                    current = candidate;
+                }
+            }
+
+            if (current.Length > 0)
+                lines.Add(current.Trim());
+        }
+
+        int totalHeight = lines.Count * lineHeight;
+        return (lines, totalHeight);
+    }
+
+    /// <summary>
+    /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
+    /// is computed from the actual measured text. No more hard-coded boxes that clip or look wrong.
+    /// </summary>
+    private void DrawRightSideNarrative(int artX, int artY, int artW, int artH)
+    {
+        Font font = _uiFont;   // the nice readable font (falls back to default if none present)
+        float fontSize = LayoutConstants.NarrativeLongSize;
+        float spacing = 0.95f; // slightly tighter than default for clean paragraphs
+        int lineHeight = (int)(fontSize * 1.35f); // comfortable line spacing for readability
+
+        int maxCardWidth = 280;                    // target width for the card
+        int horizontalPadding = 14;
+        int verticalPadding = 12;
+
+        int textMaxWidth = maxCardWidth - horizontalPadding * 2;
+
+        // Measure what we actually need
+        var (wrappedLines, textHeight) = WrapTextForBox(
+            LongNarrative,
+            font,
+            fontSize,
+            spacing,
+            textMaxWidth,
+            lineHeight);
+
+        // Final card dimensions (never smaller than a minimum nice size)
+        int cardW = maxCardWidth;
+        int cardH = textHeight + verticalPadding * 2;
+
+        // Position: right side of the art area, with breathing room from the edge
+        int cardX = artX + artW - cardW - 18;
+        int cardY = artY + 22;
+
+        // Draw the card
+        Raylib.DrawRectangle(cardX, cardY, cardW, cardH, Palette.CardBg);
+        Raylib.DrawRectangleLines(cardX, cardY, cardW, cardH, Palette.CardBorder);
+
+        // Draw the measured lines
+        int textLeft = cardX + horizontalPadding;
+        int textTop = cardY + verticalPadding;
+
+        for (int i = 0; i < wrappedLines.Count; i++)
+        {
+            Raylib.DrawTextEx(
+                font,
+                wrappedLines[i],
+                new Vector2(textLeft, textTop + i * lineHeight),
+                fontSize,
+                spacing,
+                Palette.TextPrimary);
         }
     }
 
@@ -529,11 +636,11 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(0, barY, _screenWidth, barH, Palette.ActionBarBg);
         Raylib.DrawLine(0, barY, _screenWidth, barY, Palette.Divider);
 
-        var font = Raylib.GetFontDefault();
+        Font font = _uiFont;
 
         int count = GameConstants.ActionButtonCount;
         int gap = GameConstants.ActionButtonGap;
-        int paddingX = 22; // left/right margin inside the bar
+        int paddingX = 28; // generous left/right margin for breathing room
         int totalGap = gap * (count - 1);
         int available = _screenWidth - paddingX * 2 - totalGap;
         int btnW = available / count;
@@ -572,11 +679,11 @@ public sealed class Game : IGame
             x += btnW + gap;
         }
 
-        // Refined control hint centered below the buttons
+        // Refined control hint — plenty of space below the buttons
         string hint = "← →  or  A D    select        ENTER  or  1–4    act        Q  or  ESC    quit";
         int hintWidth = (int)Raylib.MeasureTextEx(font, hint, LayoutConstants.SmallHintSize, 0.6f).X;
         Raylib.DrawTextEx(font, hint,
-            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 13),
+            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 18),
             LayoutConstants.SmallHintSize, 0.6f, Palette.TextDim);
     }
 
