@@ -14,10 +14,14 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
   </ItemGroup>
 
-  <!-- Fonts and future scene textures are copied to the output folder -->
+  <!-- Background images (and future scene art) are embedded resources -->
+  <ItemGroup>
+    <EmbeddedResource Include="img/**/*" />
+  </ItemGroup>
+
+  <!-- Fonts remain loose files in output (easy to hot-swap during development) -->
   <ItemGroup>
     <None Include="Fonts\**\*" CopyToOutputDirectory="PreserveNewest" />
-    <!-- <None Include="Textures\**\*" CopyToOutputDirectory="PreserveNewest" /> -->
   </ItemGroup>
 
 </Project>

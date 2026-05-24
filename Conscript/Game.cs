@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Numerics;
+using System.Linq;
+using System.Reflection;
 using Conscript.Constants;
 using Raylib_cs;
 
@@ -24,6 +26,7 @@ public sealed class Game : IGame
 
     // UI font (loaded TTF for much better readability than the default bitmap font)
     private Font _uiFont;
+    private Texture2D _backgroundTexture;
 
     // === Game flow ===
     private enum Phase
@@ -180,6 +183,58 @@ public sealed class Game : IGame
         return Raylib.GetFontDefault();
     }
 
+    private Texture2D LoadEmbeddedTexture(string fileName)
+    {
+        var assembly = Assembly.GetExecutingAssembly();
+        string[] candidates =
+        {
+            $"Conscript.img.{fileName}",
+            $"Conscript.{fileName}",
+            fileName,
+            $"img.{fileName}"
+        };
+
+        foreach (string name in candidates)
+        {
+            using Stream? stream = assembly.GetManifestResourceStream(name);
+            if (stream != null)
+            {
+                byte[] data = new byte[stream.Length];
+                stream.ReadExactly(data);
+                string ext = Path.GetExtension(fileName);
+                if (string.IsNullOrEmpty(ext)) ext = ".png";
+
+                Image image = Raylib.LoadImageFromMemory(ext, data);
+                if (image.Width <= 0 || image.Height <= 0)
+                {
+                    Raylib.UnloadImage(image);
+                    image = Raylib.GenImageColor(1, 1, Color.DARKGRAY);
+                }
+
+                Texture2D texture = Raylib.LoadTextureFromImage(image);
+                Raylib.UnloadImage(image);
+                return texture;
+            }
+        }
+
+        string available = string.Join(", ", assembly.GetManifestResourceNames().Take(30));
+        throw new FileNotFoundException($"Embedded image '{fileName}' not found. Tried names: {string.Join(", ", candidates)}. Available resources: {available}");
+    }
+
+    private void DrawSceneBackground(int artX, int artY, int artW, int artH)
+    {
+        if (_backgroundTexture.Id != 0)
+        {
+            Rectangle src = new Rectangle(0, 0, _backgroundTexture.Width, _backgroundTexture.Height);
+            Rectangle dst = new Rectangle(artX, artY, artW, artH);
+            Raylib.DrawTexturePro(_backgroundTexture, src, dst, Vector2.Zero, 0.0f, Color.WHITE);
+        }
+        else
+        {
+            Raylib.DrawRectangle(artX, artY, artW, artH, Palette.DeepNight);
+        }
+    }
+
     public void Run()
     {
         Raylib.InitWindow(_screenWidth, _screenHeight, "CONSCRIPT");
@@ -187,6 +242,7 @@ public sealed class Game : IGame
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
         _uiFont = LoadUiFont();
+        _backgroundTexture = LoadEmbeddedTexture("trees.png");
         EnterPhase(Phase.Opening);
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
@@ -194,6 +250,9 @@ public sealed class Game : IGame
             Update();
             Draw();
         }
+
+        if (_backgroundTexture.Id != 0)
+            Raylib.UnloadTexture(_backgroundTexture);
 
         Raylib.CloseWindow();
     }
@@ -630,7 +689,7 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // CENTRAL SCENE — Rich, layered, cinematic night forest placeholder
+    // CENTRAL SCENE — Background image with cinematic overlays
     // =====================================================================
     private void DrawForestScene()
     {
@@ -644,47 +703,18 @@ public sealed class Game : IGame
         // Outer dark stage
         Raylib.DrawRectangle(left, top, w, h, Palette.SceneBg);
 
-        // Inner breathing room for the "art"
+        // Inner breathing room for the art
         int artX = left + GameConstants.ScenePadding;
         int artY = top + GameConstants.ScenePadding;
         int artW = w - GameConstants.ScenePadding * 2;
         int artH = h - GameConstants.ScenePadding * 2;
 
-        // Deep night base
-        Raylib.DrawRectangle(artX, artY, artW, artH, Palette.DeepNight);
+        // The embedded background (trees.jpg is the default for now)
+        DrawSceneBackground(artX, artY, artW, artH);
 
-        // Ground plane (cold snow)
+        // Snow particles as atmospheric overlay on the photo
         int groundY = artY + (int)(artH * 0.68f);
-        Raylib.DrawRectangle(artX, groundY, artW, artH - (groundY - artY), Palette.GroundCold);
-
-        // === Atmospheric layers (far to near) ===
-
-        // Far distant treeline (very dark, almost silhouette)
-        DrawLayeredForest(artX, groundY, artW, 0.35f, 0.55f, Palette.TreeFar);
-
-        // Mid distance trees
-        DrawLayeredForest(artX + 40, groundY - 8, artW - 80, 0.55f, 0.72f, Palette.TreeMid);
-
-        // Nearer, darker trees (more detail)
-        DrawLayeredForest(artX + 80, groundY - 18, artW - 160, 0.72f, 0.95f, Palette.TreeNear);
-
-        // === Shelter (left side, more detailed than before) ===
-        int shelterBaseX = artX + 110;
-        int shelterBaseY = groundY - 12;
-        DrawLeanToShelter(shelterBaseX, shelterBaseY);
-
-        // === Small human figure (walking toward shelter or away) ===
-        int figX = artX + artW / 2 + 70;
-        int figY = groundY - 58;
-        DrawSmallFigure(figX, figY);
-
-        // === Snow particles (layered for depth) ===
         DrawAtmosphericSnow(artX, artY, artW, groundY, 68);
-
-        // === Very faint cold moonlight from upper right ===
-        int moonX = artX + artW - 90;
-        int moonY = artY + 70;
-        Raylib.DrawCircle(moonX, moonY, 38, Palette.MoonGlow);
 
         // === Inner elegant frame + vignette for cinematic feel ===
         Raylib.DrawRectangleLines(artX + 2, artY + 2, artW - 4, artH - 4, Palette.SubtleBorder);
@@ -739,57 +769,10 @@ public sealed class Game : IGame
         int artW = w - GameConstants.ScenePadding * 2;
         int artH = h - GameConstants.ScenePadding * 2;
 
-        // Dim apartment at night
-        Raylib.DrawRectangle(artX, artY, artW, artH, new Color(18, 16, 14, 255));
+        // The embedded background image (trees.jpg default for now; apartment-specific art TBD)
+        DrawSceneBackground(artX, artY, artW, artH);
 
-        // Back wall
-        Raylib.DrawRectangle(artX, artY, artW, artH - 90, new Color(32, 28, 24, 255));
-
-        // Floor
-        Raylib.DrawRectangle(artX, artY + artH - 90, artW, 90, new Color(24, 20, 17, 255));
-
-        // Small window with night outside (left side)
-        int winX = artX + 40;
-        int winY = artY + 30;
-        Raylib.DrawRectangle(winX, winY, 110, 85, new Color(8, 10, 18, 255));
-        Raylib.DrawRectangleLines(winX, winY, 110, 85, Palette.SubtleBorder);
-        Raylib.DrawLine(winX + 55, winY, winX + 55, winY + 85, Palette.SubtleBorder);
-        Raylib.DrawLine(winX, winY + 42, winX + 110, winY + 42, Palette.SubtleBorder);
-
-        // Door (right side) — the source of dread
-        int doorX = artX + artW - 130;
-        int doorY = artY + 20;
-        Raylib.DrawRectangle(doorX, doorY, 95, 160, new Color(28, 24, 20, 255));
-        Raylib.DrawRectangleLines(doorX, doorY, 95, 160, Palette.StrongBorder);
-
-        // Door handle
-        Raylib.DrawCircle(doorX + 75, doorY + 80, 5, new Color(60, 55, 48, 255));
-
-        // Two menacing shadows / silhouettes under the door (the commissariat)
-        Raylib.DrawRectangle(doorX + 15, doorY + 175, 22, 8, new Color(8, 8, 10, 200));
-        Raylib.DrawRectangle(doorX + 55, doorY + 175, 26, 8, new Color(8, 8, 10, 200));
-
-        // Family — parents and siblings (he's 20 and lives at home)
-        // Mother at the table (left)
-        Raylib.DrawCircle(artX + 70, artY + artH - 95, 6, new Color(40, 36, 34, 255));           // head
-        Raylib.DrawRectangle(artX + 65, artY + artH - 88, 10, 20, new Color(35, 30, 28, 255));    // body
-
-        // Father standing near the window (tense)
-        Raylib.DrawCircle(artX + 130, artY + 55, 7, new Color(38, 34, 32, 255));
-        Raylib.DrawRectangle(artX + 124, artY + 63, 12, 28, new Color(30, 28, 26, 255));
-
-        // Younger brother (teen) sitting at the table
-        Raylib.DrawCircle(artX + 110, artY + artH - 90, 5, new Color(36, 32, 30, 255));
-        Raylib.DrawRectangle(artX + 106, artY + artH - 84, 9, 16, new Color(28, 26, 24, 255));
-
-        // Little sister hiding behind the table / furniture
-        Raylib.DrawCircle(artX + 85, artY + artH - 68, 4, new Color(40, 34, 32, 255));
-        Raylib.DrawRectangle(artX + 82, artY + artH - 63, 7, 12, new Color(32, 28, 26, 255));
-
-        // Table
-        Raylib.DrawRectangle(artX + 50, artY + artH - 78, 120, 12, new Color(45, 38, 30, 255));
-
-        // The right-side narrative card (20pt, the one we kept larger)
+        // The right-side narrative card
         DrawRightSideNarrative(artX, artY, artW, artH, OpeningNarrative);
 
         // Bottom action bar (3 choices for the opening)
@@ -839,66 +822,6 @@ public sealed class Game : IGame
 
         // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
         DrawActionBar();
-    }
-
-    private void DrawLayeredForest(int baseX, int baseY, int width, float density, float heightFactor, Color color)
-    {
-        int count = (int)(width / 38 * density) + 2;
-        for (int i = 0; i < count; i++)
-        {
-            int tx = baseX + (int)(i * (width / (float)count)) + (i % 3) * 7;
-            int th = (int)(62 + (i % 5) * 18 * heightFactor);
-            int tw = (int)(42 + (i % 4) * 11);
-
-            // trunk
-            Raylib.DrawRectangle(tx + tw / 2 - 2, baseY - th / 2, 4, th / 2, color);
-            // foliage
-            Raylib.DrawTriangle(
-                new Vector2(tx, baseY),
-                new Vector2(tx + tw, baseY),
-                new Vector2(tx + tw / 2, baseY - th),
-                color);
-        }
-    }
-
-    private void DrawLeanToShelter(int baseX, int baseY)
-    {
-        // Main triangular shelter
-        Raylib.DrawTriangle(
-            new Vector2(baseX, baseY),
-            new Vector2(baseX + 92, baseY),
-            new Vector2(baseX + 46, baseY - 72),
-            Palette.ShelterWood);
-
-        // Snow on the roof (lighter cap)
-        Raylib.DrawTriangle(
-            new Vector2(baseX - 3, baseY - 2),
-            new Vector2(baseX + 95, baseY - 2),
-            new Vector2(baseX + 46, baseY - 74),
-            Palette.SnowMid);
-
-        // Support poles
-        Raylib.DrawRectangle(baseX + 12, baseY - 48, 3, 48, new Color((byte)24, (byte)25, (byte)28, (byte)255));
-        Raylib.DrawRectangle(baseX + 76, baseY - 52, 3, 52, new Color((byte)24, (byte)25, (byte)28, (byte)255));
-
-        // Opening (darker)
-        Raylib.DrawTriangle(
-            new Vector2(baseX + 28, baseY),
-            new Vector2(baseX + 64, baseY),
-            new Vector2(baseX + 46, baseY - 38),
-            new Color(8, 9, 11, 255));
-    }
-
-    private void DrawSmallFigure(int x, int y)
-    {
-        // Head
-        Raylib.DrawCircle(x + 7, y + 7, 6, new Color(18, 19, 22, 255));
-        // Body + heavy backpack
-        Raylib.DrawRectangle(x + 1, y + 13, 13, 24, new Color((byte)23, (byte)25, (byte)29, (byte)255));
-        Raylib.DrawRectangle(x - 6, y + 15, 8, 18, new Color((byte)28, (byte)30, (byte)34, (byte)255)); // pack
-        // Legs (walking pose)
-        Raylib.DrawRectangle(x + 3, y + 36, 4, 15, new Color((byte)20, (byte)21, (byte)24, (byte)255));
-        Raylib.DrawRectangle(x + 8, y + 35, 4, 16, new Color((byte)20, (byte)21, (byte)24, (byte)255));
     }
 
     private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
