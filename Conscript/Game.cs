@@ -68,6 +68,9 @@ public sealed class Game : IGame
     private string _status = "Fugitive - Deep Forest";
     private int _exposure = 38;
 
+    // Backpack inventory grid (prototype: 8 slots = 2×4)
+    private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+
     // Custom death screen text (set before entering Phase.Death for specific endings)
     private string _deathLine1 = "You died.";
     private string _deathLine2 = "The war took you on the first day.";
@@ -139,6 +142,9 @@ public sealed class Game : IGame
                 _hunger = 22;   // just ate at home, not very hungry yet
                 _exposure = 2;
                 _money = 10000;   // Starting with 10,000 ₽
+
+                // Reset backpack to starting gear (knife, lighter, phone)
+                _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
                 break;
 
             case Phase.Forest:
@@ -900,6 +906,10 @@ public sealed class Game : IGame
         // Simple text stats (same line for label + value to reduce clutter)
         DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0} ₽");
         DrawTextStatLine(ref cy, tx, "Status", _status);
+
+        // Backpack grid (visual inventory)
+        cy += 20;
+        DrawBackpack(cy, tx);
     }
 
     // Clean single-line stat row:  Label          26%  [thin colored bar]
@@ -944,6 +954,114 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, value, new Vector2(x + available - valW, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
 
         y += 20;
+    }
+
+    // =====================================================================
+    // BACKPACK — simple visual grid with a "fabric pack" border treatment
+    // =====================================================================
+    private void DrawBackpack(int startY, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
+
+        // Header + capacity
+        Raylib.DrawTextEx(font, "BACKPACK",
+            new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
+
+        int filled = _backpack.Count(i => !string.IsNullOrEmpty(i));
+        string cap = $"{filled}/8";
+        int capW = (int)Raylib.MeasureTextEx(font, cap, 11, 0.5f).X;
+        Raylib.DrawTextEx(font, cap,
+            new Vector2(x + available - capW, startY + 1), 11, 0.5f, Palette.TextDim);
+
+        startY += 15;
+
+        // Subtle underline
+        Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
+        startY += 6;
+
+        // === Visual backpack body ===
+        const int cols = 4;
+        const int rows = 2;
+        const int slot = 46;
+        const int gap = 5;
+
+        int gridW = cols * slot + (cols - 1) * gap;
+        int gridX = x + (available - gridW) / 2;
+
+        int flapH = 15;
+        int bodyTopPad = flapH + 6;
+        int bodyBotPad = 6;
+        int gridH = rows * slot + (rows - 1) * gap;
+        int bodyH = bodyTopPad + gridH + bodyBotPad;
+
+        int packY = startY;
+        int packW = available;
+
+        // Main fabric body (dark olive-drab canvas)
+        var fabric = new Color(40, 38, 33, 255);
+        Raylib.DrawRectangle(x, packY, packW, bodyH, fabric);
+
+        // Reinforced outer border (looks stitched)
+        var seamDark = new Color(22, 20, 17, 255);
+        Raylib.DrawRectangleLines(x, packY, packW, bodyH, seamDark);
+        Raylib.DrawRectangle(x, packY + bodyH - 3, packW, 3, seamDark); // bottom reinforcement
+
+        // Top flap (suggests the lid/pocket flap of a real backpack)
+        var flap = new Color(52, 48, 42, 255);
+        Raylib.DrawRectangle(x + 4, packY + 2, packW - 8, flapH, flap);
+        Raylib.DrawRectangleLines(x + 4, packY + 2, packW - 8, flapH, new Color(30, 28, 24, 255));
+
+        // Small metal rivets/buckles on the flap corners
+        int rivetY = packY + 2 + flapH / 2;
+        Raylib.DrawCircle(x + 16, rivetY, 3.2f, new Color(85, 80, 70, 255));
+        Raylib.DrawCircle(x + packW - 16, rivetY, 3.2f, new Color(85, 80, 70, 255));
+
+        // Horizontal seam line under the flap
+        int contentTop = packY + flapH + 4;
+        Raylib.DrawLine(x + 10, contentTop - 1, x + packW - 10, contentTop - 1, new Color(28, 26, 22, 255));
+
+        // Draw the item grid (the actual "pockets")
+        for (int r = 0; r < rows; r++)
+        {
+            for (int c = 0; c < cols; c++)
+            {
+                int sx = gridX + c * (slot + gap);
+                int sy = contentTop + r * (slot + gap);
+
+                string? item = _backpack[r * cols + c];
+                bool occupied = !string.IsNullOrEmpty(item);
+
+                // Pocket background
+                var pocket = occupied
+                    ? new Color(58, 50, 40, 255)
+                    : new Color(18, 17, 15, 255);
+                Raylib.DrawRectangle(sx, sy, slot, slot, pocket);
+
+                // Inner border (pocket stitching)
+                var pocketBorder = occupied ? new Color(75, 62, 48, 255) : Palette.SubtleBorder;
+                Raylib.DrawRectangleLines(sx + 1, sy + 1, slot - 2, slot - 2, pocketBorder);
+
+                if (occupied)
+                {
+                    // Tiny "item type" swatch on the left
+                    Raylib.DrawRectangle(sx + 3, sy + 3, 11, slot - 6, new Color(95, 72, 48, 220));
+
+                    // Abbreviated label (very small text)
+                    string label = item!.Length > 5 ? item.Substring(0, 5) : item;
+                    float fz = 8f;
+                    Raylib.DrawTextEx(font, label.ToUpperInvariant(),
+                        new Vector2(sx + 16, sy + 8), fz, 0.35f, Palette.TextPrimary);
+                }
+                else
+                {
+                    // Very subtle empty indicator (small centered dot)
+                    int cx = sx + slot / 2;
+                    int cy = sy + slot / 2;
+                    Raylib.DrawPixel(cx, cy, new Color(55, 50, 45, 140));
+                }
+            }
+        }
     }
 
     private string GetSceneNarrative()
