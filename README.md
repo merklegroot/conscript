@@ -112,7 +112,7 @@ dotnet run
   - Narrative cards elegantly placed inside the image area
 - Bottom action bar with four substantial, high-visual-weight buttons and refined control hint
 
-**Interaction:** ← → / A D or number keys to select, ENTER to commit. Stats update live with every choice.
+**Interaction:** ← → / A D to highlight, ENTER to commit (or click with the mouse). Stats update live with every choice.
 
 This is now a much more professional, immersive, and oppressive-feeling prototype while remaining 100% placeholder (no external art yet). Ready for real background images when you are.
 

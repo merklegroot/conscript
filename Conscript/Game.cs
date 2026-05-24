@@ -84,6 +84,9 @@ public sealed class Game : IGame
     private string _storeBuyFeedback = "";
     private float _storeBuyFeedbackTimer;
     private Rectangle[] _storeBuyItemRects = new Rectangle[3];  // populated during DrawStoreBuyMenu
+    private Rectangle _storeBuyPanelRect;
+    private Rectangle _storeBuyCloseRect;
+    private bool _storeBuyCloseHovered;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
@@ -427,18 +430,6 @@ public sealed class Game : IGame
             _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
         }
 
-        // Direct selection + activate with 1-4
-        for (int i = 0; i < _choices.Length && i < 4; i++)
-        {
-            KeyboardKey key = (KeyboardKey)((int)KeyboardKey.KEY_ONE + i);
-            if (Raylib.IsKeyPressed(key))
-            {
-                _selectedIndex = i;
-                PerformChoice(i);
-                return;
-            }
-        }
-
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE))
         {
             if (_showItemDialog)
@@ -482,23 +473,28 @@ public sealed class Game : IGame
             }
         }
 
-        for (int i = 0; i < buttonRects.Length; i++)
+        if (_showStoreBuyMenu)
         {
-            if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
-            {
-                _selectedIndex = i;                 // live hover highlight
-
-                if (leftClicked)
-                {
-                    PerformChoice(i);
-                    return;
-                }
-            }
+            _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
         }
 
-        // === Backpack item click (opens simple interaction dialog) ===
         if (!_showItemDialog && !_showStoreBuyMenu)
         {
+            for (int i = 0; i < buttonRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
+                {
+                    _selectedIndex = i;                 // live hover highlight
+
+                    if (leftClicked)
+                    {
+                        PerformChoice(i);
+                        return;
+                    }
+                }
+            }
+
+            // === Backpack item click (opens simple interaction dialog) ===
             for (int i = 0; i < _backpackSlotRects.Length; i++)
             {
                 if (!string.IsNullOrEmpty(_backpack[i]) &&
@@ -516,18 +512,6 @@ public sealed class Game : IGame
         // === Store buy menu input (when open) ===
         if (_showStoreBuyMenu)
         {
-            // Close with Enter/Space already handled above
-            // Number keys 1-6 to buy
-            for (int i = 0; i < _storeCatalog.Length && i < 6; i++)
-            {
-                KeyboardKey key = (KeyboardKey)((int)KeyboardKey.KEY_ONE + i);
-                if (Raylib.IsKeyPressed(key))
-                {
-                    TryBuyStoreItem(i);
-                    return;
-                }
-            }
-
             // Mouse clicks on item rows
             for (int i = 0; i < _storeCatalog.Length; i++)
             {
@@ -539,6 +523,22 @@ public sealed class Game : IGame
                         return;
                     }
                 }
+            }
+
+            // Close button
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect))
+            {
+                _showStoreBuyMenu = false;
+                _storeBuyFeedback = "";
+                return;
+            }
+
+            // Click on the overlay (outside the panel) closes the menu
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect))
+            {
+                _showStoreBuyMenu = false;
+                _storeBuyFeedback = "";
+                return;
             }
         }
 
@@ -568,7 +568,7 @@ public sealed class Game : IGame
         if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect))
             overClickable = true;
 
-        if (!_showItemDialog)
+        if (!_showItemDialog && !_showStoreBuyMenu)
         {
             // Bottom action buttons
             for (int i = 0; i < buttonRects.Length; i++)
@@ -607,9 +607,20 @@ public sealed class Game : IGame
             }
         }
 
-        // Store buy menu rows
+        // Store buy menu: rows + close button + overlay
         if (_showStoreBuyMenu)
         {
+            if (Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect))
+            {
+                overClickable = true;
+            }
+            else
+            {
+                // Clicking the overlay closes the menu
+                overClickable = true;
+            }
+
             for (int i = 0; i < _storeBuyItemRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
@@ -961,6 +972,8 @@ public sealed class Game : IGame
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 10;
 
+        _storeBuyPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
 
@@ -990,7 +1003,7 @@ public sealed class Game : IGame
 
         for (int i = 0; i < _storeCatalog.Length; i++)
         {
-            var (name, price, hungerDelta, healthDelta, suspicionDelta) = _storeCatalog[i];
+            var (name, price, _, _, _) = _storeCatalog[i];
 
             int rowY = rowStartY + i * rowHeight;
 
@@ -1016,16 +1029,6 @@ public sealed class Game : IGame
             Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
             Raylib.DrawTextEx(font, priceStr,
                 new Vector2(panelX + panelW - 32 - pW, rowY + 9), 16, 0.6f, priceColor);
-
-            // Small effect hints (very subtle)
-            if (hungerDelta < 0)
-            {
-                Raylib.DrawTextEx(font, "↓H", new Vector2(panelX + 200, rowY + 10), 11, 0.4f, new Color(120, 140, 90, 160));
-            }
-            if (healthDelta > 0)
-            {
-                Raylib.DrawTextEx(font, "↑HP", new Vector2(panelX + 230, rowY + 10), 11, 0.4f, new Color(100, 130, 100, 160));
-            }
         }
 
         // Feedback line at bottom of list area
@@ -1037,12 +1040,27 @@ public sealed class Game : IGame
                 15, 0.5f, Palette.TextSecondary);
         }
 
-        // Instructions
-        string hint = "Click item or press 1-6 to buy  •  ESC to leave shelves";
-        int hintW = (int)Raylib.MeasureTextEx(font, hint, 12, 0.4f).X;
-        Raylib.DrawTextEx(font, hint,
-            new Vector2(panelX + (panelW - hintW) / 2, panelY + panelH - 32),
-            12, 0.4f, Palette.TextDim);
+        // Close button
+        int btnW = 100;
+        int btnH = 32;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - 44;
+
+        _storeBuyCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        Color btnBg = _storeBuyCloseHovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
+        Color btnBorder = _storeBuyCloseHovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
+
+        Raylib.DrawRectangleRec(_storeBuyCloseRect, btnBg);
+        Raylib.DrawRectangleLinesEx(_storeBuyCloseRect, 1.5f, btnBorder);
+        Raylib.DrawRectangle(btnX + 2, btnY + 2, btnW - 4, 2, Palette.ButtonTopAccent);
+
+        string closeText = "CLOSE";
+        int closeSize = 16;
+        int closeW = (int)Raylib.MeasureTextEx(font, closeText, closeSize, 0.7f).X;
+        Raylib.DrawTextEx(font, closeText,
+            new Vector2(btnX + (btnW - closeW) / 2, btnY + 7),
+            closeSize, 0.7f, Palette.TextPrimary);
     }
 
     private void Draw()
