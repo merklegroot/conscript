@@ -26,7 +26,9 @@ public sealed class Game : IGame
 
     // UI font (loaded TTF for much better readability than the default bitmap font)
     private Font _uiFont;
-    private Texture2D _backgroundTexture;
+    private Texture2D _backgroundTexture;   // currently active scene background (swapped on phase change)
+    private Texture2D _apartmentBackground;
+    private Texture2D _forestBackground;
 
     // === Game flow ===
     private enum Phase
@@ -130,6 +132,14 @@ public sealed class Game : IGame
                 _choices = new[] { "Try again" };
                 break;
         }
+
+        // Swap the background image for the new phase
+        _backgroundTexture = _phase switch
+        {
+            Phase.Opening => _apartmentBackground,
+            Phase.Forest  => _forestBackground,
+            _             => _forestBackground
+        };
     }
 
     /// <summary>
@@ -242,7 +252,9 @@ public sealed class Game : IGame
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
         _uiFont = LoadUiFont();
-        _backgroundTexture = LoadEmbeddedTexture("trees.png");
+        _apartmentBackground = LoadEmbeddedTexture("apartment-inside.png");
+        _forestBackground    = LoadEmbeddedTexture("trees.png");
+        _backgroundTexture   = _apartmentBackground;   // we start in the apartment
         EnterPhase(Phase.Opening);
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
@@ -251,8 +263,10 @@ public sealed class Game : IGame
             Draw();
         }
 
-        if (_backgroundTexture.Id != 0)
-            Raylib.UnloadTexture(_backgroundTexture);
+        if (_apartmentBackground.Id != 0)
+            Raylib.UnloadTexture(_apartmentBackground);
+        if (_forestBackground.Id != 0)
+            Raylib.UnloadTexture(_forestBackground);
 
         Raylib.CloseWindow();
     }
