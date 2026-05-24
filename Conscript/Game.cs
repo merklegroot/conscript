@@ -200,13 +200,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Forest:
-                _choices = new[]
-                {
-                    "SET UP IMPROVED CAMP",
-                    "GATHER WINTER SUPPLIES",
-                    "FORTIFY SHELTER FOR COLD",
-                    "CHECK RADIO / LISTEN FOR NEWS"
-                };
+                _choices = new[] { "GO BACK TO TOWN" };
                 // The existing forest values
                 _day = 3;
                 _timeOfDay = "Morning";
@@ -226,7 +220,7 @@ public sealed class Game : IGame
                 _choices = new[]
                 {
                     "HIDE IN THE GARBAGE",
-                    "HEAD FOR THE TRAIN TRACKS",
+                    "HEAD FOR THE FOREST",
                     "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE"
                 };
@@ -767,37 +761,8 @@ public sealed class Game : IGame
 
     private void HandleForestChoice(int index)
     {
-        // Existing forest actions
-        switch (index)
-        {
-            case 0:
-                _comfort = Clamp(_comfort + 11);
-                _satiation = Clamp(_satiation + 11);   // eating foraged food or cooking
-                _health = Clamp(_health - 3);
-                _actionMessage = "Better shelter. The wind is less cruel tonight.";
-                break;
-
-            case 1:
-                _money = Math.Max(0, _money - 180);
-                _comfort = Clamp(_comfort - 7);
-                _actionMessage = "You found dry branches and a few cans. Exhausting work.";
-                break;
-
-            case 2:
-                _comfort = Clamp(_comfort + 18);
-                _satiation = Clamp(_satiation - 14);   // hard physical labor burns calories fast
-                _health = Clamp(_health + 5);
-                _actionMessage = "The walls are tighter. The cold bites less.";
-                break;
-
-            case 3:
-                _satiation = Clamp(_satiation + 3);    // small comfort from the radio, but not much food
-                _actionMessage = "Static. A name you know. Nothing about you yet.";
-                break;
-        }
-
-        AdvanceTime();   // most actions advance the time of day
-        _actionMessageTimer = ActionMessageDuration;
+        if (index == 0)
+            EnterPhase(Phase.Outside);
     }
 
     private void HandleOutsideChoice(int index)
@@ -810,9 +775,9 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Death);
                 return;
 
-            case 1: // Head for the train tracks — the real way out of the city
-                _comfort = Clamp(_comfort - 5);   // out in the cold, moving toward the railyard
-                _actionMessage = "You slip along the service road toward the railyard. The tracks are your way out.";
+            case 1: // Head for the forest
+                _comfort = Clamp(_comfort - 5);   // out in the cold, moving toward the tree line
+                _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
                 EnterPhase(Phase.Forest);
                 return;
