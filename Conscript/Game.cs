@@ -166,6 +166,14 @@ public sealed class Game : IGame
     private Rectangle _storeBuyCloseRect;
     private bool _storeBuyCloseHovered;
 
+    // Region map — sidebar thumbnail opens expanded view
+    private bool _showRegionMap;
+    private Rectangle _regionMapClickRect;
+    private bool _regionMapThumbHovered;
+    private Rectangle _regionMapPanelRect;
+    private Rectangle _regionMapCloseRect;
+    private bool _regionMapCloseHovered;
+
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
 
@@ -600,6 +608,11 @@ public sealed class Game : IGame
                 _storeBuyFeedback = "";
                 return;
             }
+            if (_showRegionMap)
+            {
+                CloseRegionMap();
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -611,18 +624,25 @@ public sealed class Game : IGame
         }
 
         // Horizontal navigation for bottom action buttons
-        if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu)
         {
-            _selectedIndex = (_selectedIndex + 1) % _choices.Length;
-        }
-        if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A))
-        {
-            _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
+            {
+                _selectedIndex = (_selectedIndex + 1) % _choices.Length;
+            }
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A))
+            {
+                _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
+            }
         }
 
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE))
         {
-            if (_showItemDialog)
+            if (_showRegionMap)
+            {
+                CloseRegionMap();
+            }
+            else if (_showItemDialog)
             {
                 CloseItemDialog();
             }
@@ -650,6 +670,24 @@ public sealed class Game : IGame
         {
             DebugStartGame();
             return;
+        }
+
+        // === Expanded region map (modal) ===
+        if (_showRegionMap)
+        {
+            _regionMapCloseHovered = Raylib.CheckCollisionPointRec(mouse, _regionMapCloseRect);
+
+            if (leftClicked && _regionMapCloseHovered)
+            {
+                CloseRegionMap();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _regionMapPanelRect))
+            {
+                CloseRegionMap();
+                return;
+            }
         }
 
         // === Item dialog (highest priority when visible) ===
@@ -682,8 +720,16 @@ public sealed class Game : IGame
             _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap)
         {
+            _regionMapThumbHovered = _regionMapClickRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
+            if (leftClicked && _regionMapThumbHovered)
+            {
+                OpenRegionMap();
+                return;
+            }
+
             for (int i = 0; i < buttonRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
@@ -780,8 +826,11 @@ public sealed class Game : IGame
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap)
         {
+            if (_regionMapThumbHovered)
+                overClickable = true;
+
             // Bottom action buttons
             for (int i = 0; i < buttonRects.Length; i++)
             {
@@ -801,6 +850,15 @@ public sealed class Game : IGame
                     overClickable = true;
                     break;
                 }
+            }
+        }
+
+        if (_showRegionMap)
+        {
+            if (_regionMapCloseHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _regionMapPanelRect))
+            {
+                overClickable = true;
             }
         }
 
@@ -1018,6 +1076,7 @@ public sealed class Game : IGame
         _selectedIndex = 0;
         _showItemDialog = false;
         _showStoreBuyMenu = false;
+        CloseRegionMap();
         _storeBuyFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
@@ -1032,6 +1091,7 @@ public sealed class Game : IGame
     {
         _showItemDialog = false;
         _showStoreBuyMenu = false;
+        CloseRegionMap();
         _storeBuyFeedback = "";
         _storeBuyFeedbackTimer = 0f;
         _deathLine1 = "You died.";
@@ -1422,6 +1482,11 @@ public sealed class Game : IGame
         if (_showStoreBuyMenu)
         {
             DrawStoreBuyMenu();
+        }
+
+        if (_showRegionMap)
+        {
+            DrawRegionMapModal();
         }
 
         Raylib.EndDrawing();
@@ -1899,6 +1964,14 @@ public sealed class Game : IGame
         return packY + bodyH;
     }
 
+    private void OpenRegionMap() => _showRegionMap = true;
+
+    private void CloseRegionMap()
+    {
+        _showRegionMap = false;
+        _regionMapCloseHovered = false;
+    }
+
     // =====================================================================
     // WORLD MAP — real geography (Natural Earth via scripts/generate_region_map.py)
     // =====================================================================
@@ -1907,44 +1980,137 @@ public sealed class Game : IGame
         Font font = _uiFont;
         int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
         const int mapH = 100;
+        int sectionTop = startY;
 
         Raylib.DrawTextEx(font, "REGION",
             new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
+
+        string expandHint = "Click to expand";
+        int hintSize = 9;
+        int hintW = (int)Raylib.MeasureTextEx(font, expandHint, hintSize, 0.35f).X;
+        Raylib.DrawTextEx(font, expandHint,
+            new Vector2(x + available - hintW, startY + 2), hintSize, 0.35f, Palette.TextDim);
 
         startY += 15;
         Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
         startY += 8;
 
-        int mapX = x;
-        int mapY = startY;
-        int mapW = available;
+        Rectangle mapRect = new Rectangle(x, startY, available, mapH);
+        _regionMapClickRect = new Rectangle(x, sectionTop, available, startY + mapH - sectionTop);
+
+        DrawRegionMapInRect(mapRect, markerRadius: 3.5f, labelFontSize: 8f);
+
+        if (_regionMapThumbHovered)
+        {
+            Raylib.DrawRectangleLinesEx(mapRect, 1.5f, Palette.ButtonSelectedBorder);
+        }
+    }
+
+    private void DrawRegionMapModal()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 175));
+
+        Font font = _uiFont;
+
+        double lonSpan = RegionMapMaxLon - RegionMapMinLon;
+        double latSpan = RegionMapMaxLat - RegionMapMinLat;
+        float geoAspect = (float)(lonSpan / latSpan);
+
+        const int marginX = 36;
+        const int marginY = 24;
+        const int chromeTop = 56;
+        const int chromeBottom = 56;
+        const int panelPadX = 28;
+
+        float maxMapW = screenW - marginX * 2 - panelPadX * 2;
+        float maxMapH = screenH - marginY * 2 - chromeTop - chromeBottom;
+
+        int mapW;
+        int mapH;
+        if (maxMapW / geoAspect <= maxMapH)
+        {
+            mapW = (int)maxMapW;
+            mapH = (int)(mapW / geoAspect);
+        }
+        else
+        {
+            mapH = (int)maxMapH;
+            mapW = (int)(mapH * geoAspect);
+        }
+
+        int panelW = mapW + panelPadX * 2;
+        int panelH = mapH + chromeTop + chromeBottom;
+
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2;
+        _regionMapPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        string title = "REGION";
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + 22, panelY + 16), 18, 0.75f, Palette.TextMuted);
+
+        string subtitle = "Republic of Buryatia — eastern Siberia";
+        Raylib.DrawTextEx(font, subtitle,
+            new Vector2(panelX + 22, panelY + 38), 13, 0.6f, Palette.TextSecondary);
+
+        int mapX = panelX + (panelW - mapW) / 2;
+        int mapY = panelY + chromeTop;
+        Rectangle mapRect = new Rectangle(mapX, mapY, mapW, mapH);
+        DrawRegionMapInRect(mapRect, markerRadius: 8f, labelFontSize: 14f);
+
+        (double lon, double lat) = GetMapPlayerGeoPosition();
+        string coords = $"{lat:F2}°N, {lon:F2}°E";
+        int coordsW = (int)Raylib.MeasureTextEx(font, coords, 11, 0.5f).X;
+        Raylib.DrawTextEx(font, coords,
+            new Vector2(panelX + panelW - 22 - coordsW, mapY + mapH + 8),
+            11, 0.5f, Palette.TextDim);
+
+        int btnW = 120;
+        int btnH = 36;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - chromeBottom + 10;
+        _regionMapCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        DrawDialogButton(_regionMapCloseRect, "CLOSE", _regionMapCloseHovered, font);
+    }
+
+    private void DrawRegionMapInRect(Rectangle mapRect, float markerRadius, float labelFontSize)
+    {
+        Font font = _uiFont;
 
         if (_regionMapTexture.Id != 0)
         {
             Rectangle src = new Rectangle(0, 0, _regionMapTexture.Width, _regionMapTexture.Height);
-            Rectangle dst = new Rectangle(mapX, mapY, mapW, mapH);
-            Raylib.DrawTexturePro(_regionMapTexture, src, dst, Vector2.Zero, 0f, Color.WHITE);
+            Raylib.DrawTexturePro(_regionMapTexture, src, mapRect, Vector2.Zero, 0f, Color.WHITE);
         }
         else
         {
-            Raylib.DrawRectangle(mapX, mapY, mapW, mapH, new Color(12, 14, 18, 255));
+            Raylib.DrawRectangleRec(mapRect, new Color(12, 14, 18, 255));
         }
 
-        Raylib.DrawRectangleLines(mapX, mapY, mapW, mapH, Palette.SubtleBorder);
+        Raylib.DrawRectangleLinesEx(mapRect, 1f, Palette.SubtleBorder);
 
         (double lon, double lat) = GetMapPlayerGeoPosition();
-        Vector2 player = GeoToMapPixel(mapX, mapY, mapW, mapH, lon, lat);
+        Vector2 player = GeoToMapPixel(
+            (int)mapRect.X, (int)mapRect.Y, (int)mapRect.Width, (int)mapRect.Height, lon, lat);
+
         int px = (int)player.X;
         int py = (int)player.Y;
-        Raylib.DrawCircle(px, py, 6f, new Color(195, 175, 105, 50));
-        Raylib.DrawCircle(px, py, 3.5f, Palette.ActionFlash);
-        Raylib.DrawCircleLines(px, py, 5, Palette.TextPrimary);
+        float glowR = markerRadius + 2.5f;
+        Raylib.DrawCircle(px, py, glowR, new Color(195, 175, 105, 50));
+        Raylib.DrawCircle(px, py, markerRadius, Palette.ActionFlash);
+        Raylib.DrawCircleLines(px, py, (int)(markerRadius + 1.5f), Palette.TextPrimary);
 
         string markerLabel = _phase == Phase.Forest ? "You" : "Ulan-Ude";
-        float labelSize = 8f;
-        int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelSize, 0.35f).X;
+        int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelFontSize, 0.35f).X;
         Raylib.DrawTextEx(font, markerLabel,
-            new Vector2(player.X - labelW / 2f, player.Y + 8), labelSize, 0.35f, Palette.TextPrimary);
+            new Vector2(player.X - labelW / 2f, player.Y + markerRadius + 4),
+            labelFontSize, 0.35f, Palette.TextPrimary);
     }
 
     private (double lon, double lat) GetMapPlayerGeoPosition() =>
