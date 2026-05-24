@@ -30,6 +30,7 @@ public sealed class Game : IGame
     private Texture2D _apartmentBackground;
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
+    private Texture2D _storeBackground;
 
     // Restart button (top right, always available)
     private Rectangle _restartButtonRect;
@@ -40,6 +41,7 @@ public sealed class Game : IGame
     {
         Opening,   // At home with family — the knock on the door
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
+        Store,     // Inside a late-night convenience store / kiosk
         Forest,    // Deep forest survival
         Death
     }
@@ -90,6 +92,12 @@ public sealed class Game : IGame
         "The window you escaped through is still lit.\n" +
         "No sirens yet — but the night is too quiet.\n" +
         "Every shadow could hide a patrol. Move.";
+
+    private const string StoreNarrative =
+        "The fluorescent lights are brutal after the dark yard.\n" +
+        "A security camera stares from the ceiling with a dead red eye.\n" +
+        "The clerk is glued to his phone behind the counter.\n" +
+        "You have never felt more visible in your life.";
 
     private string _actionMessage = "";
     private float _actionMessageTimer;
@@ -178,6 +186,25 @@ public sealed class Game : IGame
                 _hunger    = Clamp(_hunger + 9);   // the adrenaline and cold make you hungrier
                 // money, health etc. carry over from the apartment
                 break;
+
+            case Phase.Store:
+                _choices = new[]
+                {
+                    "BUY FOOD & DRINK",
+                    "BUY PHONE CARD + CALL",
+                    "STEAL SNACKS",
+                    "LEAVE THE WAY YOU CAME"
+                };
+                _day = 0;
+                _timeOfDay = "Night";
+                _warIntensity = "Rising";
+                _location = "Late-Night Kiosk";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 24;   // slightly warmer inside
+                // other stats carry over
+                break;
         }
 
         // Swap the background image for the new phase
@@ -185,6 +212,7 @@ public sealed class Game : IGame
         {
             Phase.Opening => _apartmentBackground,
             Phase.Outside => _outsideBackground,
+            Phase.Store   => _storeBackground,
             Phase.Forest  => _forestBackground,
             _             => _forestBackground
         };
@@ -312,6 +340,7 @@ public sealed class Game : IGame
         _apartmentBackground = LoadEmbeddedTexture("apartment-inside.png");
         _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
         _forestBackground    = LoadEmbeddedTexture("trees.png");
+        _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
@@ -326,6 +355,8 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_outsideBackground);
         if (_forestBackground.Id != 0)
             Raylib.UnloadTexture(_forestBackground);
+        if (_storeBackground.Id != 0)
+            Raylib.UnloadTexture(_storeBackground);
 
         Raylib.CloseWindow();
     }
@@ -427,6 +458,10 @@ public sealed class Game : IGame
                 HandleOutsideChoice(index);
                 break;
 
+            case Phase.Store:
+                HandleStoreChoice(index);
+                break;
+
             case Phase.Death:
                 if (index == 0)
                 {
@@ -520,13 +555,46 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Death);
                 return;
 
-            case 3: // Convenience store — risky resupply under bright lights
-                _suspicion = Clamp(_suspicion + 11);
-                _exposure = Clamp(_exposure - 6);
-                _health = Clamp(_health + 8);
-                _money = Math.Max(0, _money - 220);
-                _actionMessage = "Fluorescent lights hit like a spotlight. You buy bread, sausage, and a cheap phone card. The clerk watches the security feed the whole time.";
+            case 3: // Convenience store — step inside the bright kiosk
+                _actionMessage = "You push through the heavy glass door into the harsh light.";
+                _actionMessageTimer = 1.8f;
+                EnterPhase(Phase.Store);
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleStoreChoice(int index)
+    {
+        switch (index)
+        {
+            case 0: // Buy actual food and a drink
+                _money = Math.Max(0, _money - 280);
+                _hunger = Clamp(_hunger - 22);
+                _health = Clamp(_health + 6);
+                _suspicion = Clamp(_suspicion + 8);
+                _actionMessage = "You eat a plastic-wrapped sandwich and a too-sweet energy drink standing by the window. It helps. The clerk never looks away from his screen.";
                 break;
+
+            case 1: // Buy a phone card and try to make a call
+                _money = Math.Max(0, _money - 150);
+                _suspicion = Clamp(_suspicion + 18);   // using a phone is extremely risky
+                _actionMessage = "The card works. You dial the only number you trust. It rings once, then a stranger answers. You hang up immediately.";
+                break;
+
+            case 2: // Steal some snacks
+                _hunger = Clamp(_hunger - 14);
+                _suspicion = Clamp(_suspicion + 22);   // high risk
+                _actionMessage = "You palm two chocolate bars and a bag of seeds while the clerk steps into the back. Your heart is hammering.";
+                break;
+
+            case 3: // Leave the way you came
+                _actionMessage = "You push back out into the cold dark yard.";
+                AdvanceTime();
+                EnterPhase(Phase.Outside);
+                return;
         }
 
         AdvanceTime();
@@ -585,6 +653,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Outside:
+            case Phase.Store:
             case Phase.Forest:
                 DrawTopBar();
                 DrawLeftSidebar();
@@ -883,6 +952,7 @@ public sealed class Game : IGame
         {
             Phase.Opening => OpeningNarrative,
             Phase.Outside => OutsideNarrative,
+            Phase.Store   => StoreNarrative,
             Phase.Forest  => ForestNarrative,
             _             => ForestNarrative
         };
