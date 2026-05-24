@@ -1,10 +1,10 @@
 {
   "minLon": 22.0,
   "maxLon": 175.0,
-  "minLat": 35.0,
-  "maxLat": 74.0,
+  "minLat": 26.0,
+  "maxLat": 82.0,
   "width": 2048,
-  "height": 522,
+  "height": 750,
   "ulanUde": {
     "lon": 107.584,
     "lat": 51.834

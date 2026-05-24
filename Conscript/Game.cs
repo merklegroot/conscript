@@ -38,8 +38,8 @@ public sealed class Game : IGame
     // (regenerate via: python3 scripts/generate_region_map.py)
     private const double RegionMapMinLon = 22.0;
     private const double RegionMapMaxLon = 175.0;
-    private const double RegionMapMinLat = 35.0;
-    private const double RegionMapMaxLat = 74.0;
+    private const double RegionMapMinLat = 26.0;
+    private const double RegionMapMaxLat = 82.0;
     private const double UlanUdeLon = 107.584;
     private const double UlanUdeLat = 51.834;
     private const double ForestCampLon = 107.35;
@@ -2088,15 +2088,6 @@ public sealed class Game : IGame
         _expandedMapViewAspect = mapRect.Width / mapRect.Height;
     }
 
-    private float MapTextureAspect =>
-        _regionMapTexture.Id != 0
-            ? _regionMapTexture.Width / (float)_regionMapTexture.Height
-            : MapGeoAspect;
-
-    // Lon/lat span ratio that fills the portrait viewport without stretching the texture.
-    private float ViewLonLatAspect =>
-        _expandedMapViewAspect * MapGeoAspect / MapTextureAspect;
-
     private float MapGeoAspect =>
         (float)((RegionMapMaxLon - RegionMapMinLon) / (RegionMapMaxLat - RegionMapMinLat));
 
@@ -2121,7 +2112,7 @@ public sealed class Game : IGame
     {
         double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
         double viewLatSpan = fullLatSpan / CurrentMapZoom;
-        double viewLonSpan = viewLatSpan * ViewLonLatAspect;
+        double viewLonSpan = viewLatSpan * _expandedMapViewAspect;
 
         minLon = _mapViewCenterLon - viewLonSpan / 2;
         maxLon = _mapViewCenterLon + viewLonSpan / 2;
@@ -2134,7 +2125,7 @@ public sealed class Game : IGame
         double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
         double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
         double halfLat = fullLatSpan / CurrentMapZoom / 2;
-        double halfLon = halfLat * ViewLonLatAspect;
+        double halfLon = halfLat * _expandedMapViewAspect;
 
         double latMin = RegionMapMinLat + Math.Min(halfLat, fullLatSpan / 2);
         double latMax = RegionMapMaxLat - Math.Min(halfLat, fullLatSpan / 2);
@@ -2161,7 +2152,7 @@ public sealed class Game : IGame
         _mapZoomLevelIndex = next;
 
         double newLatSpan = (RegionMapMaxLat - RegionMapMinLat) / CurrentMapZoom;
-        double newLonSpan = newLatSpan * ViewLonLatAspect;
+        double newLonSpan = newLatSpan * _expandedMapViewAspect;
         _mapViewCenterLon = focusLon + (0.5 - nx) * newLonSpan;
         _mapViewCenterLat = focusLat + (ny - 0.5) * newLatSpan;
         ClampMapViewCenter();
@@ -2288,11 +2279,6 @@ public sealed class Game : IGame
             labelSize, 0.7f, text);
     }
 
-    private static bool IsViewWithinMapBounds(
-        double viewMinLon, double viewMaxLon, double viewMinLat, double viewMaxLat) =>
-        viewMinLon >= RegionMapMinLon - 1e-6 && viewMaxLon <= RegionMapMaxLon + 1e-6 &&
-        viewMinLat >= RegionMapMinLat - 1e-6 && viewMaxLat <= RegionMapMaxLat + 1e-6;
-
     private void DrawRegionMapInRect(
         Rectangle mapRect,
         float markerRadius,
@@ -2318,24 +2304,14 @@ public sealed class Game : IGame
 
             Raylib.BeginScissorMode((int)mapRect.X, (int)mapRect.Y, (int)mapRect.Width, (int)mapRect.Height);
 
-            if (IsViewWithinMapBounds(viewMinLon, viewMaxLon, viewMinLat, viewMaxLat))
-            {
-                Rectangle src = new Rectangle(
-                    (float)((viewMinLon - RegionMapMinLon) / fullLonSpan * texW),
-                    (float)((RegionMapMaxLat - viewMaxLat) / fullLatSpan * texH),
-                    (float)(viewLonSpan / fullLonSpan * texW),
-                    (float)(viewLatSpan / fullLatSpan * texH));
-                Raylib.DrawTexturePro(_regionMapTexture, src, mapRect, Vector2.Zero, 0f, Color.WHITE);
-            }
-            else
+            if (viewLonSpan > 1e-9 && viewLatSpan > 1e-9)
             {
                 double geoMinLon = Math.Max(viewMinLon, RegionMapMinLon);
                 double geoMaxLon = Math.Min(viewMaxLon, RegionMapMaxLon);
                 double geoMinLat = Math.Max(viewMinLat, RegionMapMinLat);
                 double geoMaxLat = Math.Min(viewMaxLat, RegionMapMaxLat);
 
-                if (geoMinLon < geoMaxLon && geoMinLat < geoMaxLat &&
-                    viewLonSpan > 1e-9 && viewLatSpan > 1e-9)
+                if (geoMinLon < geoMaxLon && geoMinLat < geoMaxLat)
                 {
                     float destX = mapRect.X + (float)((geoMinLon - viewMinLon) / viewLonSpan * mapRect.Width);
                     float destY = mapRect.Y + (float)((viewMaxLat - geoMaxLat) / viewLatSpan * mapRect.Height);

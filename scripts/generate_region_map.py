@@ -23,8 +23,8 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 OUT_PNG = OUT_DIR / "region-map.png"
 OUT_META = OUT_DIR / "region-map.bounds.json"
 
-# Russia-centric view — Urals to Pacific, Arctic to Central Asia (orient the player globally)
-BOUNDS = (22.0, 175.0, 35.0, 74.0)  # min_lon, max_lon, min_lat, max_lat
+# Russia-centric view — Urals to Pacific, with extra lat margin for tall portrait zoom
+BOUNDS = (22.0, 175.0, 26.0, 82.0)  # min_lon, max_lon, min_lat, max_lat
 WIDTH_PX = 2048
 GEO_ASPECT = (BOUNDS[1] - BOUNDS[0]) / (BOUNDS[3] - BOUNDS[2])
 HEIGHT_PX = int(round(WIDTH_PX / GEO_ASPECT))  # equal-degree projection, no stretch
