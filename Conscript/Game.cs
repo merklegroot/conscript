@@ -71,6 +71,16 @@ public sealed class Game : IGame
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
 
+    // Item interaction dialog (simple modal for now)
+    private bool _showItemDialog;
+    private int _dialogItemIndex = -1;
+    private string _dialogItemName = "";
+    private Rectangle _dialogCloseRect;
+    private bool _dialogCloseHovered;
+
+    // Cached backpack slot rectangles (updated during DrawBackpack every frame)
+    private Rectangle[] _backpackSlotRects = new Rectangle[8];
+
     // Custom death screen text (set before entering Phase.Death for specific endings)
     private string _deathLine1 = "You died.";
     private string _deathLine2 = "The war took you on the first day.";
@@ -373,6 +383,11 @@ public sealed class Game : IGame
 
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
+            if (_showItemDialog)
+            {
+                CloseItemDialog();
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -407,7 +422,14 @@ public sealed class Game : IGame
 
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE))
         {
-            PerformChoice(_selectedIndex);
+            if (_showItemDialog)
+            {
+                CloseItemDialog();
+            }
+            else
+            {
+                PerformChoice(_selectedIndex);
+            }
         }
 
         // === Mouse support: hover to highlight, left-click to immediately activate ===
@@ -424,6 +446,23 @@ public sealed class Game : IGame
             return;
         }
 
+        // === Item dialog close button (highest priority when visible) ===
+        if (_showItemDialog)
+        {
+            _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
+            if (leftClicked && _dialogCloseHovered)
+            {
+                CloseItemDialog();
+                return;
+            }
+            // Clicking anywhere else on the overlay also closes (common UX)
+            if (leftClicked)
+            {
+                CloseItemDialog();
+                return;
+            }
+        }
+
         for (int i = 0; i < buttonRects.Length; i++)
         {
             if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
@@ -434,6 +473,23 @@ public sealed class Game : IGame
                 {
                     PerformChoice(i);
                     return;
+                }
+            }
+        }
+
+        // === Backpack item click (opens simple interaction dialog) ===
+        if (!_showItemDialog)
+        {
+            for (int i = 0; i < _backpackSlotRects.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(_backpack[i]) &&
+                    Raylib.CheckCollisionPointRec(mouse, _backpackSlotRects[i]))
+                {
+                    if (leftClicked)
+                    {
+                        OpenItemDialog(i);
+                        return;
+                    }
                 }
             }
         }
@@ -626,6 +682,25 @@ public sealed class Game : IGame
         EnterPhase(Phase.Opening);
     }
 
+    private void OpenItemDialog(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= _backpack.Length) return;
+        string? item = _backpack[slotIndex];
+        if (string.IsNullOrEmpty(item)) return;
+
+        _dialogItemIndex = slotIndex;
+        _dialogItemName = item;
+        _showItemDialog = true;
+        _dialogCloseHovered = false;
+    }
+
+    private void CloseItemDialog()
+    {
+        _showItemDialog = false;
+        _dialogItemIndex = -1;
+        _dialogItemName = "";
+    }
+
     private void DrawRestartButton()
     {
         if (_restartButtonRect.Width <= 0) return;
@@ -645,6 +720,74 @@ public sealed class Game : IGame
         float sx = _restartButtonRect.X + (_restartButtonRect.Width - m.X) / 2f;
         float sy = _restartButtonRect.Y + (_restartButtonRect.Height - symSize) / 2f - 0.5f;
         Raylib.DrawTextEx(_uiFont, sym, new Vector2(sx, sy), symSize, 0.6f, Palette.TextPrimary);
+    }
+
+    // =====================================================================
+    // SIMPLE ITEM DIALOG (modal)
+    // Only "Close" for now — placeholder for future use / examine / drop / etc.
+    // =====================================================================
+    private void DrawItemDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        // Dark overlay
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
+
+        // Centered dialog panel
+        int panelW = 380;
+        int panelH = 210;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 20;
+
+        // Card background + border (matches existing card style)
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        // Item name as title
+        string title = _dialogItemName.ToUpperInvariant();
+        int titleSize = 22;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 22),
+            titleSize, 0.8f, Palette.TextPrimary);
+
+        // Subtle separator
+        Raylib.DrawLine(panelX + 40, panelY + 52, panelX + panelW - 40, panelY + 52, Palette.SubtleBorder);
+
+        // Placeholder body text
+        string body = "No special actions defined for this item yet.";
+        int bodySize = 16;
+        int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
+        Raylib.DrawTextEx(font, body,
+            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 72),
+            bodySize, 0.6f, Palette.TextSecondary);
+
+        // "CLOSE" button (styled similarly to action buttons)
+        int btnW = 120;
+        int btnH = 36;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - 52;
+
+        _dialogCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        Color btnBg = _dialogCloseHovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
+        Color btnBorder = _dialogCloseHovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
+
+        Raylib.DrawRectangleRec(_dialogCloseRect, btnBg);
+        Raylib.DrawRectangleLinesEx(_dialogCloseRect, 1.5f, btnBorder);
+
+        // Top accent line (matches action button style)
+        Raylib.DrawRectangle(btnX + 2, btnY + 2, btnW - 4, 2, Palette.ButtonTopAccent);
+
+        string closeText = "CLOSE";
+        int closeSize = 18;
+        int closeW = (int)Raylib.MeasureTextEx(font, closeText, closeSize, 0.7f).X;
+        Raylib.DrawTextEx(font, closeText,
+            new Vector2(btnX + (btnW - closeW) / 2, btnY + 9),
+            closeSize, 0.7f, Palette.TextPrimary);
     }
 
     private void Draw()
@@ -670,6 +813,11 @@ public sealed class Game : IGame
             case Phase.Death:
                 DrawDeathScreen();
                 break;
+        }
+
+        if (_showItemDialog)
+        {
+            DrawItemDialog();
         }
 
         Raylib.EndDrawing();
@@ -959,6 +1107,7 @@ public sealed class Game : IGame
     // =====================================================================
     // BACKPACK — simple visual grid with a "fabric pack" border treatment
     // =====================================================================
+
     private void DrawBackpack(int startY, int x)
     {
         Font font = _uiFont;
@@ -1021,15 +1170,18 @@ public sealed class Game : IGame
         int contentTop = packY + flapH + 4;
         Raylib.DrawLine(x + 10, contentTop - 1, x + packW - 10, contentTop - 1, new Color(28, 26, 22, 255));
 
-        // Draw the item grid (the actual "pockets")
+        // Draw the item grid (the actual "pockets") and cache the rects for input
         for (int r = 0; r < rows; r++)
         {
             for (int c = 0; c < cols; c++)
             {
                 int sx = gridX + c * (slot + gap);
                 int sy = contentTop + r * (slot + gap);
+                int idx = r * cols + c;
 
-                string? item = _backpack[r * cols + c];
+                _backpackSlotRects[idx] = new Rectangle(sx, sy, slot, slot);
+
+                string? item = _backpack[idx];
                 bool occupied = !string.IsNullOrEmpty(item);
 
                 // Pocket background
