@@ -297,12 +297,29 @@ public sealed class Game : IGame
             Path.Combine(baseDir, "Fonts", "Roboto-Regular.ttf"),
         };
 
+        // Comprehensive character set for full UI support:
+        // - Basic Latin + common punctuation (including ' " ° … – — etc.)
+        // - Rouble symbol ₽
+        // - Full Cyrillic (Russian alphabet, including Ё/ё)
+        // - Common symbols used in the game (↻ restart icon, etc.)
+        // We must use LoadFontEx with an explicit glyph list; passing null/0 only loads
+        // a tiny default set (ASCII ~95 chars), which is why ' , ₽ and Cyrillic were missing.
+        const string chars =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
+            " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~°©®™…–—•·‘’“”«»₽" +
+            "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
+            "\u21BB"; // ↻ (clockwise arrow, used for restart button)
+
+        int[] codepoints = new int[chars.Length];
+        for (int i = 0; i < chars.Length; i++)
+            codepoints[i] = chars[i];
+
         foreach (string path in candidates)
         {
             if (File.Exists(path))
             {
                 // 32 is the base pixel size; we control actual size via DrawTextEx fontSize param
-                return Raylib.LoadFontEx(path, 32, null, 0);
+                return Raylib.LoadFontEx(path, 32, codepoints, codepoints.Length);
             }
         }
 
