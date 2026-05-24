@@ -164,7 +164,7 @@ public sealed class Game : IGame
                     "HIDE IN THE GARBAGE",
                     "HEAD FOR THE TRAIN TRACKS",
                     "GO TO UNCLE'S HOUSE",
-                    "HEAD FOR THE PARK"
+                    "CONVENIENCE STORE"
                 };
                 _day = 0;
                 _timeOfDay = "Night";
@@ -521,11 +521,12 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Death);
                 return;
 
-            case 3: // Head for the park — another pocket of darkness in the city
-                _exposure = Clamp(_exposure - 10);
-                _morale = Clamp(_morale + 4);
-                _health = Clamp(_health + 3);
-                _actionMessage = "The park is quiet and mostly empty. You drink from a fountain and rest on a bench under the trees.";
+            case 3: // Convenience store — risky resupply under bright lights
+                _suspicion = Clamp(_suspicion + 11);
+                _exposure = Clamp(_exposure - 6);
+                _health = Clamp(_health + 8);
+                _money = Math.Max(0, _money - 220);
+                _actionMessage = "Fluorescent lights hit like a spotlight. You buy bread, sausage, and a cheap phone card. The clerk watches the security feed the whole time.";
                 break;
         }
 
