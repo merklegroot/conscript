@@ -944,13 +944,6 @@ public sealed class Game : IGame
                 LayoutConstants.ActionButtonFontSize, 0.85f,
                 selected ? Palette.TextPrimary : Palette.TextDim);
         }
-
-        // Refined control hint — plenty of space below the buttons
-        string hint = "← →  or  A D    select        ENTER  or  1–4    act        Q  or  ESC    quit";
-        int hintWidth = (int)Raylib.MeasureTextEx(font, hint, LayoutConstants.SmallHintSize, 0.6f).X;
-        Raylib.DrawTextEx(font, hint,
-            new Vector2((_screenWidth - hintWidth) / 2, barY + barH - 24),
-            LayoutConstants.SmallHintSize, 0.6f, Palette.TextDim);
     }
 
     private static int Clamp(int v) => Math.Max(0, Math.Min(100, v));

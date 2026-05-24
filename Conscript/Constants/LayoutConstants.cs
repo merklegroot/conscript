@@ -22,7 +22,4 @@ public static class LayoutConstants
 
     // Bottom action buttons — larger and clearer
     public const int ActionButtonFontSize = 21;
-
-    // General UI hints
-    public const int SmallHintSize = 15;
 }
