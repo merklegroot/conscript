@@ -26,7 +26,8 @@ OUT_META = OUT_DIR / "region-map.bounds.json"
 # Russia-centric view — Urals to Pacific, Arctic to Central Asia (orient the player globally)
 BOUNDS = (22.0, 175.0, 35.0, 74.0)  # min_lon, max_lon, min_lat, max_lat
 WIDTH_PX = 2048
-HEIGHT_PX = 480   # matches lon/lat aspect (~153° × 39°)
+GEO_ASPECT = (BOUNDS[1] - BOUNDS[0]) / (BOUNDS[3] - BOUNDS[2])
+HEIGHT_PX = int(round(WIDTH_PX / GEO_ASPECT))  # equal-degree projection, no stretch
 DPI = 100
 
 NE_50M_ADMIN1 = (
@@ -190,18 +191,22 @@ def main() -> None:
         dpi=DPI,
         facecolor=fig.get_facecolor(),
         edgecolor="none",
-        bbox_inches="tight",
-        pad_inches=0.02,
+        bbox_inches=None,
+        pad_inches=0,
     )
     plt.close(fig)
 
+    from PIL import Image
+
+    with Image.open(OUT_PNG) as img:
+        png_w, png_h = img.size
     meta = {
         "minLon": min_lon,
         "maxLon": max_lon,
         "minLat": min_lat,
         "maxLat": max_lat,
-        "width": WIDTH_PX,
-        "height": HEIGHT_PX,
+        "width": png_w,
+        "height": png_h,
         "ulanUde": {"lon": 107.584, "lat": 51.834},
         "forestCamp": {"lon": 107.35, "lat": 51.95},
     }

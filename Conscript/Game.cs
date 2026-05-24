@@ -172,6 +172,7 @@ public sealed class Game : IGame
     private bool _regionMapThumbHovered;
     private Rectangle _regionMapPanelRect;
     private Rectangle _regionMapViewRect;
+    private Rectangle _regionMapDrawRect;
     private Rectangle _regionMapCloseRect;
     private bool _regionMapCloseHovered;
     private Rectangle _mapZoomInRect;
@@ -185,8 +186,12 @@ public sealed class Game : IGame
     private Vector2 _mapPanStartMouse;
     private double _mapPanStartCenterLon;
     private double _mapPanStartCenterLat;
+    private float _expandedMapViewAspect;
 
-    private static readonly float[] MapZoomLevels = { 1f, 2f, 3f, 4f, 6f, 8f, 12f, 18f };
+    private static readonly float[] MapZoomLevels = { 0.25f, 0.5f, 0.75f, 1f, 2f, 3f, 4f, 6f, 8f, 12f, 18f };
+
+    // Detail dialog viewport (width / height). Sidebar uses MapGeoAspect (~3.9) instead.
+    private const float ExpandedMapAspect = 0.78f;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
@@ -689,24 +694,24 @@ public sealed class Game : IGame
         // === Expanded region map (modal) ===
         if (_showRegionMap)
         {
-            ComputeExpandedMapLayout(out _, out Rectangle mapRect);
-            _regionMapViewRect = mapRect;
-            ComputeMapZoomButtonRects(mapRect, out _mapZoomInRect, out _mapZoomOutRect);
+            SyncExpandedMapLayout();
+            ComputeMapZoomButtonRects(_regionMapDrawRect, out _mapZoomInRect, out _mapZoomOutRect);
 
             _regionMapCloseHovered = Raylib.CheckCollisionPointRec(mouse, _regionMapCloseRect);
             _mapZoomInHovered = Raylib.CheckCollisionPointRec(mouse, _mapZoomInRect);
             _mapZoomOutHovered = Raylib.CheckCollisionPointRec(mouse, _mapZoomOutRect);
-            bool overMap = mapRect.Width > 0 && Raylib.CheckCollisionPointRec(mouse, mapRect);
+            bool overMap = _regionMapDrawRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _regionMapDrawRect);
 
             if (leftClicked && _mapZoomInHovered && _mapZoomLevelIndex < MapZoomLevels.Length - 1)
             {
-                ChangeMapZoom(1, mapRect);
+                ChangeMapZoom(1, _regionMapDrawRect);
                 return;
             }
 
             if (leftClicked && _mapZoomOutHovered && _mapZoomLevelIndex > 0)
             {
-                ChangeMapZoom(-1, mapRect);
+                ChangeMapZoom(-1, _regionMapDrawRect);
                 return;
             }
 
@@ -722,14 +727,14 @@ public sealed class Game : IGame
             {
                 if (!Raylib.IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
                     _mapPanning = false;
-                else if (_mapZoomLevelIndex > 0)
+                else
                 {
                     GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
                     double lonSpan = vMaxLon - vMinLon;
                     double latSpan = vMaxLat - vMinLat;
                     Vector2 delta = mouse - _mapPanStartMouse;
-                    _mapViewCenterLon = _mapPanStartCenterLon - delta.X / mapRect.Width * lonSpan;
-                    _mapViewCenterLat = _mapPanStartCenterLat + delta.Y / mapRect.Height * latSpan;
+                    _mapViewCenterLon = _mapPanStartCenterLon - delta.X / _regionMapDrawRect.Width * lonSpan;
+                    _mapViewCenterLat = _mapPanStartCenterLat + delta.Y / _regionMapDrawRect.Height * latSpan;
                     ClampMapViewCenter();
                 }
             }
@@ -2030,9 +2035,10 @@ public sealed class Game : IGame
         (double lon, double lat) = GetMapPlayerGeoPosition();
         _mapViewCenterLon = lon;
         _mapViewCenterLat = lat;
-        _mapZoomLevelIndex = 3;   // start at 4× — local area; zoom out to full Russia
+        _mapZoomLevelIndex = 6;   // start at 4× — local area; zoom out for wider context
         _mapPanning = false;
         _showRegionMap = true;
+        SyncExpandedMapLayout();
     }
 
     private void CloseRegionMap()
@@ -2045,52 +2051,77 @@ public sealed class Game : IGame
 
     private float CurrentMapZoom => MapZoomLevels[_mapZoomLevelIndex];
 
+    private static string FormatMapZoom(float zoom) =>
+        zoom >= 1f ? $"{zoom:F0}×" : $"{zoom:0.##}×";
+
     private void ComputeExpandedMapLayout(out Rectangle panelRect, out Rectangle mapRect)
     {
         int screenW = _screenWidth;
         int screenH = _screenHeight;
 
-        double lonSpan = RegionMapMaxLon - RegionMapMinLon;
-        double latSpan = RegionMapMaxLat - RegionMapMinLat;
-        float geoAspect = (float)(lonSpan / latSpan);
+        const int marginX = 12;
+        const int marginY = 8;
+        const int chromeTop = 44;
+        const int chromeBottom = 44;
+        const int panelPadX = 16;
 
-        const int marginX = 36;
-        const int marginY = 24;
-        const int chromeTop = 56;
-        const int chromeBottom = 56;
-        const int panelPadX = 28;
-
+        int panelH = screenH - marginY * 2;
+        int mapAreaH = panelH - chromeTop - chromeBottom;
         float maxMapW = screenW - marginX * 2 - panelPadX * 2;
-        float maxMapH = screenH - marginY * 2 - chromeTop - chromeBottom;
 
-        int mapW;
-        int mapH;
-        if (maxMapW / geoAspect <= maxMapH)
-        {
-            mapW = (int)maxMapW;
-            mapH = (int)(mapW / geoAspect);
-        }
-        else
-        {
-            mapH = (int)maxMapH;
-            mapW = (int)(mapH * geoAspect);
-        }
-
+        // Height-first: tall portrait viewport, distinct from the wide sidebar thumbnail.
+        int mapH = mapAreaH;
+        int mapW = (int)Math.Min(maxMapW, Math.Max(1, MathF.Round(mapH * ExpandedMapAspect)));
         int panelW = mapW + panelPadX * 2;
-        int panelH = mapH + chromeTop + chromeBottom;
         int panelX = (screenW - panelW) / 2;
-        int panelY = (screenH - panelH) / 2;
+        int panelY = marginY;
 
         panelRect = new Rectangle(panelX, panelY, panelW, panelH);
-        mapRect = new Rectangle(panelX + (panelW - mapW) / 2, panelY + chromeTop, mapW, mapH);
+        mapRect = new Rectangle(panelX + panelPadX, panelY + chromeTop, mapW, mapH);
+    }
+
+    private void SyncExpandedMapLayout()
+    {
+        ComputeExpandedMapLayout(out _, out Rectangle mapRect);
+        _regionMapViewRect = mapRect;
+        _regionMapDrawRect = mapRect;
+        _expandedMapViewAspect = mapRect.Width / mapRect.Height;
+    }
+
+    private float MapTextureAspect =>
+        _regionMapTexture.Id != 0
+            ? _regionMapTexture.Width / (float)_regionMapTexture.Height
+            : MapGeoAspect;
+
+    // Lon/lat span ratio that fills the portrait viewport without stretching the texture.
+    private float ViewLonLatAspect =>
+        _expandedMapViewAspect * MapGeoAspect / MapTextureAspect;
+
+    private float MapGeoAspect =>
+        (float)((RegionMapMaxLon - RegionMapMinLon) / (RegionMapMaxLat - RegionMapMinLat));
+
+    private Rectangle GetSidebarMapDrawRect(Rectangle mapArea)
+    {
+        float drawW = mapArea.Width;
+        float drawH = drawW / MapGeoAspect;
+        if (drawH > mapArea.Height)
+        {
+            drawH = mapArea.Height;
+            drawW = drawH * MapGeoAspect;
+        }
+
+        return new Rectangle(
+            mapArea.X + (mapArea.Width - drawW) * 0.5f,
+            mapArea.Y + (mapArea.Height - drawH) * 0.5f,
+            drawW,
+            drawH);
     }
 
     private void GetMapViewBounds(out double minLon, out double maxLon, out double minLat, out double maxLat)
     {
-        double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
         double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
-        double viewLonSpan = fullLonSpan / CurrentMapZoom;
         double viewLatSpan = fullLatSpan / CurrentMapZoom;
+        double viewLonSpan = viewLatSpan * ViewLonLatAspect;
 
         minLon = _mapViewCenterLon - viewLonSpan / 2;
         maxLon = _mapViewCenterLon + viewLonSpan / 2;
@@ -2100,13 +2131,18 @@ public sealed class Game : IGame
 
     private void ClampMapViewCenter()
     {
-        double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
         double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
-        double halfLon = fullLonSpan / CurrentMapZoom / 2;
+        double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
         double halfLat = fullLatSpan / CurrentMapZoom / 2;
+        double halfLon = halfLat * ViewLonLatAspect;
 
-        _mapViewCenterLon = SafeClamp(_mapViewCenterLon, RegionMapMinLon + halfLon, RegionMapMaxLon - halfLon);
-        _mapViewCenterLat = SafeClamp(_mapViewCenterLat, RegionMapMinLat + halfLat, RegionMapMaxLat - halfLat);
+        double latMin = RegionMapMinLat + Math.Min(halfLat, fullLatSpan / 2);
+        double latMax = RegionMapMaxLat - Math.Min(halfLat, fullLatSpan / 2);
+        _mapViewCenterLat = SafeClamp(_mapViewCenterLat, latMin, latMax);
+
+        double lonMin = RegionMapMinLon + Math.Min(halfLon, fullLonSpan / 2);
+        double lonMax = RegionMapMaxLon - Math.Min(halfLon, fullLonSpan / 2);
+        _mapViewCenterLon = SafeClamp(_mapViewCenterLon, lonMin, lonMax);
     }
 
     private void ChangeMapZoom(int direction, Rectangle mapRect)
@@ -2124,8 +2160,8 @@ public sealed class Game : IGame
 
         _mapZoomLevelIndex = next;
 
-        double newLonSpan = (RegionMapMaxLon - RegionMapMinLon) / CurrentMapZoom;
         double newLatSpan = (RegionMapMaxLat - RegionMapMinLat) / CurrentMapZoom;
+        double newLonSpan = newLatSpan * ViewLonLatAspect;
         _mapViewCenterLon = focusLon + (0.5 - nx) * newLonSpan;
         _mapViewCenterLat = focusLat + (ny - 0.5) * newLatSpan;
         ClampMapViewCenter();
@@ -2166,7 +2202,7 @@ public sealed class Game : IGame
         Rectangle mapRect = new Rectangle(x, startY, available, mapH);
         _regionMapClickRect = new Rectangle(x, sectionTop, available, startY + mapH - sectionTop);
 
-        DrawRegionMapInRect(mapRect, markerRadius: 3.5f, labelFontSize: 8f);
+        DrawRegionMapInRect(GetSidebarMapDrawRect(mapRect), markerRadius: 3.5f, labelFontSize: 8f);
 
         if (_regionMapThumbHovered)
         {
@@ -2188,22 +2224,20 @@ public sealed class Game : IGame
         int panelY = (int)panelRect.Y;
         int panelW = (int)panelRect.Width;
         int panelH = (int)panelRect.Height;
-        int mapW = (int)mapRect.Width;
-        int mapH = (int)mapRect.Height;
-        int mapX = (int)mapRect.X;
-        int mapY = (int)mapRect.Y;
 
         _regionMapPanelRect = panelRect;
-        _regionMapViewRect = mapRect;
+        SyncExpandedMapLayout();
 
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Raylib.DrawRectangleRec(mapRect, new Color(10, 12, 16, 255));
 
         string title = "REGION";
         Raylib.DrawTextEx(font, title,
             new Vector2(panelX + 22, panelY + 16), 18, 0.75f, Palette.TextMuted);
 
-        string subtitle = "Russia — zoom out to see where you are";
+        string subtitle = "Russia — zoom out and pan to explore";
         Raylib.DrawTextEx(font, subtitle,
             new Vector2(panelX + 22, panelY + 38), 13, 0.6f, Palette.TextSecondary);
 
@@ -2213,23 +2247,22 @@ public sealed class Game : IGame
             10, 0.45f, Palette.TextDim);
 
         GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
-        DrawRegionMapInRect(mapRect, markerRadius: 8f, labelFontSize: 14f, vMinLon, vMaxLon, vMinLat, vMaxLat);
+        DrawRegionMapInRect(_regionMapDrawRect, markerRadius: 8f, labelFontSize: 14f, vMinLon, vMaxLon, vMinLat, vMaxLat);
 
-        ComputeMapZoomButtonRects(mapRect, out _mapZoomInRect, out _mapZoomOutRect);
+        ComputeMapZoomButtonRects(_regionMapDrawRect, out _mapZoomInRect, out _mapZoomOutRect);
         DrawMapZoomButton(_mapZoomInRect, "+", _mapZoomInHovered, _mapZoomLevelIndex < MapZoomLevels.Length - 1);
         DrawMapZoomButton(_mapZoomOutRect, "-", _mapZoomOutHovered, _mapZoomLevelIndex > 0);
 
         (double lon, double lat) = GetMapPlayerGeoPosition();
-        string coords = $"{lat:F2}°N, {lon:F2}°E · {CurrentMapZoom:F0}x";
-        int coordsW = (int)Raylib.MeasureTextEx(font, coords, 11, 0.5f).X;
+        string coords = $"{lat:F2}°N, {lon:F2}°E · {FormatMapZoom(CurrentMapZoom)}";
         Raylib.DrawTextEx(font, coords,
-            new Vector2(panelX + panelW - 22 - coordsW, mapY + mapH + 8),
+            new Vector2(panelX + 22, panelY + panelH - 34),
             11, 0.5f, Palette.TextDim);
 
         int btnW = 120;
         int btnH = 36;
         int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - 46;
+        int btnY = panelY + panelH - btnH - 10;
         _regionMapCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
         DrawDialogButton(_regionMapCloseRect, "CLOSE", _regionMapCloseHovered, font);
     }
@@ -2255,6 +2288,11 @@ public sealed class Game : IGame
             labelSize, 0.7f, text);
     }
 
+    private static bool IsViewWithinMapBounds(
+        double viewMinLon, double viewMaxLon, double viewMinLat, double viewMaxLat) =>
+        viewMinLon >= RegionMapMinLon - 1e-6 && viewMaxLon <= RegionMapMaxLon + 1e-6 &&
+        viewMinLat >= RegionMapMinLat - 1e-6 && viewMaxLat <= RegionMapMaxLat + 1e-6;
+
     private void DrawRegionMapInRect(
         Rectangle mapRect,
         float markerRadius,
@@ -2266,6 +2304,8 @@ public sealed class Game : IGame
     {
         Font font = _uiFont;
 
+        Raylib.DrawRectangleRec(mapRect, new Color(12, 14, 18, 255));
+
         if (_regionMapTexture.Id != 0)
         {
             double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
@@ -2273,17 +2313,47 @@ public sealed class Game : IGame
             float texW = _regionMapTexture.Width;
             float texH = _regionMapTexture.Height;
 
-            float srcX = (float)((viewMinLon - RegionMapMinLon) / fullLonSpan * texW);
-            float srcW = (float)((viewMaxLon - viewMinLon) / fullLonSpan * texW);
-            float srcH = (float)((viewMaxLat - viewMinLat) / fullLatSpan * texH);
-            float srcY = (float)((RegionMapMaxLat - viewMaxLat) / fullLatSpan * texH);
+            double viewLonSpan = viewMaxLon - viewMinLon;
+            double viewLatSpan = viewMaxLat - viewMinLat;
 
-            Rectangle src = new Rectangle(srcX, srcY, srcW, srcH);
-            Raylib.DrawTexturePro(_regionMapTexture, src, mapRect, Vector2.Zero, 0f, Color.WHITE);
-        }
-        else
-        {
-            Raylib.DrawRectangleRec(mapRect, new Color(12, 14, 18, 255));
+            Raylib.BeginScissorMode((int)mapRect.X, (int)mapRect.Y, (int)mapRect.Width, (int)mapRect.Height);
+
+            if (IsViewWithinMapBounds(viewMinLon, viewMaxLon, viewMinLat, viewMaxLat))
+            {
+                Rectangle src = new Rectangle(
+                    (float)((viewMinLon - RegionMapMinLon) / fullLonSpan * texW),
+                    (float)((RegionMapMaxLat - viewMaxLat) / fullLatSpan * texH),
+                    (float)(viewLonSpan / fullLonSpan * texW),
+                    (float)(viewLatSpan / fullLatSpan * texH));
+                Raylib.DrawTexturePro(_regionMapTexture, src, mapRect, Vector2.Zero, 0f, Color.WHITE);
+            }
+            else
+            {
+                double geoMinLon = Math.Max(viewMinLon, RegionMapMinLon);
+                double geoMaxLon = Math.Min(viewMaxLon, RegionMapMaxLon);
+                double geoMinLat = Math.Max(viewMinLat, RegionMapMinLat);
+                double geoMaxLat = Math.Min(viewMaxLat, RegionMapMaxLat);
+
+                if (geoMinLon < geoMaxLon && geoMinLat < geoMaxLat &&
+                    viewLonSpan > 1e-9 && viewLatSpan > 1e-9)
+                {
+                    float destX = mapRect.X + (float)((geoMinLon - viewMinLon) / viewLonSpan * mapRect.Width);
+                    float destY = mapRect.Y + (float)((viewMaxLat - geoMaxLat) / viewLatSpan * mapRect.Height);
+                    float destW = (float)((geoMaxLon - geoMinLon) / viewLonSpan * mapRect.Width);
+                    float destH = (float)((geoMaxLat - geoMinLat) / viewLatSpan * mapRect.Height);
+                    Rectangle dest = new Rectangle(destX, destY, destW, destH);
+
+                    Rectangle src = new Rectangle(
+                        (float)((geoMinLon - RegionMapMinLon) / fullLonSpan * texW),
+                        (float)((RegionMapMaxLat - geoMaxLat) / fullLatSpan * texH),
+                        (float)((geoMaxLon - geoMinLon) / fullLonSpan * texW),
+                        (float)((geoMaxLat - geoMinLat) / fullLatSpan * texH));
+
+                    Raylib.DrawTexturePro(_regionMapTexture, src, dest, Vector2.Zero, 0f, Color.WHITE);
+                }
+            }
+
+            Raylib.EndScissorMode();
         }
 
         Raylib.DrawRectangleLinesEx(mapRect, 1f, Palette.SubtleBorder);
