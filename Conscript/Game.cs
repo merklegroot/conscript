@@ -52,6 +52,7 @@ public sealed class Game : IGame
     private string _location = "Family Apartment";
     private string _city = "Ulan-Ude, Republic of Buryatia";
     private string _season = "Early Autumn";
+    private int _temperatureF = 34;   // default Fahrenheit ( Buryatia autumn nights are cold )
 
     // === Core stats (values from the reference) ===
     private int _suspicion = 26;
@@ -109,7 +110,8 @@ public sealed class Game : IGame
                 _location = "Family Apartment";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "At Home";
-                _season = "Early Autumn";   // Game starts in early autumn
+                _season = "Early Autumn";
+                _temperatureF = 34;   // tense night outside the apartment
                 _suspicion = 4;
                 _health = 96;
                 _morale = 82;
@@ -132,7 +134,8 @@ public sealed class Game : IGame
                 _location = "Deep Forest";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "Fugitive - Deep Forest";
-                _season = "Early Autumn";   // carries over from opening (will evolve later)
+                _season = "Early Autumn";
+                _temperatureF = 19;   // colder the deeper you go
                 // _money carries over from the Opening phase (starts at 10,000 ₽)
                 break;
 
@@ -155,6 +158,7 @@ public sealed class Game : IGame
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
                 _season = "Early Autumn";
+                _temperatureF = 27;   // clear cold night in the yard
                 _suspicion = Clamp(_suspicion + 10);
                 _exposure  = Clamp(_exposure + 18);
                 _morale    = Clamp(_morale - 7);
@@ -189,6 +193,15 @@ public sealed class Game : IGame
         if (newIdx < idx)   // wrapped around → new day
         {
             _day++;
+        }
+
+        // Temperature drifts with time of day (colder at night) — only outside the apartment
+        if (_phase == Phase.Outside || _phase == Phase.Forest)
+        {
+            if (_timeOfDay == "Night")
+                _temperatureF = Math.Max(-40, _temperatureF - 2);
+            else if (_timeOfDay == "Morning")
+                _temperatureF = Math.Min(60, _temperatureF + 1);
         }
     }
 
@@ -579,6 +592,25 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, seasonLine,
             new Vector2(textX, row1Y),
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextPrimary);
+
+        // Temperature — right-aligned on the lower row (pairs with Season above)
+        string tempLine = $"{_temperatureF}°F";
+        int tempW = (int)Raylib.MeasureTextEx(font, tempLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
+
+        float thermoSize = 9f;
+        float thermoGap = 5f;
+        float thermoX = rightEdge - tempW - thermoGap - thermoSize / 2f;
+        float thermoY = row2Y + 7f;
+
+        // Minimal thermometer icon (tube + bulb)
+        Color tcol = Palette.TextMuted;
+        Raylib.DrawRectangle((int)(thermoX - 1), (int)(thermoY - 4), 3, 7, tcol);           // tube
+        Raylib.DrawCircle((int)thermoX, (int)(thermoY + 5), 3.5f, tcol);                     // bulb
+
+        float tempX = rightEdge - tempW;
+        Raylib.DrawTextEx(font, tempLine,
+            new Vector2(tempX, row2Y),
+            LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
     }
 
     /// <summary>
