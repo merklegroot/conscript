@@ -166,6 +166,14 @@ public sealed class Game : IGame
     private Rectangle _storeBuyCloseRect;
     private bool _storeBuyCloseHovered;
 
+    // Build & craft dialog (modal)
+    private bool _showBuildDialog;
+    private Rectangle _buildSidebarButtonRect;
+    private bool _buildSidebarButtonHovered;
+    private Rectangle _buildPanelRect;
+    private Rectangle _buildCloseRect;
+    private bool _buildCloseHovered;
+
     // Region map — sidebar thumbnail opens expanded view
     private bool _showRegionMap;
     private Rectangle _regionMapClickRect;
@@ -632,6 +640,11 @@ public sealed class Game : IGame
                 CloseRegionMap();
                 return;
             }
+            if (_showBuildDialog)
+            {
+                CloseBuildDialog();
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -643,7 +656,7 @@ public sealed class Game : IGame
         }
 
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu)
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog)
         {
             if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
             {
@@ -664,6 +677,10 @@ public sealed class Game : IGame
             else if (_showItemDialog)
             {
                 CloseItemDialog();
+            }
+            else if (_showBuildDialog)
+            {
+                CloseBuildDialog();
             }
             else
             {
@@ -756,6 +773,24 @@ public sealed class Game : IGame
             _mapPanning = false;
         }
 
+        // === Build dialog (modal) ===
+        if (_showBuildDialog)
+        {
+            _buildCloseHovered = Raylib.CheckCollisionPointRec(mouse, _buildCloseRect);
+
+            if (leftClicked && _buildCloseHovered)
+            {
+                CloseBuildDialog();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
+            {
+                CloseBuildDialog();
+                return;
+            }
+        }
+
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
@@ -786,10 +821,19 @@ public sealed class Game : IGame
             _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
         {
             _regionMapThumbHovered = _regionMapClickRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
+            _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
+
+            if (leftClicked && _buildSidebarButtonHovered)
+            {
+                OpenBuildDialog();
+                return;
+            }
+
             if (leftClicked && _regionMapThumbHovered)
             {
                 OpenRegionMap();
@@ -892,9 +936,9 @@ public sealed class Game : IGame
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
         {
-            if (_regionMapThumbHovered)
+            if (_regionMapThumbHovered || _buildSidebarButtonHovered)
                 overClickable = true;
 
             // Bottom action buttons
@@ -961,6 +1005,13 @@ public sealed class Game : IGame
                     break;
                 }
             }
+        }
+
+        // Build dialog: close button + overlay
+        if (_showBuildDialog)
+        {
+            if (_buildCloseHovered || !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
+                overClickable = true;
         }
 
         Raylib.SetMouseCursor(overClickable
@@ -1143,6 +1194,7 @@ public sealed class Game : IGame
         _showItemDialog = false;
         _showStoreBuyMenu = false;
         CloseRegionMap();
+        CloseBuildDialog();
         _storeBuyFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
@@ -1158,6 +1210,7 @@ public sealed class Game : IGame
         _showItemDialog = false;
         _showStoreBuyMenu = false;
         CloseRegionMap();
+        CloseBuildDialog();
         _storeBuyFeedback = "";
         _storeBuyFeedbackTimer = 0f;
         _deathLine1 = "You died.";
@@ -1195,6 +1248,18 @@ public sealed class Game : IGame
         _dialogItemIndex = -1;
         _dialogItemName = "";
         _dialogActionHovered = false;
+    }
+
+    private void OpenBuildDialog()
+    {
+        _showBuildDialog = true;
+        _buildCloseHovered = false;
+    }
+
+    private void CloseBuildDialog()
+    {
+        _showBuildDialog = false;
+        _buildCloseHovered = false;
     }
 
     private static bool CanDrinkItem(string itemName) =>
@@ -1401,6 +1466,57 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
+    // BUILD DIALOG (modal) — crafting and construction
+    // =====================================================================
+    private void DrawBuildDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
+
+        int panelW = 420;
+        int panelH = 300;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _buildPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, "BUILD & CRAFT",
+            new Vector2(panelX + 22, panelY + 18), 20, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
+
+        string subtitle = "Construct tools and shelter from what you carry.";
+        Raylib.DrawTextEx(font, subtitle,
+            new Vector2(panelX + 22, panelY + 58), 14, 0.6f, Palette.TextSecondary);
+
+        int listY = panelY + 92;
+        int listH = panelH - 92 - 56;
+        Raylib.DrawRectangle(panelX + 22, listY, panelW - 44, listH, new Color(16, 18, 22, 255));
+        Raylib.DrawRectangleLines(panelX + 22, listY, panelW - 44, listH, Palette.SubtleBorder);
+
+        string placeholder = "No recipes available yet.";
+        int phSize = 15;
+        int phW = (int)Raylib.MeasureTextEx(font, placeholder, phSize, 0.55f).X;
+        Raylib.DrawTextEx(font, placeholder,
+            new Vector2(panelX + (panelW - phW) / 2, listY + listH / 2 - 8),
+            phSize, 0.55f, Palette.TextDim);
+
+        int btnW = 120;
+        int btnH = 36;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - btnH - 16;
+        _buildCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        DrawDialogButton(_buildCloseRect, "CLOSE", _buildCloseHovered, font);
+    }
+
+    // =====================================================================
     // STORE BUY MENU (modal shopping interface)
     // =====================================================================
     private void DrawStoreBuyMenu()
@@ -1554,6 +1670,11 @@ public sealed class Game : IGame
         if (_showRegionMap)
         {
             DrawRegionMapModal();
+        }
+
+        if (_showBuildDialog)
+        {
+            DrawBuildDialog();
         }
 
         Raylib.EndDrawing();
@@ -1808,7 +1929,18 @@ public sealed class Game : IGame
 
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;
-        DrawWorldMap(cy, tx);
+        cy = DrawWorldMap(cy, tx);
+        cy += 16;
+        DrawBuildSidebarButton(cy, tx);
+    }
+
+    private void DrawBuildSidebarButton(int y, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        const int btnH = 36;
+        _buildSidebarButtonRect = new Rectangle(x, y, available, btnH);
+        DrawDialogButton(_buildSidebarButtonRect, "BUILD", _buildSidebarButtonHovered, font);
     }
 
     // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
@@ -2187,7 +2319,7 @@ public sealed class Game : IGame
     // =====================================================================
     // WORLD MAP — real geography (Natural Earth via scripts/generate_region_map.py)
     // =====================================================================
-    private void DrawWorldMap(int startY, int x)
+    private int DrawWorldMap(int startY, int x)
     {
         Font font = _uiFont;
         int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
@@ -2216,6 +2348,8 @@ public sealed class Game : IGame
         {
             Raylib.DrawRectangleLinesEx(mapRect, 1.5f, Palette.ButtonSelectedBorder);
         }
+
+        return startY + mapH;
     }
 
     private void DrawRegionMapModal()
