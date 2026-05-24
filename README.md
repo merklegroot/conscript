@@ -6,7 +6,8 @@ A minimalist, tense survival roguelike about dodging conscription and deserting 
 **Conscript** puts you in the shoes of a 20-year-old Russian man who burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
 
 ## Dodging
-- Avoid initial conscription by surviving in the forest
+- Hide in the forest
+- Lie low in town
 - Flee the country
 
 ## Deserting

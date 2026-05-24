@@ -203,6 +203,25 @@ public sealed class Game : IGame
             PerformChoice(_selectedIndex);
         }
 
+        // === Mouse support: hover to highlight, left-click to immediately activate ===
+        Rectangle[] buttonRects = ComputeActionButtonRects();
+        Vector2 mouse = Raylib.GetMousePosition();
+        bool leftClicked = Raylib.IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON);
+
+        for (int i = 0; i < buttonRects.Length; i++)
+        {
+            if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
+            {
+                _selectedIndex = i;                 // live hover highlight
+
+                if (leftClicked)
+                {
+                    PerformChoice(i);
+                    return;
+                }
+            }
+        }
+
         if (_actionMessageTimer > 0f)
         {
             _actionMessageTimer -= dt;
@@ -857,6 +876,36 @@ public sealed class Game : IGame
 
     // =====================================================================
     // BOTTOM ACTION BAR — Strong visual weight, clear, tactile buttons
+    /// <summary>
+    /// Computes the on-screen rectangles for the current action buttons.
+    /// Used by both drawing and mouse hit-testing so the layout stays in one place.
+    /// </summary>
+    private Rectangle[] ComputeActionButtonRects()
+    {
+        int barY = _screenHeight - GameConstants.ActionBarHeight;
+        int barH = GameConstants.ActionBarHeight;
+
+        int count = _choices.Length;
+        if (count == 0) count = 1;
+
+        int gap = GameConstants.ActionButtonGap;
+        int paddingX = 28;
+        int totalGap = gap * (count - 1);
+        int available = _screenWidth - paddingX * 2 - totalGap;
+        int btnW = available / count;
+        int btnH = barH - GameConstants.ActionBarPaddingY * 2;
+        int btnY = barY + GameConstants.ActionBarPaddingY;
+        int x = paddingX;
+
+        var rects = new Rectangle[count];
+        for (int i = 0; i < count; i++)
+        {
+            rects[i] = new Rectangle(x, btnY, btnW, btnH);
+            x += btnW + gap;
+        }
+        return rects;
+    }
+
     // =====================================================================
     private void DrawActionBar()
     {
@@ -869,46 +918,31 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
-        int count = _choices.Length;
-        if (count == 0) count = 4;
+        Rectangle[] rects = ComputeActionButtonRects();
 
-        int gap = GameConstants.ActionButtonGap;
-        int paddingX = 28; // generous left/right margin for breathing room
-        int totalGap = gap * (count - 1);
-        int available = _screenWidth - paddingX * 2 - totalGap;
-        int btnW = available / count;
-        int btnH = barH - GameConstants.ActionBarPaddingY * 2;
-        int btnY = barY + GameConstants.ActionBarPaddingY;
-        int x = paddingX;
-
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < rects.Length; i++)
         {
+            Rectangle r = rects[i];
             bool selected = i == _selectedIndex;
             Color bg = selected ? Palette.ButtonSelectedBg : Palette.ButtonBg;
             Color border = selected ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
 
-            // Button body
-            Raylib.DrawRectangle(x, btnY, btnW, btnH, bg);
-            Raylib.DrawRectangleLines(x, btnY, btnW, btnH, border);
+            Raylib.DrawRectangleRec(r, bg);
+            Raylib.DrawRectangleLinesEx(r, 1, border);
 
-            // Thin top accent when selected (gives nice "pressed" or "lit" feel)
             if (selected)
             {
-                Raylib.DrawRectangle(x + 1, btnY + 1, btnW - 2, 2, Palette.ButtonTopAccent);
+                Raylib.DrawRectangle((int)r.X + 1, (int)r.Y + 1, (int)r.Width - 2, 2, Palette.ButtonTopAccent);
             }
 
-            // Label
             string label = _choices[i];
-
             Vector2 size = Raylib.MeasureTextEx(font, label, LayoutConstants.ActionButtonFontSize, 0.85f);
-            int tx = x + (btnW - (int)size.X) / 2;
-            int ty = btnY + (btnH - (int)size.Y) / 2 - 1;
+            int tx = (int)(r.X + (r.Width - size.X) / 2);
+            int ty = (int)(r.Y + (r.Height - size.Y) / 2) - 1;
 
             Raylib.DrawTextEx(font, label, new Vector2(tx, ty),
                 LayoutConstants.ActionButtonFontSize, 0.85f,
                 selected ? Palette.TextPrimary : Palette.TextDim);
-
-            x += btnW + gap;
         }
 
         // Refined control hint — plenty of space below the buttons
