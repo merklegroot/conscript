@@ -37,8 +37,11 @@ public sealed class Game : IGame
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> ItemIconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
-        ["Bottled Water"] = "items.bottled-water.png",
-        ["Loaf of Bread"] = "items.loaf-of-bread.png",
+        ["Knife"]          = "items.knife.png",
+        ["Lighter"]        = "items.lighter.png",
+        ["Phone"]          = "items.phone.png",
+        ["Bottled Water"]  = "items.bottled-water.png",
+        ["Loaf of Bread"]  = "items.loaf-of-bread.png",
         ["Canned Soup"]    = "items.canned-soup.png",
         ["Trash Bags"]     = "items.trash-bags.png",
         ["Duct Tape"]      = "items.duct-tape.png",
