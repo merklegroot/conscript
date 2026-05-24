@@ -28,7 +28,7 @@ This extremely constrained starting inventory is a core source of early-game ten
 ## Core Stats
 - **Suspicion** — How close the authorities are to finding you (0-100%)
 - **Health** — Your physical condition
-- **Morale** — Your mental state (low morale can force risky or passive decisions)
+- **Hunger** — How empty your stomach is (high hunger weakens you and forces desperate choices)
 - **Exposure** — How visible your shelter and tracks are to search parties
 - **Supplies** — Food, firewood, and essential resources
 - **Season** — Early Winter (resources decay faster and survival becomes much harder)
@@ -55,7 +55,7 @@ The game uses a clean, atmospheric UI with a large central image and persistent 
 
 **Day 1 - City Apartment (Starting Screen)**  
 - Central image: You sitting at a table staring at the draft summons envelope.
-- Stats: Very low Suspicion, high Health & Morale.
+- Stats: Very low Suspicion, high Health, low Hunger.
 - Choices: “Burn the Letter and Run”, “Ignore It For Now”, “Call Family”, etc.
 
 **Deep Forest Camp (Mid-Game)**  
@@ -65,7 +65,7 @@ The game uses a clean, atmospheric UI with a large central image and persistent 
 
 **On the Run (High Tension)**  
 - Central image: You running at night with distant patrol flashlights behind you.
-- Stats: High Suspicion and Exposure, low Health and Morale.
+- Stats: High Suspicion and Exposure, low Health, high Hunger.
 - Choices: “Push Deeper”, “Create False Trail”, “Hide in Stump”, etc.
 
 **Bug Harvest Mini-Game**  
@@ -101,7 +101,7 @@ dotnet run
 
 **Layout & Polish:**
 - Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time and current Location (center), and Season with icon (right).
-- Fixed-width left sidebar (Status panel) containing War Intensity + clean, well-spaced stats with elegant thin colored progress bars for Suspicion / Health / Morale / Exposure, plus Money (shown in ₽), Documents, and current Status.
+- Fixed-width left sidebar (Status panel) containing War Intensity + clean, well-spaced stats with elegant thin colored progress bars for Suspicion / Health / Hunger / Exposure, plus Money (shown in ₽) and current Status.
 - Large central scene area with richer atmospheric placeholder art (different art for the opening apartment scene vs. the forest).
 - Large central scene area with **much richer atmospheric placeholder art**:
   - Layered forest (far → mid → near trees)

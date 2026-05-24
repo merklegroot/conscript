@@ -62,8 +62,7 @@ public sealed class Game : IGame
     private int _suspicion = 26;
     private int _money = 10000;   // Starting money in Russian Rubles (₽)
     private int _health = 81;
-    private int _morale = 63;
-    private string _documents = "None";
+    private int _hunger = 37;   // starts moderately hungry (higher = worse)
     private string _status = "Fugitive - Deep Forest";
     private int _exposure = 38;
 
@@ -129,7 +128,7 @@ public sealed class Game : IGame
                 _temperatureF = 34;   // tense night outside the apartment
                 _suspicion = 4;
                 _health = 96;
-                _morale = 82;
+                _hunger = 22;   // just ate at home, not very hungry yet
                 _exposure = 2;
                 _money = 10000;   // Starting with 10,000 ₽
                 break;
@@ -176,7 +175,7 @@ public sealed class Game : IGame
                 _temperatureF = 27;   // clear cold night in the yard
                 _suspicion = Clamp(_suspicion + 10);
                 _exposure  = Clamp(_exposure + 18);
-                _morale    = Clamp(_morale - 7);
+                _hunger    = Clamp(_hunger + 9);   // the adrenaline and cold make you hungrier
                 // money, health etc. carry over from the apartment
                 break;
         }
@@ -468,7 +467,7 @@ public sealed class Game : IGame
         {
             case 0:
                 _exposure = Clamp(_exposure - 11);
-                _morale = Clamp(_morale + 8);
+                _hunger = Clamp(_hunger - 11);   // eating foraged food or cooking
                 _health = Clamp(_health - 3);
                 _actionMessage = "Better shelter. The wind is less cruel tonight.";
                 break;
@@ -481,14 +480,14 @@ public sealed class Game : IGame
 
             case 2:
                 _exposure = Clamp(_exposure - 18);
-                _morale = Clamp(_morale - 6);
+                _hunger = Clamp(_hunger + 14);   // hard physical labor burns calories fast
                 _health = Clamp(_health + 5);
                 _actionMessage = "The walls are tighter. The cold bites less.";
                 break;
 
             case 3:
                 _suspicion = Clamp(_suspicion + 5);
-                _morale = Clamp(_morale + 4);
+                _hunger = Clamp(_hunger - 3);    // small comfort from the radio, but not much food
                 _actionMessage = "Static. A name you know. Nothing about you yet.";
                 break;
         }
@@ -824,14 +823,13 @@ public sealed class Game : IGame
         // Numeric stats with bars (label + value on one line, bar underneath)
         DrawCleanStatLine(ref cy, tx, "Suspicion", _suspicion, Palette.Suspicion);
         DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
-        DrawCleanStatLine(ref cy, tx, "Morale", _morale, Palette.Morale);
+        DrawCleanStatLine(ref cy, tx, "Hunger", _hunger, Palette.Hunger);
         DrawCleanStatLine(ref cy, tx, "Exposure", _exposure, Palette.Exposure);
 
         cy += 6;
 
         // Simple text stats (same line for label + value to reduce clutter)
         DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0} ₽");
-        DrawTextStatLine(ref cy, tx, "Documents", _documents);
         DrawTextStatLine(ref cy, tx, "Status", _status);
     }
 
