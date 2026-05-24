@@ -90,6 +90,22 @@ public sealed class Game : IGame
     private string _status = "Fugitive - Deep Forest";
     private int _comfort = 62;   // protection from the elements (higher = better)
 
+    // Environment-driven stat changes (persistent while in that location)
+    private int _envHealthDelta;
+    private int _envEnergyDelta;
+    private int _envSatiationDelta;
+    private int _envHydrationDelta;
+    private int _envComfortDelta;
+
+    // Action-driven stat changes (temporary feedback)
+    private int _actionHealthDelta;
+    private int _actionEnergyDelta;
+    private int _actionSatiationDelta;
+    private int _actionHydrationDelta;
+    private int _actionComfortDelta;
+    private float _actionDeltaTimer;
+    private const float ActionDeltaDisplayDuration = 5f;
+
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
 
@@ -199,10 +215,13 @@ public sealed class Game : IGame
 
                 // Reset backpack to starting gear (knife, lighter, phone)
                 _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+                ClearEnvDeltas();
+                ClearActionDeltas();
                 break;
 
             case Phase.Forest:
                 _choices = new[] { "GO BACK TO TOWN" };
+                ClearEnvDeltas();
                 // The existing forest values
                 _day = 3;
                 _timeOfDay = "Morning";
@@ -233,11 +252,7 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
-                _comfort  = Clamp(_comfort - 18);   // cold night in the open courtyard
-                _energy   = Clamp(_energy - 15);   // adrenaline crash after the escape
-                _satiation = Clamp(_satiation - 9);   // the adrenaline and cold wear you down
-                _hydration = Clamp(_hydration - 4);
-                // money, health etc. carry over from the apartment
+                ApplyEnvironmentOutside();
                 break;
 
             case Phase.Store:
@@ -246,6 +261,7 @@ public sealed class Game : IGame
                     "BROWSE SHELVES",
                     "LEAVE THE WAY YOU CAME"
                 };
+                ClearEnvDeltas();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Late-Night Kiosk";
@@ -288,7 +304,7 @@ public sealed class Game : IGame
         }
 
         // Actions and time passing wear you down
-        _energy = Clamp(_energy - 8 * steps);
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -8 * steps);
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
         if (_phase == Phase.Outside || _phase == Phase.Forest)
@@ -329,7 +345,8 @@ public sealed class Game : IGame
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
             " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~°©®™…–—•·‘’“”«»₽" +
             "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
-            "\u21BB"; // ↻ (clockwise arrow, used for restart button)
+            "\u21BB" + // ↻ (clockwise arrow, used for restart button)
+            "\u25B2\u25BC"; // ▲▼ (stat trend arrows)
 
         int[] codepoints = new int[chars.Length];
         for (int i = 0; i < chars.Length; i++)
@@ -630,6 +647,13 @@ public sealed class Game : IGame
             }
         }
 
+        if (_actionDeltaTimer > 0f)
+        {
+            _actionDeltaTimer -= dt;
+            if (_actionDeltaTimer <= 0f)
+                ClearActionDeltas();
+        }
+
         // Store buy menu feedback timer
         if (_showStoreBuyMenu && _storeBuyFeedbackTimer > 0f)
         {
@@ -782,7 +806,7 @@ public sealed class Game : IGame
                 return;
 
             case 1: // Head for the forest
-                _comfort = Clamp(_comfort - 5);   // out in the cold, moving toward the tree line
+                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);   // out in the cold, moving toward the tree line
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
                 EnterPhase(Phase.Forest);
@@ -869,6 +893,8 @@ public sealed class Game : IGame
         _comfort = 80;      // warm kiosk after the cold yard
         _money = 10000;
         _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+        ClearEnvDeltas();
+        ClearActionDeltas();
 
         EnterPhase(Phase.Store);
     }
@@ -903,7 +929,7 @@ public sealed class Game : IGame
         if (!CanDrinkItem(_backpack[_dialogItemIndex] ?? "")) return;
 
         _backpack[_dialogItemIndex] = ItemEmptyBottle;
-        _hydration = 100;
+        SetStatFromAction(ref _hydration, ref _actionHydrationDelta, 100);
         _actionMessage = "You drink the water. Fully hydrated.";
         _actionMessageTimer = ActionMessageDuration;
         CloseItemDialog();
@@ -943,9 +969,9 @@ public sealed class Game : IGame
         }
 
         _money -= price;
-        _satiation = Clamp(_satiation + satiationDelta);
-        _hydration = Clamp(_hydration + hydrationDelta);
-        _health = Clamp(_health + healthDelta);
+        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, satiationDelta);
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, hydrationDelta);
+        ModifyStatFromAction(ref _health, ref _actionHealthDelta, healthDelta);
 
         _storeBuyFeedback = $"Bought {name}";
         _storeBuyFeedbackTimer = 1.2f;
@@ -1465,11 +1491,11 @@ public sealed class Game : IGame
 
         // === Clean vertical stat list ===
         // Numeric stats with bars (label + value on one line, bar underneath)
-        DrawCleanStatLine(ref cy, tx, "Health", _health, Palette.Health);
-        DrawCleanStatLine(ref cy, tx, "Energy", _energy, Palette.Energy);
-        DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, Palette.Satiation);
-        DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, Palette.Hydration);
-        DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, Palette.Comfort);
+        DrawCleanStatLine(ref cy, tx, "Health", _health, _envHealthDelta, _actionHealthDelta, Palette.Health);
+        DrawCleanStatLine(ref cy, tx, "Energy", _energy, _envEnergyDelta, _actionEnergyDelta, Palette.Energy);
+        DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, _envSatiationDelta, _actionSatiationDelta, Palette.Satiation);
+        DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, _envHydrationDelta, _actionHydrationDelta, Palette.Hydration);
+        DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, _envComfortDelta, _actionComfortDelta, Palette.Comfort);
 
         cy += 6;
 
@@ -1482,16 +1508,41 @@ public sealed class Game : IGame
         DrawBackpack(cy, tx);
     }
 
-    // Clean single-line stat row:  Label          26%  [thin colored bar]
-    private void DrawCleanStatLine(ref int y, int x, string label, int value, Color barColor)
+    // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
+    private const int StatLeftArrowSlotW = 42;
+    private const int StatLabelColumnW = 92;
+    private const int StatRightArrowSlotW = 42;
+    private const int StatArrowSpacing = 14;
+
+    private void DrawCleanStatLine(ref int y, int x, string label, int value, int envDelta, int actionDelta, Color barColor)
     {
         Font font = _uiFont;
         int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
+        int arrowY = y + 13;
 
-        // Label (left)
-        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextSecondary);
+        int labelX = x + StatLeftArrowSlotW + 4;
+        int rightSlotX = labelX + StatLabelColumnW;
 
-        // Value (right of label area)
+        // Action arrows take over the slots briefly; otherwise show persistent environment arrows
+        bool showActionArrows = _actionDeltaTimer > 0f && actionDelta != 0;
+        int leftTotal;
+        int rightTotal;
+        if (showActionArrows)
+        {
+            leftTotal = actionDelta < 0 ? actionDelta : 0;
+            rightTotal = actionDelta > 0 ? actionDelta : 0;
+        }
+        else
+        {
+            leftTotal = envDelta < 0 ? envDelta : 0;
+            rightTotal = envDelta > 0 ? envDelta : 0;
+        }
+
+        DrawStatArrowIndicators(x, arrowY, rightSlotX, leftTotal, rightTotal, showActionArrows);
+
+        Raylib.DrawTextEx(font, label, new Vector2(labelX, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextSecondary);
+
+        // Value (right aligned)
         string val = $"{value}%";
         int valW = (int)Raylib.MeasureTextEx(font, val, LayoutConstants.StatValueSize, 0.7f).X;
         int valX = x + available - valW;
@@ -1510,6 +1561,51 @@ public sealed class Game : IGame
         }
 
         y += 14; // good spacing to next row
+    }
+
+    private void DrawStatArrowIndicators(int x, int arrowY, int rightSlotX, int leftTotal, int rightTotal, bool blink)
+    {
+        Color negative = Palette.Negative;
+        Color positive = Palette.Positive;
+        if (blink)
+        {
+            byte alpha = (byte)(110 + 145 * (0.5f + 0.5f * MathF.Sin((float)Raylib.GetTime() * 10f)));
+            negative = new Color(negative.R, negative.G, negative.B, alpha);
+            positive = new Color(positive.R, positive.G, positive.B, alpha);
+        }
+
+        if (leftTotal < 0)
+        {
+            int count = StatArrowCount(leftTotal);
+            int slotRight = x + StatLeftArrowSlotW - 4;
+            int startX = slotRight - (count - 1) * StatArrowSpacing;
+            for (int i = 0; i < count; i++)
+                DrawChevronLeft(startX + i * StatArrowSpacing, arrowY, negative);
+        }
+
+        if (rightTotal > 0)
+        {
+            int count = StatArrowCount(rightTotal);
+            int startX = rightSlotX + 6;
+            for (int i = 0; i < count; i++)
+                DrawChevronRight(startX + i * StatArrowSpacing, arrowY, positive);
+        }
+    }
+
+    private static void DrawChevronLeft(int cx, int cy, Color color)
+    {
+        const float size = 6f;
+        const float thickness = 2.5f;
+        Raylib.DrawLineEx(new Vector2(cx + size * 0.35f, cy - size), new Vector2(cx - size, cy), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx - size, cy), new Vector2(cx + size * 0.35f, cy + size), thickness, color);
+    }
+
+    private static void DrawChevronRight(int cx, int cy, Color color)
+    {
+        const float size = 6f;
+        const float thickness = 2.5f;
+        Raylib.DrawLineEx(new Vector2(cx - size * 0.35f, cy - size), new Vector2(cx + size, cy), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx + size, cy), new Vector2(cx - size * 0.35f, cy + size), thickness, color);
     }
 
     // Simple text-only row:  Label          Value
@@ -1978,4 +2074,71 @@ public sealed class Game : IGame
     }
 
     private static int Clamp(int v) => Math.Max(0, Math.Min(100, v));
+
+    private void ClearEnvDeltas()
+    {
+        _envHealthDelta = 0;
+        _envEnergyDelta = 0;
+        _envSatiationDelta = 0;
+        _envHydrationDelta = 0;
+        _envComfortDelta = 0;
+    }
+
+    private void ClearActionDeltas()
+    {
+        _actionHealthDelta = 0;
+        _actionEnergyDelta = 0;
+        _actionSatiationDelta = 0;
+        _actionHydrationDelta = 0;
+        _actionComfortDelta = 0;
+        _actionDeltaTimer = 0f;
+    }
+
+    private void MarkActionChanged()
+    {
+        _actionDeltaTimer = ActionDeltaDisplayDuration;
+    }
+
+    private void ModifyStatFromAction(ref int stat, ref int actionDelta, int amount)
+    {
+        if (amount == 0) return;
+        actionDelta += amount;
+        stat = Clamp(stat + amount);
+        MarkActionChanged();
+    }
+
+    private void SetStatFromAction(ref int stat, ref int actionDelta, int value)
+    {
+        int clamped = Clamp(value);
+        int change = clamped - stat;
+        if (change == 0) return;
+        actionDelta += change;
+        stat = clamped;
+        MarkActionChanged();
+    }
+
+    private void ApplyEnvironmentOutside()
+    {
+        ClearEnvDeltas();
+        ApplyEnvChange(ref _comfort, ref _envComfortDelta, -18);   // cold night in the open courtyard
+        ApplyEnvChange(ref _energy, ref _envEnergyDelta, -15);     // adrenaline crash after the escape
+        ApplyEnvChange(ref _satiation, ref _envSatiationDelta, -9);
+        ApplyEnvChange(ref _hydration, ref _envHydrationDelta, -4);
+    }
+
+    private static void ApplyEnvChange(ref int stat, ref int envDelta, int amount)
+    {
+        if (amount == 0) return;
+        envDelta = amount;
+        stat = Clamp(stat + amount);
+    }
+
+    private static int StatArrowCount(int delta)
+    {
+        int abs = Math.Abs(delta);
+        if (abs == 0) return 0;
+        if (abs <= 4) return 1;
+        if (abs <= 10) return 2;
+        return 3;
+    }
 }
