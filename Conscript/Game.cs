@@ -28,13 +28,15 @@ public sealed class Game : IGame
     private Font _uiFont;
     private Texture2D _backgroundTexture;   // currently active scene background (swapped on phase change)
     private Texture2D _apartmentBackground;
+    private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
 
     // === Game flow ===
     private enum Phase
     {
         Opening,   // At home with family — the knock on the door
-        Forest,    // Deep forest survival (current prototype screen)
+        Outside,   // In the apartment courtyard / yard immediately after climbing out the window
+        Forest,    // Deep forest survival
         Death
     }
 
@@ -74,6 +76,12 @@ public sealed class Game : IGame
     // Forest narrative (existing)
     private const string ForestNarrative =
         "You pushed deeper into the forest.\nThe city is far behind. First light snow\nhas begun to fall — winter is arriving\nsooner than expected. This will not be easy.";
+
+    private const string OutsideNarrative =
+        "You hit the ground hard behind the apartment block.\n" +
+        "The window you escaped through is still lit.\n" +
+        "No sirens yet — but the night is too quiet.\n" +
+        "Every shadow could hide a patrol. Move.";
 
     private string _actionMessage = "";
     private float _actionMessageTimer;
@@ -131,12 +139,34 @@ public sealed class Game : IGame
             case Phase.Death:
                 _choices = new[] { "Try again" };
                 break;
+
+            case Phase.Outside:
+                _choices = new[]
+                {
+                    "RUN FOR THE TREES",
+                    "HIDE BEHIND THE BINS",
+                    "CIRCLE AROUND TO THE STREET",
+                    "QUICK SCAVENGE BY THE DOORS"
+                };
+                _day = 0;
+                _timeOfDay = "Night";
+                _warIntensity = "Rising";
+                _location = "Apartment Courtyard";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _suspicion = Clamp(_suspicion + 10);
+                _exposure  = Clamp(_exposure + 18);
+                _morale    = Clamp(_morale - 7);
+                // money, health etc. carry over from the apartment
+                break;
         }
 
         // Swap the background image for the new phase
         _backgroundTexture = _phase switch
         {
             Phase.Opening => _apartmentBackground,
+            Phase.Outside => _outsideBackground,
             Phase.Forest  => _forestBackground,
             _             => _forestBackground
         };
@@ -253,9 +283,9 @@ public sealed class Game : IGame
 
         _uiFont = LoadUiFont();
         _apartmentBackground = LoadEmbeddedTexture("apartment-inside.png");
+        _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
         _forestBackground    = LoadEmbeddedTexture("trees.png");
-        _backgroundTexture   = _apartmentBackground;   // we start in the apartment
-        EnterPhase(Phase.Opening);
+        EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
         {
@@ -265,6 +295,8 @@ public sealed class Game : IGame
 
         if (_apartmentBackground.Id != 0)
             Raylib.UnloadTexture(_apartmentBackground);
+        if (_outsideBackground.Id != 0)
+            Raylib.UnloadTexture(_outsideBackground);
         if (_forestBackground.Id != 0)
             Raylib.UnloadTexture(_forestBackground);
 
@@ -349,6 +381,10 @@ public sealed class Game : IGame
                 HandleForestChoice(index);
                 break;
 
+            case Phase.Outside:
+                HandleOutsideChoice(index);
+                break;
+
             case Phase.Death:
                 if (index == 0)
                 {
@@ -370,12 +406,10 @@ public sealed class Game : IGame
                 break;
 
             case 1: // Flee
-                // For now, this is the only playable path — move to the forest survival prototype
-                _actionMessage = "You grab your coat and disappear into the stairwell.";
+                _actionMessage = "You climb out the window and drop into the yard behind the block.";
                 _actionMessageTimer = 2.5f;
-                AdvanceTime();   // fleeing into the night takes time
-                // Transition to the forest (stub)
-                EnterPhase(Phase.Forest);
+                AdvanceTime();   // the climb and landing take a moment
+                EnterPhase(Phase.Outside);
                 break;
 
             case 2: // Fight
@@ -421,6 +455,42 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void HandleOutsideChoice(int index)
+    {
+        switch (index)
+        {
+            case 0: // Commit — run for the trees
+                _suspicion = Clamp(_suspicion + 4);
+                _exposure  = Clamp(_exposure - 8);
+                _actionMessage = "You sprint across the open yard toward the dark line of trees.";
+                AdvanceTime();
+                EnterPhase(Phase.Forest);
+                return;   // don't fall through to the generic timer
+
+            case 1: // Hide by the bins
+                _exposure = Clamp(_exposure - 14);
+                _suspicion = Clamp(_suspicion - 1);
+                _morale = Clamp(_morale - 4);
+                _actionMessage = "You press against cold metal. The yard is still. For a moment you are invisible.";
+                break;
+
+            case 2: // Circle to the street (risky)
+                _suspicion = Clamp(_suspicion + 9);
+                _morale = Clamp(_morale - 6);
+                _actionMessage = "You walk fast along the sidewalk, head down, trying to look like you belong. A car slows.";
+                break;
+
+            case 3: // Quick scavenge
+                _money += 420;   // found some cash and a cheap lighter near the service door
+                _suspicion = Clamp(_suspicion + 7);
+                _actionMessage = "A crumpled wad of notes and a disposable lighter by the loading bay. Small wins.";
+                break;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private void Draw()
     {
         Raylib.BeginDrawing();
@@ -432,10 +502,11 @@ public sealed class Game : IGame
                 DrawOpening();
                 break;
 
+            case Phase.Outside:
             case Phase.Forest:
                 DrawTopBar();
                 DrawLeftSidebar();
-                DrawForestScene();   // forest version
+                DrawCinematicScene();
                 DrawActionBar();
                 break;
 
@@ -702,10 +773,22 @@ public sealed class Game : IGame
         y += 20;
     }
 
+    private string GetSceneNarrative()
+    {
+        return _phase switch
+        {
+            Phase.Opening => OpeningNarrative,
+            Phase.Outside => OutsideNarrative,
+            Phase.Forest  => ForestNarrative,
+            _             => ForestNarrative
+        };
+    }
+
     // =====================================================================
-    // CENTRAL SCENE — Background image with cinematic overlays
+    // CENTRAL SCENE — Background photo + atmospheric overlays + narrative card
+    // Used for both the courtyard escape and the deep forest.
     // =====================================================================
-    private void DrawForestScene()
+    private void DrawCinematicScene()
     {
         Font font = _uiFont;
 
@@ -723,12 +806,11 @@ public sealed class Game : IGame
         int artW = w - GameConstants.ScenePadding * 2;
         int artH = h - GameConstants.ScenePadding * 2;
 
-        // The embedded background (trees.jpg is the default for now)
         DrawSceneBackground(artX, artY, artW, artH);
 
-        // Snow particles as atmospheric overlay on the photo
+        // Light atmospheric snow (fits both a cold night in the yard and the forest)
         int groundY = artY + (int)(artH * 0.68f);
-        DrawAtmosphericSnow(artX, artY, artW, groundY, 68);
+        DrawAtmosphericSnow(artX, artY, artW, groundY, 48);
 
         // === Inner elegant frame + vignette for cinematic feel ===
         Raylib.DrawRectangleLines(artX + 2, artY + 2, artW - 4, artH - 4, Palette.SubtleBorder);
@@ -740,7 +822,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(artX + artW - 22, artY, 22, artH, new Color(0, 0, 0, 55));
 
         // === Main narrative / flavor text box — clean, anchored to the right side of the image ===
-        DrawRightSideNarrative(artX, artY, artW, artH, ForestNarrative);
+        DrawRightSideNarrative(artX, artY, artW, artH, GetSceneNarrative());
 
         // Temporary action result toast (centered low in the image)
         if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
@@ -765,7 +847,7 @@ public sealed class Game : IGame
     private void DrawOpening()
     {
         // We reuse the polished top bar, left stats, action bar, and right narrative card.
-        // Only the central "art" area is different (tense apartment instead of forest).
+        // The central art is now the real apartment photo.
 
         DrawTopBar();
         DrawLeftSidebar();
@@ -783,7 +865,6 @@ public sealed class Game : IGame
         int artW = w - GameConstants.ScenePadding * 2;
         int artH = h - GameConstants.ScenePadding * 2;
 
-        // The embedded background image (trees.jpg default for now; apartment-specific art TBD)
         DrawSceneBackground(artX, artY, artW, artH);
 
         // The right-side narrative card
