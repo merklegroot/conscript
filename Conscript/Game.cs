@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
 using System.Linq;
@@ -31,6 +32,17 @@ public sealed class Game : IGame
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
     private Texture2D _storeBackground;
+
+    // Store item icons (embedded PNGs keyed by catalog / backpack item name)
+    private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> ItemIconFiles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Bottled Water"] = "items.bottled-water.png",
+        ["Loaf of Bread"] = "items.loaf-of-bread.png",
+        ["Canned Soup"]    = "items.canned-soup.png",
+        ["Trash Bags"]     = "items.trash-bags.png",
+        ["Duct Tape"]      = "items.duct-tape.png",
+    };
 
     // Restart + debug buttons (top right, always available)
     private Rectangle _restartButtonRect;
@@ -364,6 +376,31 @@ public sealed class Game : IGame
         throw new FileNotFoundException($"Embedded image '{fileName}' not found. Tried names: {string.Join(", ", candidates)}. Available resources: {available}");
     }
 
+    private void LoadItemIcons()
+    {
+        foreach (var (itemName, fileName) in ItemIconFiles)
+            _itemIcons[itemName] = LoadEmbeddedTexture(fileName);
+    }
+
+    private void UnloadItemIcons()
+    {
+        foreach (Texture2D tex in _itemIcons.Values)
+        {
+            if (tex.Id != 0)
+                Raylib.UnloadTexture(tex);
+        }
+        _itemIcons.Clear();
+    }
+
+    private void DrawItemIcon(string itemName, Rectangle dest, Color tint)
+    {
+        if (!_itemIcons.TryGetValue(itemName, out Texture2D tex) || tex.Id == 0)
+            return;
+
+        Rectangle src = new Rectangle(0, 0, tex.Width, tex.Height);
+        Raylib.DrawTexturePro(tex, src, dest, Vector2.Zero, 0f, tint);
+    }
+
     private void DrawSceneBackground(int artX, int artY, int artW, int artH)
     {
         if (_backgroundTexture.Id != 0)
@@ -389,6 +426,7 @@ public sealed class Game : IGame
         _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
         _forestBackground    = LoadEmbeddedTexture("trees.png");
         _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
         while (!ShouldExit && !Raylib.WindowShouldClose())
@@ -405,6 +443,7 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_forestBackground);
         if (_storeBackground.Id != 0)
             Raylib.UnloadTexture(_storeBackground);
+        UnloadItemIcons();
 
         Raylib.CloseWindow();
     }
@@ -970,7 +1009,7 @@ public sealed class Game : IGame
 
         // Centered dialog panel
         int panelW = 380;
-        int panelH = 210;
+        int panelH = 240;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 20;
 
@@ -982,23 +1021,31 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
+        // Item icon
+        const int iconSize = 56;
+        int iconX = panelX + (panelW - iconSize) / 2;
+        int iconY = panelY + 16;
+        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
+
         // Item name as title
         string title = _dialogItemName.ToUpperInvariant();
         int titleSize = 22;
         int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
         Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + (panelW - titleW) / 2, panelY + 22),
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 82),
             titleSize, 0.8f, Palette.TextPrimary);
 
         // Subtle separator
-        Raylib.DrawLine(panelX + 40, panelY + 52, panelX + panelW - 40, panelY + 52, Palette.SubtleBorder);
+        Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
         // Placeholder body text
         string body = "No special actions defined for this item yet.";
         int bodySize = 16;
         int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
         Raylib.DrawTextEx(font, body,
-            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 72),
+            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
             bodySize, 0.6f, Palette.TextSecondary);
 
         // "CLOSE" button (styled similarly to action buttons)
@@ -1070,7 +1117,8 @@ public sealed class Game : IGame
 
         // Item list
         int rowStartY = panelY + 60;
-        int rowHeight = 38;
+        int rowHeight = 44;
+        const int iconSize = 32;
 
         for (int i = 0; i < _storeCatalog.Length; i++)
         {
@@ -1090,16 +1138,22 @@ public sealed class Game : IGame
             // Store the rect for input
             _storeBuyItemRects[i] = new Rectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4);
 
+            Color tint = (canAfford && hasSpace) ? Color.WHITE : new Color(120, 118, 112, 255);
+            int iconX = panelX + 28;
+            int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
+            Raylib.DrawRectangle(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
+            DrawItemIcon(name, new Rectangle(iconX, iconY, iconSize, iconSize), tint);
+
             // Item name
             Color nameColor = (canAfford && hasSpace) ? Palette.TextPrimary : Palette.TextMuted;
-            Raylib.DrawTextEx(font, name, new Vector2(panelX + 32, rowY + 8), 17, 0.6f, nameColor);
+            Raylib.DrawTextEx(font, name, new Vector2(panelX + 68, rowY + 11), 17, 0.6f, nameColor);
 
             // Price (right aligned)
             string priceStr = $"{price} ₽";
             int pW = (int)Raylib.MeasureTextEx(font, priceStr, 16, 0.6f).X;
             Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
             Raylib.DrawTextEx(font, priceStr,
-                new Vector2(panelX + panelW - 32 - pW, rowY + 9), 16, 0.6f, priceColor);
+                new Vector2(panelX + panelW - 32 - pW, rowY + 12), 16, 0.6f, priceColor);
         }
 
         // Feedback line at bottom of list area
@@ -1541,14 +1595,18 @@ public sealed class Game : IGame
 
                 if (occupied)
                 {
-                    // Tiny "item type" swatch on the left
-                    Raylib.DrawRectangle(sx + 3, sy + 3, 11, slot - 6, new Color(95, 72, 48, 220));
-
-                    // Abbreviated label (very small text)
-                    string label = item!.Length > 5 ? item.Substring(0, 5) : item;
-                    float fz = 8f;
-                    Raylib.DrawTextEx(font, label.ToUpperInvariant(),
-                        new Vector2(sx + 16, sy + 8), fz, 0.35f, Palette.TextPrimary);
+                    if (_itemIcons.ContainsKey(item!))
+                    {
+                        DrawItemIcon(item!, new Rectangle(sx + 2, sy + 2, slot - 4, slot - 4), Color.WHITE);
+                    }
+                    else
+                    {
+                        // Fallback for items without icons yet (starting gear)
+                        string label = item!.Length > 5 ? item.Substring(0, 5) : item;
+                        float fz = 8f;
+                        Raylib.DrawTextEx(font, label.ToUpperInvariant(),
+                            new Vector2(sx + 4, sy + 8), fz, 0.35f, Palette.TextPrimary);
+                    }
                 }
                 else
                 {
