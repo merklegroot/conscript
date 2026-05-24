@@ -3,7 +3,19 @@
 A minimalist, tense survival roguelike about dodging conscription and deserting during the Russia-Ukraine war.
 
 ## Overview
-**Conscript** puts you in the shoes of a 20-year-old Russian man who burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
+**Conscript** puts you in the shoes of Sergei Kravchenko, a 20-year-old from Achinsk in Siberia's Krasnoyarsk Krai. Living with his parents in a small apartment, he burns his draft summons and flees into the forest to avoid being sent to fight in Ukraine. The game explores the desperate struggle of evading military service in a country actively mobilizing for war. Every choice carries weight as winter closes in and patrols intensify.
+
+## Sergei's Starting Gear (when he climbs out the window)
+In the opening scene, when Sergei chooses to flee the military commissariat, he only manages to grab a very limited set of items before disappearing into the night:
+
+- 10,000 ₽
+- Winter jacket
+- Small backpack
+- His phone
+- Small folding knife
+- Lighter
+
+This extremely constrained starting inventory is a core source of early-game tension and forces difficult trade-offs immediately.
 
 ## Dodging
 - Hide in the forest
@@ -78,14 +90,12 @@ cd Conscript
 dotnet run
 ```
 
-**Current state:** A single interactive screen (Deep Forest Camp, Day 3, Early Winter) with a significantly polished, cinematic, high-tension UI.
+**Current state:** The prototype now begins with a tense opening scene in the family apartment (Day 0, Evening, Early Autumn) where Sergei must decide how to react to the military knocking. Choosing to flee leads to the current Deep Forest survival screen (with the limited starting gear listed above). The UI is significantly polished, cinematic, and high-tension.
 
 **Layout & Polish:**
-- Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time, War Intensity, and Age + Season (right), generous spacing and subtle dividers.
-- Fixed-width left sidebar (Status panel) containing:
-  - A small flavor/situation text box at the top ("THE FOREST" + "Deeper now. The trees are closing in...")
-  - Clean, well-spaced stat list with elegant thin colored progress bars for Suspicion / Health / Morale / Exposure
-  - Text values for Money, Documents, and current Status
+- Clean dark header bar with strong "CONSCRIPT" title (left), Day/Time and current Location (center), and Season with icon (right).
+- Fixed-width left sidebar (Status panel) containing War Intensity + clean, well-spaced stats with elegant thin colored progress bars for Suspicion / Health / Morale / Exposure, plus Money (shown in ₽), Documents, and current Status.
+- Large central scene area with richer atmospheric placeholder art (different art for the opening apartment scene vs. the forest).
 - Large central scene area with **much richer atmospheric placeholder art**:
   - Layered forest (far → mid → near trees)
   - Detailed snow-covered lean-to shelter

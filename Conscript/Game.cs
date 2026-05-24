@@ -47,7 +47,7 @@ public sealed class Game : IGame
 
     // === Core stats (values from the reference) ===
     private int _suspicion = 26;
-    private int _money = 35200;
+    private int _money = 10000;   // Starting money in Russian Rubles (₽)
     private int _health = 81;
     private int _morale = 63;
     private string _documents = "None";
@@ -99,6 +99,7 @@ public sealed class Game : IGame
                 _health = 96;
                 _morale = 82;
                 _exposure = 2;
+                _money = 10000;   // Starting with 10,000 ₽
                 break;
 
             case Phase.Forest:
@@ -116,6 +117,7 @@ public sealed class Game : IGame
                 _location = "Deep Forest";
                 _status = "Fugitive - Deep Forest";
                 _season = "Early Autumn";   // carries over from opening (will evolve later)
+                // _money carries over from the Opening phase (starts at 10,000 ₽)
                 break;
 
             case Phase.Death:
@@ -575,7 +577,7 @@ public sealed class Game : IGame
         cy += 6;
 
         // Simple text stats (same line for label + value to reduce clutter)
-        DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0}");
+        DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0} ₽");
         DrawTextStatLine(ref cy, tx, "Documents", _documents);
         DrawTextStatLine(ref cy, tx, "Status", _status);
     }
