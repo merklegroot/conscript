@@ -105,6 +105,7 @@ public sealed class Game : IGame
     private int _actionComfortDelta;
     private float _actionDeltaTimer;
     private const float ActionDeltaDisplayDuration = 5f;
+    private const int EnvComfortPerAction = -3;   // cold yard tax on every action while outside
 
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
@@ -809,6 +810,7 @@ public sealed class Game : IGame
                 ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);   // out in the cold, moving toward the tree line
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
+                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Forest);
                 return;
 
@@ -819,6 +821,7 @@ public sealed class Game : IGame
                 return;
 
             case 3: // Convenience store — step inside the bright kiosk
+                ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
                 EnterPhase(Phase.Store);
@@ -826,6 +829,7 @@ public sealed class Game : IGame
         }
 
         AdvanceTime();
+        ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -1523,14 +1527,16 @@ public sealed class Game : IGame
         int labelX = x + StatLeftArrowSlotW + 4;
         int rightSlotX = labelX + StatLabelColumnW;
 
-        // Action arrows take over the slots briefly; otherwise show persistent environment arrows
-        bool showActionArrows = _actionDeltaTimer > 0f && actionDelta != 0;
-        int leftTotal;
-        int rightTotal;
-        if (showActionArrows)
+        // Action arrows show action + environment combined; after the timer, only environment remains
+        bool showActionFeedback = _actionDeltaTimer > 0f;
+        int leftTotal = 0;
+        int rightTotal = 0;
+        if (showActionFeedback)
         {
-            leftTotal = actionDelta < 0 ? actionDelta : 0;
-            rightTotal = actionDelta > 0 ? actionDelta : 0;
+            if (actionDelta < 0) leftTotal += actionDelta;
+            if (envDelta < 0) leftTotal += envDelta;
+            if (actionDelta > 0) rightTotal += actionDelta;
+            if (envDelta > 0) rightTotal += envDelta;
         }
         else
         {
@@ -1538,7 +1544,8 @@ public sealed class Game : IGame
             rightTotal = envDelta > 0 ? envDelta : 0;
         }
 
-        DrawStatArrowIndicators(x, arrowY, rightSlotX, leftTotal, rightTotal, showActionArrows);
+        bool blink = showActionFeedback && (leftTotal != 0 || rightTotal != 0);
+        DrawStatArrowIndicators(x, arrowY, rightSlotX, leftTotal, rightTotal, blink);
 
         Raylib.DrawTextEx(font, label, new Vector2(labelX, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextSecondary);
 
@@ -2118,13 +2125,16 @@ public sealed class Game : IGame
         MarkActionChanged();
     }
 
+    private void ApplyEnvironmentOnAction()
+    {
+        if (_phase != Phase.Outside) return;
+        ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, EnvComfortPerAction);
+    }
+
     private void ApplyEnvironmentOutside()
     {
         ClearEnvDeltas();
         ApplyEnvChange(ref _comfort, ref _envComfortDelta, -18);   // cold night in the open courtyard
-        ApplyEnvChange(ref _energy, ref _envEnergyDelta, -15);     // adrenaline crash after the escape
-        ApplyEnvChange(ref _satiation, ref _envSatiationDelta, -9);
-        ApplyEnvChange(ref _hydration, ref _envHydrationDelta, -4);
     }
 
     private static void ApplyEnvChange(ref int stat, ref int envDelta, int amount)
