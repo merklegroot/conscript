@@ -434,13 +434,50 @@ public sealed class Game : IGame
         Raylib.DrawTexturePro(tex, src, dest, Vector2.Zero, 0f, tint);
     }
 
+    private bool IsOutdoorPhase() =>
+        _phase is Phase.Outside or Phase.Forest;
+
+    /// <summary>
+    /// Multiplicative tint for outdoor background photos by time of day.
+    /// </summary>
+    private Color GetOutdoorTimeOfDayTint() =>
+        _timeOfDay switch
+        {
+            "Morning" => new Color(195, 208, 228, 255),    // cool dawn light
+            "Afternoon" => new Color(255, 252, 242, 255),  // brightest, neutral-warm
+            "Evening" => new Color(218, 178, 138, 255),  // low golden hour
+            "Night" => new Color(88, 98, 128, 255),      // dark blue night
+            _ => Color.WHITE
+        };
+
+    /// <summary>
+    /// Extra color wash on top of the tinted photo (mostly for dusk/night depth).
+    /// </summary>
+    private Color GetOutdoorTimeOfDayOverlay() =>
+        _timeOfDay switch
+        {
+            "Morning" => new Color(180, 200, 230, 18),
+            "Afternoon" => new Color(0, 0, 0, 0),
+            "Evening" => new Color(40, 25, 10, 45),
+            "Night" => new Color(8, 12, 28, 72),
+            _ => new Color(0, 0, 0, 0)
+        };
+
     private void DrawSceneBackground(int artX, int artY, int artW, int artH)
     {
         if (_backgroundTexture.Id != 0)
         {
+            Color tint = IsOutdoorPhase() ? GetOutdoorTimeOfDayTint() : Color.WHITE;
             Rectangle src = new Rectangle(0, 0, _backgroundTexture.Width, _backgroundTexture.Height);
             Rectangle dst = new Rectangle(artX, artY, artW, artH);
-            Raylib.DrawTexturePro(_backgroundTexture, src, dst, Vector2.Zero, 0.0f, Color.WHITE);
+            Raylib.DrawTexturePro(_backgroundTexture, src, dst, Vector2.Zero, 0.0f, tint);
+
+            if (IsOutdoorPhase())
+            {
+                Color overlay = GetOutdoorTimeOfDayOverlay();
+                if (overlay.A > 0)
+                    Raylib.DrawRectangle(artX, artY, artW, artH, overlay);
+            }
         }
         else
         {
