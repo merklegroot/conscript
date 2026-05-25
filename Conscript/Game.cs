@@ -214,6 +214,17 @@ public sealed class Game : IGame
     private bool _hasTrashBagTent;
     private Rectangle _buildSidebarButtonRect;
     private bool _buildSidebarButtonHovered;
+
+    // Quit (right panel + confirmation)
+    private Rectangle _quitSidebarButtonRect;
+    private bool _quitSidebarButtonHovered;
+    private bool _showQuitConfirm;
+    private Rectangle _quitConfirmPanelRect;
+    private Rectangle _quitConfirmYesRect;
+    private Rectangle _quitConfirmNoRect;
+    private bool _quitConfirmYesHovered;
+    private bool _quitConfirmNoHovered;
+
     private Rectangle _buildPanelRect;
     private Rectangle _buildCloseRect;
     private bool _buildCloseHovered;
@@ -702,6 +713,11 @@ public sealed class Game : IGame
                 CloseControllerDebug();
                 return;
             }
+            if (_showQuitConfirm)
+            {
+                CloseQuitConfirm();
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -713,7 +729,7 @@ public sealed class Game : IGame
         }
 
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug)
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm)
         {
             if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
             {
@@ -730,6 +746,10 @@ public sealed class Game : IGame
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
+            }
+            else if (_showQuitConfirm)
+            {
+                CloseQuitConfirm();
             }
             else if (_showRegionMap)
             {
@@ -775,6 +795,26 @@ public sealed class Game : IGame
                 CloseControllerDebug();
             else
                 OpenControllerDebug();
+            return;
+        }
+
+        // === Quit confirmation (modal) ===
+        if (_showQuitConfirm)
+        {
+            _quitConfirmYesHovered = Raylib.CheckCollisionPointRec(mouse, _quitConfirmYesRect);
+            _quitConfirmNoHovered = Raylib.CheckCollisionPointRec(mouse, _quitConfirmNoRect);
+
+            if (leftClicked && _quitConfirmYesHovered)
+            {
+                _shouldExit = true;
+                return;
+            }
+            if (leftClicked && (_quitConfirmNoHovered ||
+                !Raylib.CheckCollisionPointRec(mouse, _quitConfirmPanelRect)))
+            {
+                CloseQuitConfirm();
+                return;
+            }
             return;
         }
 
@@ -927,16 +967,24 @@ public sealed class Game : IGame
             _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm)
         {
             _regionMapThumbHovered = _regionMapClickRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
             _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
+            _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
 
             if (leftClicked && _buildSidebarButtonHovered)
             {
                 OpenBuildDialog();
+                return;
+            }
+
+            if (leftClicked && _quitSidebarButtonHovered)
+            {
+                OpenQuitConfirm();
                 return;
             }
 
@@ -1051,9 +1099,9 @@ public sealed class Game : IGame
             (_showControllerDebug && Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect)))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm)
         {
-            if (_regionMapThumbHovered || _buildSidebarButtonHovered)
+            if (_regionMapThumbHovered || _buildSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
             // Bottom action buttons
@@ -1130,6 +1178,10 @@ public sealed class Game : IGame
                 !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
                 overClickable = true;
         }
+
+        if (_showQuitConfirm &&
+            (_quitConfirmYesHovered || _quitConfirmNoHovered))
+            overClickable = true;
 
         Raylib.SetMouseCursor(overClickable
             ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
@@ -1314,6 +1366,7 @@ public sealed class Game : IGame
         CloseRegionMap();
         CloseBuildDialog();
         CloseControllerDebug();
+        CloseQuitConfirm();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1333,6 +1386,7 @@ public sealed class Game : IGame
         CloseRegionMap();
         CloseBuildDialog();
         CloseControllerDebug();
+        CloseQuitConfirm();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1398,6 +1452,20 @@ public sealed class Game : IGame
     {
         _showControllerDebug = false;
         _controllerDebugCloseHovered = false;
+    }
+
+    private void OpenQuitConfirm()
+    {
+        _showQuitConfirm = true;
+        _quitConfirmYesHovered = false;
+        _quitConfirmNoHovered = false;
+    }
+
+    private void CloseQuitConfirm()
+    {
+        _showQuitConfirm = false;
+        _quitConfirmYesHovered = false;
+        _quitConfirmNoHovered = false;
     }
 
     private static bool IsOutdoorsPhase(Phase phase) =>
@@ -2262,6 +2330,11 @@ public sealed class Game : IGame
             DrawBuildDialog();
         }
 
+        if (_showQuitConfirm)
+        {
+            DrawQuitConfirmDialog();
+        }
+
         if (_showControllerDebug)
         {
             DrawControllerDebugScreen();
@@ -2523,6 +2596,64 @@ public sealed class Game : IGame
         cy = DrawWorldMap(cy, tx);
         cy += 16;
         DrawBuildSidebarButton(cy, tx);
+
+        const int btnH = 36;
+        int quitY = y + h - GameConstants.SidebarPadding - btnH;
+        DrawQuitSidebarButton(quitY, tx);
+    }
+
+    private void DrawQuitSidebarButton(int y, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        const int btnH = 36;
+        _quitSidebarButtonRect = new Rectangle(x, y, available, btnH);
+        DrawDialogButton(_quitSidebarButtonRect, "QUIT", _quitSidebarButtonHovered, font);
+    }
+
+    private void DrawQuitConfirmDialog()
+    {
+        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 175));
+
+        Font font = _uiFont;
+        int panelW = 400;
+        int panelH = 190;
+        int panelX = (_screenWidth - panelW) / 2;
+        int panelY = (_screenHeight - panelH) / 2 - 16;
+
+        _quitConfirmPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        string title = "QUIT?";
+        int titleSize = 24;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 22),
+            titleSize, 0.8f, Palette.TextPrimary);
+
+        string body = "Are you sure you want to exit the game?";
+        int bodySize = 17;
+        int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
+        Raylib.DrawTextEx(font, body,
+            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 62),
+            bodySize, 0.6f, Palette.TextSecondary);
+
+        Raylib.DrawLine(panelX + 40, panelY + 98, panelX + panelW - 40, panelY + 98, Palette.SubtleBorder);
+
+        int btnW = 108;
+        int btnH = 36;
+        int gap = 14;
+        int totalW = btnW * 2 + gap;
+        int startX = panelX + (panelW - totalW) / 2;
+        int btnY = panelY + panelH - 56;
+
+        _quitConfirmNoRect = new Rectangle(startX, btnY, btnW, btnH);
+        _quitConfirmYesRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+
+        DrawDialogButton(_quitConfirmNoRect, "CANCEL", _quitConfirmNoHovered, font);
+        DrawDialogButton(_quitConfirmYesRect, "QUIT", _quitConfirmYesHovered, font);
     }
 
     private void DrawBuildSidebarButton(int y, int x)
