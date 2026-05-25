@@ -75,6 +75,44 @@ public sealed class Game : IGame
     private bool _debugStartHovered;
     private bool _controllerHovered;
 
+    // Controller debug overlay (opened from top-right gamepad button)
+    private bool _showControllerDebug;
+    private Rectangle _controllerDebugCloseRect;
+    private bool _controllerDebugCloseHovered;
+
+    private const int MaxGamepadsToShow = 4;
+
+    private static readonly (GamepadButton Button, string Label)[] GamepadButtonsToShow =
+    {
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_UP, "D-pad Up"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT, "D-pad Right"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_DOWN, "D-pad Down"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT, "D-pad Left"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_UP, "Face Up (Y/Triangle)"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, "Face Right (B/Circle)"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_DOWN, "Face Down (A/Cross)"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_LEFT, "Face Left (X/Square)"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_TRIGGER_1, "LB / L1"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_TRIGGER_2, "LT / L2"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_TRIGGER_1, "RB / R1"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_TRIGGER_2, "RT / R2"),
+        (GamepadButton.GAMEPAD_BUTTON_MIDDLE_LEFT, "Select / Back"),
+        (GamepadButton.GAMEPAD_BUTTON_MIDDLE, "Guide / Home"),
+        (GamepadButton.GAMEPAD_BUTTON_MIDDLE_RIGHT, "Start"),
+        (GamepadButton.GAMEPAD_BUTTON_LEFT_THUMB, "L3 (left stick click)"),
+        (GamepadButton.GAMEPAD_BUTTON_RIGHT_THUMB, "R3 (right stick click)"),
+    };
+
+    private static readonly (GamepadAxis Axis, string Label)[] GamepadAxesToShow =
+    {
+        (GamepadAxis.GAMEPAD_AXIS_LEFT_X, "Left stick X"),
+        (GamepadAxis.GAMEPAD_AXIS_LEFT_Y, "Left stick Y"),
+        (GamepadAxis.GAMEPAD_AXIS_RIGHT_X, "Right stick X"),
+        (GamepadAxis.GAMEPAD_AXIS_RIGHT_Y, "Right stick Y"),
+        (GamepadAxis.GAMEPAD_AXIS_LEFT_TRIGGER, "Left trigger axis"),
+        (GamepadAxis.GAMEPAD_AXIS_RIGHT_TRIGGER, "Right trigger axis"),
+    };
+
     // === Game flow ===
     private enum Phase
     {
@@ -659,6 +697,11 @@ public sealed class Game : IGame
                 CloseBuildDialog();
                 return;
             }
+            if (_showControllerDebug)
+            {
+                CloseControllerDebug();
+                return;
+            }
             _shouldExit = true;
             return;
         }
@@ -670,7 +713,7 @@ public sealed class Game : IGame
         }
 
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog)
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug)
         {
             if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
             {
@@ -684,7 +727,11 @@ public sealed class Game : IGame
 
         if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE))
         {
-            if (_showRegionMap)
+            if (_showControllerDebug)
+            {
+                CloseControllerDebug();
+            }
+            else if (_showRegionMap)
             {
                 CloseRegionMap();
             }
@@ -720,6 +767,35 @@ public sealed class Game : IGame
         if (leftClicked && _debugStartHovered)
         {
             DebugStartGame();
+            return;
+        }
+        if (leftClicked && _controllerHovered)
+        {
+            if (_showControllerDebug)
+                CloseControllerDebug();
+            else
+                OpenControllerDebug();
+            return;
+        }
+
+        // === Controller debug (modal) ===
+        if (_showControllerDebug)
+        {
+            var panelRect = new Rectangle(36, 28, _screenWidth - 72, _screenHeight - 56);
+            _controllerDebugCloseHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect);
+            if (leftClicked && _controllerDebugCloseHovered)
+            {
+                CloseControllerDebug();
+                return;
+            }
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, panelRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect))
+            {
+                CloseControllerDebug();
+                return;
+            }
             return;
         }
 
@@ -971,7 +1047,8 @@ public sealed class Game : IGame
         // Top-right utility buttons (always available)
         if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
-            Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect))
+            Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
+            (_showControllerDebug && Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect)))
             overClickable = true;
 
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
@@ -1236,6 +1313,7 @@ public sealed class Game : IGame
         _showStoreBuyMenu = false;
         CloseRegionMap();
         CloseBuildDialog();
+        CloseControllerDebug();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1254,6 +1332,7 @@ public sealed class Game : IGame
         _showStoreBuyMenu = false;
         CloseRegionMap();
         CloseBuildDialog();
+        CloseControllerDebug();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1307,6 +1386,18 @@ public sealed class Game : IGame
         _showBuildDialog = false;
         _buildCloseHovered = false;
         _buildTentButtonHovered = false;
+    }
+
+    private void OpenControllerDebug()
+    {
+        _showControllerDebug = true;
+        _controllerDebugCloseHovered = false;
+    }
+
+    private void CloseControllerDebug()
+    {
+        _showControllerDebug = false;
+        _controllerDebugCloseHovered = false;
     }
 
     private static bool IsOutdoorsPhase(Phase phase) =>
@@ -1529,19 +1620,210 @@ public sealed class Game : IGame
     {
         if (_controllerButtonRect.Width <= 0) return;
 
-        Color bg = _controllerHovered
+        bool active = _showControllerDebug || _controllerHovered;
+        Color bg = active
             ? new Color(58, 63, 74, 255)
             : new Color(32, 35, 42, 255);
-        Color border = _controllerHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
+        Color border = active ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
 
         Raylib.DrawRectangleRec(_controllerButtonRect, bg);
         Raylib.DrawRectangleLinesEx(_controllerButtonRect, 1.0f, border);
 
-        Color iconColor = _controllerHovered ? Palette.TextPrimary : Palette.TextSecondary;
+        Color iconColor = active ? Palette.TextPrimary : Palette.TextSecondary;
         float cx = _controllerButtonRect.X + _controllerButtonRect.Width / 2f;
         float cy = _controllerButtonRect.Y + _controllerButtonRect.Height / 2f;
         float iconSize = _controllerButtonRect.Width * 0.72f;
         DrawControllerIcon(cx, cy, iconSize, iconColor);
+    }
+
+    // =====================================================================
+    // CONTROLLER DEBUG — live gamepad buttons, axes, and sticks
+    // =====================================================================
+    private void DrawControllerDebugScreen()
+    {
+        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 200));
+
+        Font font = _uiFont;
+        int panelX = 36;
+        int panelY = 28;
+        int panelW = _screenWidth - 72;
+        int panelH = _screenHeight - 56;
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Raylib.DrawTextEx(font, "CONTROLLER DEBUG",
+            new Vector2(panelX + 22, panelY + 16), 22, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawTextEx(font, "Live input from Raylib / SDL — press buttons and move sticks to verify mappings.",
+            new Vector2(panelX + 22, panelY + 44), 13, 0.55f, Palette.TextSecondary);
+
+        int lastPressed = Raylib.GetGamepadButtonPressed();
+        string lastLine = lastPressed >= 0
+            ? $"Last button pressed (any pad): {(GamepadButton)lastPressed}"
+            : "Last button pressed (any pad): —";
+        Raylib.DrawTextEx(font, lastLine,
+            new Vector2(panelX + 22, panelY + 62), 12, 0.5f, Palette.TextMuted);
+
+        int contentTop = panelY + 88;
+        int contentH = panelH - 150;
+        int colW = (panelW - 44) / MaxGamepadsToShow;
+        int colGap = 8;
+
+        for (int gp = 0; gp < MaxGamepadsToShow; gp++)
+        {
+            int colX = panelX + 16 + gp * (colW + colGap);
+            DrawGamepadDebugColumn(font, gp, colX, contentTop, colW, contentH);
+        }
+
+        int btnW = 140;
+        int btnH = 36;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - btnH - 16;
+        _controllerDebugCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        DrawDialogButton(_controllerDebugCloseRect, "CLOSE", _controllerDebugCloseHovered, font);
+
+        Raylib.DrawTextEx(font, "Esc · Close · or gamepad button again",
+            new Vector2(panelX + 22, panelY + panelH - 28),
+            11, 0.45f, Palette.TextDim);
+    }
+
+    private void DrawGamepadDebugColumn(Font font, int gamepad, int x, int y, int width, int height)
+    {
+        Raylib.DrawRectangle(x, y, width, height, new Color(12, 14, 18, 255));
+        Raylib.DrawRectangleLines(x, y, width, height, Palette.SubtleBorder);
+
+        int pad = 10;
+        int cy = y + pad;
+
+        string header = $"Gamepad {gamepad}";
+        Raylib.DrawTextEx(font, header, new Vector2(x + pad, cy), 14, 0.65f, Palette.TextPrimary);
+        cy += 20;
+
+        if (!Raylib.IsGamepadAvailable(gamepad))
+        {
+            Raylib.DrawTextEx(font, "Not connected",
+                new Vector2(x + pad, cy), 12, 0.5f, Palette.TextDim);
+            return;
+        }
+
+        string name = Raylib.GetGamepadName_(gamepad);
+        if (string.IsNullOrWhiteSpace(name))
+            name = "(unnamed device)";
+        DrawTruncatedDebugLine(font, name, x + pad, ref cy, width - pad * 2, 11, Palette.TextSecondary);
+        cy += 4;
+
+        int axisCount = Raylib.GetGamepadAxisCount(gamepad);
+        Raylib.DrawTextEx(font, $"Axis count: {axisCount}",
+            new Vector2(x + pad, cy), 11, 0.45f, Palette.TextMuted);
+        cy += 18;
+
+        // Stick visuals
+        float lx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_X);
+        float ly = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_Y);
+        float rx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_X);
+        float ry = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_Y);
+
+        int stickSize = Math.Min(36, (width - pad * 2 - 8) / 2);
+        int stickY = cy + stickSize + 4;
+        DrawStickDebugVisual(x + pad + stickSize, stickY, stickSize, lx, ly, Palette.Hydration);
+        DrawStickDebugVisual(x + pad + stickSize * 3 + 12, stickY, stickSize, rx, ry, Palette.Energy);
+        Raylib.DrawTextEx(font, "L", new Vector2(x + pad + stickSize - 4, cy), 10, 0.4f, Palette.TextDim);
+        Raylib.DrawTextEx(font, "R", new Vector2(x + pad + stickSize * 3 + 8, cy), 10, 0.4f, Palette.TextDim);
+        cy = stickY + stickSize + 14;
+
+        Raylib.DrawTextEx(font, "Buttons", new Vector2(x + pad, cy), 12, 0.55f, Palette.TextMuted);
+        cy += 16;
+
+        foreach (var (button, label) in GamepadButtonsToShow)
+        {
+            if (cy > y + height - pad - 8)
+                break;
+
+            bool down = Raylib.IsGamepadButtonDown(gamepad, button);
+            bool pressed = Raylib.IsGamepadButtonPressed(gamepad, button);
+            bool released = Raylib.IsGamepadButtonReleased(gamepad, button);
+
+            Color dot = down ? Palette.Positive : Palette.SubtleBorder;
+            if (pressed)
+                dot = Palette.ActionFlash;
+            else if (released)
+                dot = Palette.Satiation;
+
+            Raylib.DrawCircle(x + pad + 4, cy + 6, 4f, dot);
+
+            string suffix = pressed ? " [pressed]" : released ? " [released]" : down ? " [down]" : "";
+            string line = label + suffix;
+            Color textColor = down || pressed ? Palette.TextPrimary : Palette.TextDim;
+            Raylib.DrawTextEx(font, line, new Vector2(x + pad + 14, cy), 10, 0.4f, textColor);
+            cy += 14;
+        }
+
+        cy += 6;
+        if (cy < y + height - 80)
+        {
+            Raylib.DrawTextEx(font, "Axes", new Vector2(x + pad, cy), 12, 0.55f, Palette.TextMuted);
+            cy += 16;
+
+            foreach (var (axis, label) in GamepadAxesToShow)
+            {
+                if (cy > y + height - pad - 20)
+                    break;
+
+                float value = Raylib.GetGamepadAxisMovement(gamepad, axis);
+                Raylib.DrawTextEx(font, label, new Vector2(x + pad, cy), 9, 0.35f, Palette.TextDim);
+                DrawAxisDebugBar(x + pad, cy + 12, width - pad * 2, 6, value);
+                Raylib.DrawTextEx(font, $"{value:F3}",
+                    new Vector2(x + width - pad - 36, cy), 9, 0.35f, Palette.TextSecondary);
+                cy += 24;
+            }
+        }
+    }
+
+    private static void DrawStickDebugVisual(int cx, int cy, int radius, float axisX, float axisY, Color color)
+    {
+        Raylib.DrawCircleLines(cx, cy, radius, Palette.SubtleBorder);
+        Raylib.DrawLine(cx - radius, cy, cx + radius, cy, Palette.SubtleBorder);
+        Raylib.DrawLine(cx, cy - radius, cx, cy + radius, Palette.SubtleBorder);
+
+        float px = cx + axisX * (radius - 4);
+        float py = cy + axisY * (radius - 4);
+        Raylib.DrawCircleV(new Vector2(px, py), 5f, color);
+    }
+
+    private static void DrawAxisDebugBar(int x, int y, int width, int height, float value)
+    {
+        value = Math.Clamp(value, -1f, 1f);
+        Raylib.DrawRectangle(x, y, width, height, new Color(18, 20, 24, 255));
+        int mid = x + width / 2;
+        int half = width / 2 - 2;
+        int fill = (int)(Math.Abs(value) * half);
+        if (fill < 1 && Math.Abs(value) > 0.02f)
+            fill = 1;
+
+        Color fillColor = value >= 0
+            ? new Color(90, 130, 150, 255)
+            : new Color(150, 110, 90, 255);
+
+        if (value >= 0)
+            Raylib.DrawRectangle(mid, y + 1, fill, height - 2, fillColor);
+        else
+            Raylib.DrawRectangle(mid - fill, y + 1, fill, height - 2, fillColor);
+
+        Raylib.DrawRectangle(mid, y, 1, height, Palette.TextDim);
+    }
+
+    private static void DrawTruncatedDebugLine(Font font, string text, int x, ref int y, int maxWidth, int fontSize, Color color)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        string line = text;
+        while (line.Length > 1 && Raylib.MeasureTextEx(font, line, fontSize, 0.4f).X > maxWidth)
+            line = line[..^1];
+
+        Raylib.DrawTextEx(font, line, new Vector2(x, y), fontSize, 0.4f, color);
+        y += fontSize + 4;
     }
 
     /// <summary>
@@ -1978,6 +2260,12 @@ public sealed class Game : IGame
         if (_showBuildDialog)
         {
             DrawBuildDialog();
+        }
+
+        if (_showControllerDebug)
+        {
+            DrawControllerDebugScreen();
+            DrawTopRightButtons();
         }
 
         Raylib.EndDrawing();
