@@ -240,6 +240,7 @@ public sealed class Game : IGame
     private Rectangle _quitConfirmNoRect;
     private bool _quitConfirmYesHovered;
     private bool _quitConfirmNoHovered;
+    private int _quitConfirmSelectedButton; // 0 = cancel, 1 = quit
 
     private Rectangle _buildPanelRect;
     private Rectangle _buildCloseRect;
@@ -750,31 +751,40 @@ public sealed class Game : IGame
             return;
         }
 
+        if (_showQuitConfirm)
+        {
+            if (IsHorizontalNavLeftPressed())
+                _quitConfirmSelectedButton = 0;
+            if (IsHorizontalNavRightPressed())
+                _quitConfirmSelectedButton = 1;
+            if (IsConfirmPressed())
+            {
+                if (_quitConfirmSelectedButton == 1)
+                    _shouldExit = true;
+                else
+                    CloseQuitConfirm();
+                return;
+            }
+        }
+
         // Horizontal navigation for bottom action buttons
         if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm)
         {
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
-                IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT))
+            if (IsHorizontalNavRightPressed())
             {
                 _selectedIndex = (_selectedIndex + 1) % _choices.Length;
             }
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
-                IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT))
+            if (IsHorizontalNavLeftPressed())
             {
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
             }
         }
 
-        if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE) ||
-            IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_DOWN))
+        if (IsConfirmPressed())
         {
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
-            }
-            else if (_showQuitConfirm)
-            {
-                CloseQuitConfirm();
             }
             else if (_showRegionMap)
             {
@@ -826,8 +836,15 @@ public sealed class Game : IGame
         // === Quit confirmation (modal) ===
         if (_showQuitConfirm)
         {
-            _quitConfirmYesHovered = Raylib.CheckCollisionPointRec(mouse, _quitConfirmYesRect);
-            _quitConfirmNoHovered = Raylib.CheckCollisionPointRec(mouse, _quitConfirmNoRect);
+            bool mouseOverYes = Raylib.CheckCollisionPointRec(mouse, _quitConfirmYesRect);
+            bool mouseOverNo = Raylib.CheckCollisionPointRec(mouse, _quitConfirmNoRect);
+            if (mouseOverYes)
+                _quitConfirmSelectedButton = 1;
+            else if (mouseOverNo)
+                _quitConfirmSelectedButton = 0;
+
+            _quitConfirmYesHovered = mouseOverYes || _quitConfirmSelectedButton == 1;
+            _quitConfirmNoHovered = mouseOverNo || _quitConfirmSelectedButton == 0;
 
             if (leftClicked && _quitConfirmYesHovered)
             {
@@ -1538,6 +1555,18 @@ public sealed class Game : IGame
         Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) ||
         IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
 
+    private static bool IsHorizontalNavLeftPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT);
+
+    private static bool IsHorizontalNavRightPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+
+    private static bool IsConfirmPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
+
     private static bool IsAnyGamepadButtonPressed(GamepadButton button)
     {
         for (int i = 0; i < MaxGamepadsToShow; i++)
@@ -1551,6 +1580,7 @@ public sealed class Game : IGame
     private void OpenQuitConfirm()
     {
         _showQuitConfirm = true;
+        _quitConfirmSelectedButton = 0;
         _quitConfirmYesHovered = false;
         _quitConfirmNoHovered = false;
     }
