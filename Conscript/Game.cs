@@ -701,7 +701,7 @@ public sealed class Game : IGame
     {
         float dt = Raylib.GetFrameTime();
 
-        if (Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
+        if (IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
             if (_showItemDialog)
             {
@@ -732,6 +732,11 @@ public sealed class Game : IGame
             if (_showQuitConfirm)
             {
                 CloseQuitConfirm();
+                return;
+            }
+            if (IsCancelPressed())
+            {
+                OpenQuitConfirm();
                 return;
             }
             if (Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
@@ -1528,6 +1533,10 @@ public sealed class Game : IGame
     {
         _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + MaxGamepadsToShow) % MaxGamepadsToShow;
     }
+
+    private static bool IsCancelPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
 
     private static bool IsAnyGamepadButtonPressed(GamepadButton button)
     {
