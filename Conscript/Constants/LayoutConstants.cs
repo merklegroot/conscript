@@ -21,6 +21,6 @@ public static class LayoutConstants
     public const int NarrativeLongSize = 25;
 
     // Buttons (action bar, dialogs, sidebar)
-    public const int ActionButtonFontSize = 32;
+    public const int ActionButtonFontSize = 24;
     public const int DialogButtonFontSize = 28;
 }

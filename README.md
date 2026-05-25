@@ -106,6 +106,15 @@ python3 scripts/generate_region_map.py
 
 This writes `Conscript/img/region-map.png` and `region-map.bounds.json`. Rebuild the game afterward so the embedded PNG updates.
 
+**Regenerate app icon and Steam store art** (from masters in `assets/source/`):
+
+```bash
+python3 -m pip install Pillow
+python3 scripts/generate_steam_assets.py
+```
+
+Outputs land in `assets/icons/` (`.ico`, shortcut PNG, app JPG) and `assets/steam/` (capsules, library hero/logo). See `assets/README.md` for the Steamworks upload mapping.
+
 **Current state:** The prototype now begins with a tense opening scene in the family apartment (Day 0, Evening, Early Autumn) where Sergei must decide how to react to the military knocking. Choosing to flee leads to the current Deep Forest survival screen (with the limited starting gear listed above). The UI is significantly polished, cinematic, and high-tension.
 
 **Layout & Polish:**
