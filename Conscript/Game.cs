@@ -52,6 +52,7 @@ public sealed class Game : IGame
     private const string ItemTrashBags = "Trash Bags";
     private const string ItemDuctTape = "Duct Tape";
     private const string BuildTrashBagTent = "Trash Bag Tent";
+    private const string ChoiceEnterTent = "ENTER TENT";
 
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
@@ -374,7 +375,6 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Forest:
-                _choices = new[] { "GO BACK TO TOWN", "WAIT" };
                 ClearEnvDeltas();
                 RefreshOutdoorComfortEnvironment();
                 // The existing forest values
@@ -386,6 +386,7 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 19;   // colder the deeper you go
                 // _money carries over from the Opening phase (starts at 10,000 ₽)
+                RefreshOutdoorActionChoices();
                 break;
 
             case Phase.Death:
@@ -393,14 +394,6 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Outside:
-                _choices = new[]
-                {
-                    "HIDE IN THE GARBAGE",
-                    "HEAD FOR THE FOREST",
-                    "GO TO UNCLE'S HOUSE",
-                    "CONVENIENCE STORE",
-                    "WAIT"
-                };
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Apartment Courtyard";
@@ -409,6 +402,7 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
                 ApplyEnvironmentOutside();
+                RefreshOutdoorActionChoices();
                 break;
 
             case Phase.Store:
@@ -1324,12 +1318,20 @@ public sealed class Game : IGame
 
     private void HandleForestChoice(int index)
     {
-        switch (index)
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
         {
-            case 0:
+            case "GO BACK TO TOWN":
                 EnterPhase(Phase.Outside);
                 break;
-            case 1:
+
+            case ChoiceEnterTent:
+                ShowNotImplementedAction("Entering the tent");
+                break;
+
+            case "WAIT":
                 PerformIdle();
                 break;
         }
@@ -1337,36 +1339,43 @@ public sealed class Game : IGame
 
     private void HandleOutsideChoice(int index)
     {
-        switch (index)
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
         {
-            case 0: // Hide in the garbage → you get caught and lose
+            case "HIDE IN THE GARBAGE":
                 _deathLine1 = "They found you.";
                 _deathLine2 = "Dragged from the garbage like an animal.";
                 EnterPhase(Phase.Death);
                 return;
 
-            case 1: // Head for the forest
-                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);   // out in the cold, moving toward the tree line
+            case "HEAD FOR THE FOREST":
+                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
                 ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Forest);
                 return;
 
-            case 2: // Go to uncle's house — he turns you in
+            case "GO TO UNCLE'S HOUSE":
                 _deathLine1 = "You went to your uncle.";
                 _deathLine2 = "He called them before you could even sit down.";
                 EnterPhase(Phase.Death);
                 return;
 
-            case 3: // Convenience store — step inside the bright kiosk
+            case "CONVENIENCE STORE":
                 ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
                 EnterPhase(Phase.Store);
                 return;
 
-            case 4: // Wait in the courtyard
+            case ChoiceEnterTent:
+                ShowNotImplementedAction("Entering the tent");
+                return;
+
+            case "WAIT":
                 PerformIdle();
                 return;
         }
@@ -1599,6 +1608,50 @@ public sealed class Game : IGame
     private static bool IsOutdoorsPhase(Phase phase) =>
         phase is Phase.Outside or Phase.Forest;
 
+    private void RefreshOutdoorActionChoices()
+    {
+        if (_phase == Phase.Outside)
+        {
+            _choices = _hasTrashBagTent
+                ? new[]
+                {
+                    "HIDE IN THE GARBAGE",
+                    "HEAD FOR THE FOREST",
+                    "GO TO UNCLE'S HOUSE",
+                    "CONVENIENCE STORE",
+                    ChoiceEnterTent,
+                    "WAIT"
+                }
+                : new[]
+                {
+                    "HIDE IN THE GARBAGE",
+                    "HEAD FOR THE FOREST",
+                    "GO TO UNCLE'S HOUSE",
+                    "CONVENIENCE STORE",
+                    "WAIT"
+                };
+        }
+        else if (_phase == Phase.Forest)
+        {
+            _choices = _hasTrashBagTent
+                ? new[] { "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { "GO BACK TO TOWN", "WAIT" };
+        }
+        else
+        {
+            return;
+        }
+
+        if (_selectedIndex >= _choices.Length)
+            _selectedIndex = Math.Max(0, _choices.Length - 1);
+    }
+
+    private void ShowNotImplementedAction(string actionDescription)
+    {
+        _actionMessage = $"{actionDescription} is not implemented yet.";
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private bool HasBackpackItem(string itemName) =>
         _backpack.Any(i => string.Equals(i, itemName, StringComparison.OrdinalIgnoreCase));
 
@@ -1659,6 +1712,7 @@ public sealed class Game : IGame
         TryConsumeBackpackItem(ItemDuctTape);
         _hasTrashBagTent = true;
         RefreshOutdoorComfortEnvironment();
+        RefreshOutdoorActionChoices();
 
         _buildFeedback = "You rig a crude shelter from plastic and tape.";
         _buildFeedbackTimer = BuildFeedbackDuration;
