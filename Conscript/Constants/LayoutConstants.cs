@@ -7,19 +7,19 @@ namespace Conscript.Constants;
 public static class LayoutConstants
 {
     // Top bar
-    public const int TitleFontSize = 36;      // even more commanding
-    public const int TopInfoFontSize = 20;    // main readable size
-    public const int TopMetaFontSize = 15;
+    public const int TitleFontSize = 45;
+    public const int TopInfoFontSize = 25;
+    public const int TopMetaFontSize = 19;
 
     // Sidebar
-    public const int SidebarHeaderSize = 14;
-    public const int StatLabelSize = 19;
-    public const int StatValueSize = 19;
-    public const int StatNoteSize = 14;
+    public const int SidebarHeaderSize = 18;
+    public const int StatLabelSize = 24;
+    public const int StatValueSize = 24;
+    public const int StatNoteSize = 18;
 
-    // Central scene narrative card (right side) — left at 20pt per request
-    public const int NarrativeLongSize = 20;
+    // Central scene narrative card (right side)
+    public const int NarrativeLongSize = 25;
 
-    // Bottom action buttons — larger and clearer
-    public const int ActionButtonFontSize = 21;
+    // Bottom action buttons
+    public const int ActionButtonFontSize = 26;
 }

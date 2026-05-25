@@ -464,8 +464,8 @@ public sealed class Game : IGame
         {
             if (File.Exists(path))
             {
-                // 32 is the base pixel size; we control actual size via DrawTextEx fontSize param
-                return Raylib.LoadFontEx(path, 32, codepoints, codepoints.Length);
+                // 40 is the base pixel size; we control actual size via DrawTextEx fontSize param
+                return Raylib.LoadFontEx(path, 40, codepoints, codepoints.Length);
             }
         }
 
@@ -1448,7 +1448,7 @@ public sealed class Game : IGame
 
         // Clockwise circular arrow symbol (Unicode)
         const string sym = "\u21BB";   // ↻
-        float symSize = 13f;
+        float symSize = 16f;
         Vector2 m = Raylib.MeasureTextEx(_uiFont, sym, symSize, 0.6f);
         float sx = _restartButtonRect.X + (_restartButtonRect.Width - m.X) / 2f;
         float sy = _restartButtonRect.Y + (_restartButtonRect.Height - symSize) / 2f - 0.5f;
@@ -1468,7 +1468,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangleLinesEx(_debugStartButtonRect, 1.0f, border);
 
         const string label = "DBG";
-        float labelSize = 8f;
+        float labelSize = 10f;
         Vector2 m = Raylib.MeasureTextEx(_uiFont, label, labelSize, 0.5f);
         float lx = _debugStartButtonRect.X + (_debugStartButtonRect.Width - m.X) / 2f;
         float ly = _debugStartButtonRect.Y + (_debugStartButtonRect.Height - labelSize) / 2f - 0.5f;
@@ -1518,7 +1518,7 @@ public sealed class Game : IGame
 
         // Item name as title
         string title = _dialogItemName.ToUpperInvariant();
-        int titleSize = 22;
+        int titleSize = 28;
         int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
         Raylib.DrawTextEx(font, title,
             new Vector2(panelX + (panelW - titleW) / 2, panelY + 82),
@@ -1532,7 +1532,7 @@ public sealed class Game : IGame
             : string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : "No special actions defined for this item yet.";
-        int bodySize = 16;
+        int bodySize = 20;
         int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
         Raylib.DrawTextEx(font, body,
             new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
@@ -1571,7 +1571,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangleLinesEx(rect, 1.5f, btnBorder);
         Raylib.DrawRectangle((int)rect.X + 2, (int)rect.Y + 2, (int)rect.Width - 4, 2, Palette.ButtonTopAccent);
 
-        int labelSize = 18;
+        int labelSize = 22;
         int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.7f).X;
         Raylib.DrawTextEx(font, label,
             new Vector2(rect.X + (rect.Width - labelW) / 2, rect.Y + 9),
@@ -1601,13 +1601,13 @@ public sealed class Game : IGame
         Font font = _uiFont;
 
         Raylib.DrawTextEx(font, "BUILD & CRAFT",
-            new Vector2(panelX + 22, panelY + 18), 20, 0.75f, Palette.TextPrimary);
+            new Vector2(panelX + 22, panelY + 18), 25, 0.75f, Palette.TextPrimary);
 
         Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
 
         string subtitle = "Construct shelter and tools from what you carry.";
         Raylib.DrawTextEx(font, subtitle,
-            new Vector2(panelX + 22, panelY + 58), 14, 0.6f, Palette.TextSecondary);
+            new Vector2(panelX + 22, panelY + 58), 18, 0.6f, Palette.TextSecondary);
 
         int rowY = panelY + 88;
         int rowH = 56;
@@ -1636,26 +1636,26 @@ public sealed class Game : IGame
 
         int textX = rowX + 10 + iconSize * 2 + 14;
         Raylib.DrawTextEx(font, BuildTrashBagTent,
-            new Vector2(textX, rowY + 10), 16, 0.65f,
+            new Vector2(textX, rowY + 10), 20, 0.65f,
             built ? Palette.TextDim : Palette.TextPrimary);
 
         string reqLine = built
             ? "Shelter pitched — +comfort outdoors"
             : "Trash Bags + Duct Tape · Outdoors only";
         Raylib.DrawTextEx(font, reqLine,
-            new Vector2(textX, rowY + 30), 11, 0.5f, Palette.TextDim);
+            new Vector2(textX, rowY + 30), 14, 0.5f, Palette.TextDim);
 
         if (!built && !outdoors)
         {
             Raylib.DrawTextEx(font, "Leave the building first",
-                new Vector2(textX, rowY + 42), 10, 0.45f, new Color(180, 120, 100, 255));
+                new Vector2(textX, rowY + 42), 13, 0.45f, new Color(180, 120, 100, 255));
         }
         else if (!built && outdoors && (!hasBags || !hasTape))
         {
             string missing = !hasBags && !hasTape ? "Missing both materials"
                 : !hasBags ? "Missing trash bags" : "Missing duct tape";
             Raylib.DrawTextEx(font, missing,
-                new Vector2(textX, rowY + 42), 10, 0.45f, new Color(180, 120, 100, 255));
+                new Vector2(textX, rowY + 42), 13, 0.45f, new Color(180, 120, 100, 255));
         }
 
         int btnW = 72;
@@ -1667,9 +1667,9 @@ public sealed class Game : IGame
         if (built)
         {
             string done = "BUILT";
-            int doneW = (int)Raylib.MeasureTextEx(font, done, 12, 0.5f).X;
+            int doneW = (int)Raylib.MeasureTextEx(font, done, 15, 0.5f).X;
             Raylib.DrawTextEx(font, done,
-                new Vector2(btnX + (btnW - doneW) / 2f, btnY + 8), 12, 0.5f, Palette.Positive);
+                new Vector2(btnX + (btnW - doneW) / 2f, btnY + 8), 15, 0.5f, Palette.Positive);
         }
         else
         {
@@ -1679,7 +1679,7 @@ public sealed class Game : IGame
             {
                 Raylib.DrawRectangleRec(_buildTentButtonRect, new Color(24, 26, 30, 255));
                 Raylib.DrawRectangleLinesEx(_buildTentButtonRect, 1f, Palette.SubtleBorder);
-                int labelSize = 14;
+                int labelSize = 18;
                 int labelW = (int)Raylib.MeasureTextEx(font, "BUILD", labelSize, 0.55f).X;
                 Raylib.DrawTextEx(font, "BUILD",
                     new Vector2(btnX + (btnW - labelW) / 2f, btnY + 7),
@@ -1689,7 +1689,7 @@ public sealed class Game : IGame
 
         if (!string.IsNullOrEmpty(_buildFeedback))
         {
-            int fbSize = 13;
+            int fbSize = 16;
             int fbW = (int)Raylib.MeasureTextEx(font, _buildFeedback, fbSize, 0.55f).X;
             Color fbColor = _buildFeedback.Contains("crude shelter", StringComparison.OrdinalIgnoreCase)
                 ? Palette.Positive
@@ -1700,7 +1700,7 @@ public sealed class Game : IGame
         }
         else if (!built && !canBuild && !string.IsNullOrEmpty(blockReason))
         {
-            int hintSize = 11;
+            int hintSize = 14;
             int hintW = (int)Raylib.MeasureTextEx(font, blockReason, hintSize, 0.5f).X;
             Raylib.DrawTextEx(font, blockReason,
                 new Vector2(panelX + (panelW - hintW) / 2, panelY + panelH - 78),
@@ -1741,7 +1741,7 @@ public sealed class Game : IGame
 
         // Title
         string title = "SHELVES";
-        int titleSize = 22;
+        int titleSize = 28;
         int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
         Raylib.DrawTextEx(font, title,
             new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
@@ -1749,10 +1749,10 @@ public sealed class Game : IGame
 
         // Current money
         string moneyStr = $"{_money:N0} ₽";
-        int moneyW = (int)Raylib.MeasureTextEx(font, moneyStr, 16, 0.6f).X;
+        int moneyW = (int)Raylib.MeasureTextEx(font, moneyStr, 20, 0.6f).X;
         Raylib.DrawTextEx(font, moneyStr,
             new Vector2(panelX + panelW - 30 - moneyW, panelY + 20),
-            16, 0.6f, Palette.TextSecondary);
+            20, 0.6f, Palette.TextSecondary);
 
         // Separator
         Raylib.DrawLine(panelX + 30, panelY + 48, panelX + panelW - 30, panelY + 48, Palette.SubtleBorder);
@@ -1788,23 +1788,23 @@ public sealed class Game : IGame
 
             // Item name
             Color nameColor = (canAfford && hasSpace) ? Palette.TextPrimary : Palette.TextMuted;
-            Raylib.DrawTextEx(font, name, new Vector2(panelX + 68, rowY + 11), 17, 0.6f, nameColor);
+            Raylib.DrawTextEx(font, name, new Vector2(panelX + 68, rowY + 11), 21, 0.6f, nameColor);
 
             // Price (right aligned)
             string priceStr = $"{price} ₽";
-            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 16, 0.6f).X;
+            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 20, 0.6f).X;
             Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
             Raylib.DrawTextEx(font, priceStr,
-                new Vector2(panelX + panelW - 32 - pW, rowY + 12), 16, 0.6f, priceColor);
+                new Vector2(panelX + panelW - 32 - pW, rowY + 12), 20, 0.6f, priceColor);
         }
 
         // Feedback line at bottom of list area
         if (_storeBuyFeedbackTimer > 0f && !string.IsNullOrEmpty(_storeBuyFeedback))
         {
-            int fbW = (int)Raylib.MeasureTextEx(font, _storeBuyFeedback, 15, 0.5f).X;
+            int fbW = (int)Raylib.MeasureTextEx(font, _storeBuyFeedback, 19, 0.5f).X;
             Raylib.DrawTextEx(font, _storeBuyFeedback,
                 new Vector2(panelX + (panelW - fbW) / 2, panelY + panelH - 68),
-                15, 0.5f, Palette.TextSecondary);
+                19, 0.5f, Palette.TextSecondary);
         }
 
         // Close button
@@ -1823,7 +1823,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(btnX + 2, btnY + 2, btnW - 4, 2, Palette.ButtonTopAccent);
 
         string closeText = "CLOSE";
-        int closeSize = 16;
+        int closeSize = 20;
         int closeW = (int)Raylib.MeasureTextEx(font, closeText, closeSize, 0.7f).X;
         Raylib.DrawTextEx(font, closeText,
             new Vector2(btnX + (btnW - closeW) / 2, btnY + 7),
@@ -1891,8 +1891,8 @@ public sealed class Game : IGame
         Font font = _uiFont;
 
         // We use two text rows for center and right zones for clarity + breathing room
-        int row1Y = 16;   // upper line (36pt title)
-        int row2Y = 40;   // lower line
+        int row1Y = 14;   // upper line (45pt title)
+        int row2Y = 48;   // lower line
 
         // LEFT ZONE — prominent title
         int leftX = 26;
@@ -1900,9 +1900,9 @@ public sealed class Game : IGame
             new Vector2(leftX, row1Y),
             LayoutConstants.TitleFontSize, 0.85f, Palette.TextPrimary);
 
-        // Elegant underline (positioned for the 36pt title)
+        // Elegant underline (positioned for the 45pt title)
         int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
-        Raylib.DrawLine(leftX, row1Y + 28, leftX + titleW, row1Y + 28, Palette.StrongBorder);
+        Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
 
         // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
         string dayLine = $"Day {_day} — {GetTimeOfDayDisplay()}";
@@ -1924,8 +1924,8 @@ public sealed class Game : IGame
         // Leave breathing room for the restart button in the top-right corner.
         string seasonLine = _season;
 
-        float iconSize = 13f;
-        float iconTextGap = 7f;
+        float iconSize = 16f;
+        float iconTextGap = 9f;
 
         int seasonW = (int)Raylib.MeasureTextEx(font, seasonLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
         float totalWidth = iconSize + iconTextGap + seasonW;
@@ -1947,8 +1947,8 @@ public sealed class Game : IGame
         string tempLine = $"{_temperatureF}°F";
         int tempW = (int)Raylib.MeasureTextEx(font, tempLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
 
-        float thermoSize = 9f;
-        float thermoGap = 5f;
+        float thermoSize = 11f;
+        float thermoGap = 6f;
         float thermoX = rightEdge - tempW - thermoGap - thermoSize / 2f;
         float thermoY = row2Y + 7f;
 
@@ -2088,11 +2088,11 @@ public sealed class Game : IGame
         // === STATUS header ===
         Raylib.DrawTextEx(font, "STATUS",
             new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
-        cy += 16;
+        cy += 20;
 
         // Subtle underline
         Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
-        cy += 10;
+        cy += 12;
 
         // === Clean vertical stat list ===
         // Numeric stats with bars (label + value on one line, bar underneath)
@@ -2185,7 +2185,7 @@ public sealed class Game : IGame
         int valX = x + available - valW;
         Raylib.DrawTextEx(font, val, new Vector2(valX, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
 
-        y += 18;
+        y += 24;
 
         // Thin progress bar underneath the label (not under arrow slots)
         int barX = labelX;
@@ -2198,7 +2198,7 @@ public sealed class Game : IGame
             Raylib.DrawRectangle(barX, y, (int)(barW * pct), barH, barColor);
         }
 
-        y += 14; // good spacing to next row
+        y += 18; // good spacing to next row
     }
 
     private void DrawStatArrowIndicators(int x, int arrowY, int rightSlotX, int leftTotal, int rightTotal, bool blink)
@@ -2275,15 +2275,15 @@ public sealed class Game : IGame
 
         int filled = _backpack.Count(i => !string.IsNullOrEmpty(i));
         string cap = $"{filled}/8";
-        int capW = (int)Raylib.MeasureTextEx(font, cap, 11, 0.5f).X;
+        int capW = (int)Raylib.MeasureTextEx(font, cap, 14, 0.5f).X;
         Raylib.DrawTextEx(font, cap,
-            new Vector2(x + available - capW, startY + 1), 11, 0.5f, Palette.TextDim);
+            new Vector2(x + available - capW, startY + 1), 14, 0.5f, Palette.TextDim);
 
-        startY += 15;
+        startY += 18;
 
         // Subtle underline
         Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
-        startY += 6;
+        startY += 8;
 
         // === Visual backpack body ===
         const int cols = 4;
@@ -2360,7 +2360,7 @@ public sealed class Game : IGame
                     {
                         // Fallback for items without icons yet (starting gear)
                         string label = item!.Length > 5 ? item.Substring(0, 5) : item;
-                        float fz = 8f;
+                        float fz = 10f;
                         Raylib.DrawTextEx(font, label.ToUpperInvariant(),
                             new Vector2(sx + 4, sy + 8), fz, 0.35f, Palette.TextPrimary);
                     }
@@ -2529,19 +2529,19 @@ public sealed class Game : IGame
             new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
 
         string expandHint = "Click to expand";
-        int hintSize = 9;
+        int hintSize = 11;
         int hintW = (int)Raylib.MeasureTextEx(font, expandHint, hintSize, 0.35f).X;
         Raylib.DrawTextEx(font, expandHint,
             new Vector2(x + available - hintW, startY + 2), hintSize, 0.35f, Palette.TextDim);
 
-        startY += 15;
+        startY += 18;
         Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
-        startY += 8;
+        startY += 10;
 
         Rectangle mapRect = new Rectangle(x, startY, available, mapH);
         _regionMapClickRect = new Rectangle(x, sectionTop, available, startY + mapH - sectionTop);
 
-        DrawRegionMapInRect(GetSidebarMapDrawRect(mapRect), markerRadius: 3.5f, labelFontSize: 8f);
+        DrawRegionMapInRect(GetSidebarMapDrawRect(mapRect), markerRadius: 3.5f, labelFontSize: 10f);
 
         if (_regionMapThumbHovered)
         {
@@ -2576,19 +2576,19 @@ public sealed class Game : IGame
 
         string title = "REGION";
         Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + 22, panelY + 16), 18, 0.75f, Palette.TextMuted);
+            new Vector2(panelX + 22, panelY + 16), 22, 0.75f, Palette.TextMuted);
 
         string subtitle = "Russia — zoom out and pan to explore";
         Raylib.DrawTextEx(font, subtitle,
-            new Vector2(panelX + 22, panelY + 38), 13, 0.6f, Palette.TextSecondary);
+            new Vector2(panelX + 22, panelY + 38), 16, 0.6f, Palette.TextSecondary);
 
         string controls = "Use + / - to zoom · drag to pan";
         Raylib.DrawTextEx(font, controls,
-            new Vector2(panelX + panelW - 22 - (int)Raylib.MeasureTextEx(font, controls, 10, 0.45f).X, panelY + 20),
-            10, 0.45f, Palette.TextDim);
+            new Vector2(panelX + panelW - 22 - (int)Raylib.MeasureTextEx(font, controls, 13, 0.45f).X, panelY + 20),
+            13, 0.45f, Palette.TextDim);
 
         GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
-        DrawRegionMapInRect(_regionMapDrawRect, markerRadius: 8f, labelFontSize: 14f, vMinLon, vMaxLon, vMinLat, vMaxLat);
+        DrawRegionMapInRect(_regionMapDrawRect, markerRadius: 8f, labelFontSize: 18f, vMinLon, vMaxLon, vMinLat, vMaxLat);
 
         ComputeMapZoomButtonRects(_regionMapDrawRect, out _mapZoomInRect, out _mapZoomOutRect);
         DrawMapZoomButton(_mapZoomInRect, "+", _mapZoomInHovered, _mapZoomLevelIndex < MapZoomLevels.Length - 1);
@@ -2598,7 +2598,7 @@ public sealed class Game : IGame
         string coords = $"{lat:F2}°N, {lon:F2}°E · {FormatMapZoom(CurrentMapZoom)}";
         Raylib.DrawTextEx(font, coords,
             new Vector2(panelX + 22, panelY + panelH - 34),
-            11, 0.5f, Palette.TextDim);
+            14, 0.5f, Palette.TextDim);
 
         int btnW = 120;
         int btnH = 36;
@@ -2622,7 +2622,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangleRec(rect, bg);
         Raylib.DrawRectangleLinesEx(rect, 1.5f, border);
 
-        int labelSize = 22;
+        int labelSize = 28;
         int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.7f).X;
         Raylib.DrawTextEx(font, label,
             new Vector2(rect.X + (rect.Width - labelW) / 2f, rect.Y + 4),
@@ -2787,7 +2787,7 @@ public sealed class Game : IGame
             Raylib.DrawRectangleLines(toastX, toastY, toastW, 26, new Color((byte)58, (byte)62, (byte)72, (byte)(alpha * 210)));
 
             var c = new Color((byte)Palette.ActionFlash.R, (byte)Palette.ActionFlash.G, (byte)Palette.ActionFlash.B, (byte)(alpha * 255));
-            Raylib.DrawTextEx(font, _actionMessage, new Vector2(toastX + 14, toastY + 6), 13, 0.7f, c);
+            Raylib.DrawTextEx(font, _actionMessage, new Vector2(toastX + 14, toastY + 6), 16, 0.7f, c);
         }
     }
 
@@ -2838,7 +2838,7 @@ public sealed class Game : IGame
             Raylib.DrawRectangleLines(toastX, toastY, toastW, 30, new Color((byte)70, (byte)75, (byte)85, (byte)(alpha * 200)));
 
             var c = new Color((byte)Palette.ActionFlash.R, (byte)Palette.ActionFlash.G, (byte)Palette.ActionFlash.B, (byte)(alpha * 255));
-            Raylib.DrawTextEx(f, _actionMessage, new Vector2(toastX + 16, toastY + 7), 15, 0.8f, c);
+            Raylib.DrawTextEx(f, _actionMessage, new Vector2(toastX + 16, toastY + 7), 19, 0.8f, c);
         }
     }
 
@@ -2852,16 +2852,16 @@ public sealed class Game : IGame
 
         Font f = _uiFont;
 
-        int w1 = (int)Raylib.MeasureTextEx(f, _deathLine1, 42, 0.9f).X;
-        int w2 = (int)Raylib.MeasureTextEx(f, _deathLine2, 24, 0.85f).X;
+        int w1 = (int)Raylib.MeasureTextEx(f, _deathLine1, 52, 0.9f).X;
+        int w2 = (int)Raylib.MeasureTextEx(f, _deathLine2, 30, 0.85f).X;
 
         Raylib.DrawTextEx(f, _deathLine1,
             new Vector2((_screenWidth - w1) / 2, _screenHeight / 2 - 60),
-            42, 0.9f, new Color(160, 70, 65, 255));
+            52, 0.9f, new Color(160, 70, 65, 255));
 
         Raylib.DrawTextEx(f, _deathLine2,
             new Vector2((_screenWidth - w2) / 2, _screenHeight / 2 - 10),
-            24, 0.85f, Palette.TextSecondary);
+            30, 0.85f, Palette.TextSecondary);
 
         // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
         DrawActionBar();
