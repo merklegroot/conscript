@@ -67,11 +67,13 @@ public sealed class Game : IGame
         [ItemDuctTape]             = "items.duct-tape.png",
     };
 
-    // Restart + debug buttons (top right, always available)
+    // Restart + debug + controller buttons (top right, always available)
     private Rectangle _restartButtonRect;
     private Rectangle _debugStartButtonRect;
+    private Rectangle _controllerButtonRect;
     private bool _restartHovered;
     private bool _debugStartHovered;
+    private bool _controllerHovered;
 
     // === Game flow ===
     private enum Phase
@@ -709,6 +711,7 @@ public sealed class Game : IGame
         UpdateTopRightButtonsLayout();
         _restartHovered = Raylib.CheckCollisionPointRec(mouse, _restartButtonRect);
         _debugStartHovered = Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect);
+        _controllerHovered = Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect);
         if (leftClicked && _restartHovered)
         {
             RestartGame();
@@ -967,7 +970,8 @@ public sealed class Game : IGame
 
         // Top-right utility buttons (always available)
         if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
-            Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect))
+            Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect))
             overClickable = true;
 
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog)
@@ -1220,6 +1224,7 @@ public sealed class Game : IGame
         float x = _screenWidth - margin - size;
         _restartButtonRect = new Rectangle(x, 10f, size, size);
         _debugStartButtonRect = new Rectangle(x, 10f + size + gap, size, size);
+        _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 2f, size, size);
     }
 
     private void RestartGame()
@@ -1520,10 +1525,64 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(_uiFont, label, new Vector2(lx, ly), labelSize, 0.5f, Palette.TextSecondary);
     }
 
+    private void DrawControllerButton()
+    {
+        if (_controllerButtonRect.Width <= 0) return;
+
+        Color bg = _controllerHovered
+            ? new Color(58, 63, 74, 255)
+            : new Color(32, 35, 42, 255);
+        Color border = _controllerHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
+
+        Raylib.DrawRectangleRec(_controllerButtonRect, bg);
+        Raylib.DrawRectangleLinesEx(_controllerButtonRect, 1.0f, border);
+
+        Color iconColor = _controllerHovered ? Palette.TextPrimary : Palette.TextSecondary;
+        float cx = _controllerButtonRect.X + _controllerButtonRect.Width / 2f;
+        float cy = _controllerButtonRect.Y + _controllerButtonRect.Height / 2f;
+        float iconSize = _controllerButtonRect.Width * 0.72f;
+        DrawControllerIcon(cx, cy, iconSize, iconColor);
+    }
+
+    /// <summary>
+    /// Minimal gamepad silhouette (vector icon, matches other top-bar utility buttons).
+    /// </summary>
+    private static void DrawControllerIcon(float cx, float cy, float size, Color color)
+    {
+        float bodyW = size * 0.82f;
+        float bodyH = size * 0.46f;
+        float thick = Math.Max(1.4f, size * 0.11f);
+        var body = new Rectangle(cx - bodyW / 2f, cy - bodyH / 2f, bodyW, bodyH);
+
+        Raylib.DrawRectangleRoundedLines(body, 0.4f, 8, thick, color);
+
+        // D-pad (left)
+        float padCx = cx - bodyW * 0.22f;
+        float arm = size * 0.11f;
+        Raylib.DrawRectangle(
+            (int)(padCx - arm / 2f), (int)(cy - arm * 1.1f),
+            (int)arm, (int)(arm * 2.2f), color);
+        Raylib.DrawRectangle(
+            (int)(padCx - arm * 1.1f), (int)(cy - arm / 2f),
+            (int)(arm * 2.2f), (int)arm, color);
+
+        // Face buttons (right)
+        float btnCx = cx + bodyW * 0.2f;
+        float btnR = Math.Max(1.5f, size * 0.07f);
+        Raylib.DrawCircleV(new Vector2(btnCx - btnR * 1.6f, cy - btnR * 1.1f), btnR, color);
+        Raylib.DrawCircleV(new Vector2(btnCx + btnR * 1.4f, cy + btnR * 1.2f), btnR, color);
+
+        // Grip hints (bottom bumps)
+        float bumpR = Math.Max(1.2f, size * 0.06f);
+        Raylib.DrawCircleV(new Vector2(cx - bodyW * 0.32f, cy + bodyH * 0.42f), bumpR, color);
+        Raylib.DrawCircleV(new Vector2(cx + bodyW * 0.32f, cy + bodyH * 0.42f), bumpR, color);
+    }
+
     private void DrawTopRightButtons()
     {
         DrawRestartButton();
         DrawDebugStartButton();
+        DrawControllerButton();
     }
 
     // =====================================================================
