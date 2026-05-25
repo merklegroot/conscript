@@ -34,6 +34,7 @@ public sealed class Game : IGame
     private Texture2D _storeBackground;
     private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
+    private Texture2D _titleLogoTexture;
 
     // Geographic bounds for region-map.png — keep in sync with img/region-map.bounds.json
     // (regenerate via: python3 scripts/generate_region_map.py)
@@ -232,6 +233,14 @@ public sealed class Game : IGame
     private bool _hasTrashBagTent;
     private Rectangle _buildSidebarButtonRect;
     private bool _buildSidebarButtonHovered;
+
+    // Stats help (left sidebar info icon + modal)
+    private Rectangle _statsHelpIconRect;
+    private bool _statsHelpIconHovered;
+    private bool _showStatsHelp;
+    private Rectangle _statsHelpPanelRect;
+    private Rectangle _statsHelpCloseRect;
+    private bool _statsHelpCloseHovered;
 
     // Quit (right panel + confirmation)
     private Rectangle _quitSidebarButtonRect;
@@ -670,6 +679,7 @@ public sealed class Game : IGame
         _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _regionMapTexture    = LoadEmbeddedTexture("region-map.png");
         _trashBagTentTexture = LoadEmbeddedTexture("trash-bag-tent.png");
+        _titleLogoTexture    = LoadEmbeddedTexture("conscript-title.png");
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -691,6 +701,8 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_regionMapTexture);
         if (_trashBagTentTexture.Id != 0)
             Raylib.UnloadTexture(_trashBagTentTexture);
+        if (_titleLogoTexture.Id != 0)
+            Raylib.UnloadTexture(_titleLogoTexture);
         UnloadItemIcons();
 
         Raylib.CloseWindow();
@@ -733,6 +745,11 @@ public sealed class Game : IGame
                 CloseQuitConfirm();
                 return;
             }
+            if (_showStatsHelp)
+            {
+                CloseStatsHelp();
+                return;
+            }
             if (IsCancelPressed())
             {
                 OpenQuitConfirm();
@@ -765,8 +782,14 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showStatsHelp && IsConfirmPressed())
+        {
+            CloseStatsHelp();
+            return;
+        }
+
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm)
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
         {
             if (IsHorizontalNavRightPressed())
             {
@@ -828,6 +851,26 @@ public sealed class Game : IGame
                 CloseControllerDebug();
             else
                 OpenControllerDebug();
+            return;
+        }
+
+        // === Stats help (modal) ===
+        if (_showStatsHelp)
+        {
+            _statsHelpCloseHovered = Raylib.CheckCollisionPointRec(mouse, _statsHelpCloseRect);
+
+            if (leftClicked && _statsHelpCloseHovered)
+            {
+                CloseStatsHelp();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _statsHelpPanelRect))
+            {
+                CloseStatsHelp();
+                return;
+            }
+
             return;
         }
 
@@ -1037,14 +1080,22 @@ public sealed class Game : IGame
             _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
         {
+            _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _statsHelpIconRect);
             _regionMapThumbHovered = _regionMapClickRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
             _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
             _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
+
+            if (leftClicked && _statsHelpIconHovered)
+            {
+                OpenStatsHelp();
+                return;
+            }
 
             if (leftClicked && _buildSidebarButtonHovered)
             {
@@ -1173,9 +1224,9 @@ public sealed class Game : IGame
                 _controllerDebugTabHovered.Any(h => h))))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
         {
-            if (_regionMapThumbHovered || _buildSidebarButtonHovered || _quitSidebarButtonHovered)
+            if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
             // Bottom action buttons
@@ -1255,6 +1306,10 @@ public sealed class Game : IGame
 
         if (_showQuitConfirm &&
             (_quitConfirmYesHovered || _quitConfirmNoHovered))
+            overClickable = true;
+
+        if (_showStatsHelp &&
+            (_statsHelpCloseHovered || !Raylib.CheckCollisionPointRec(mouse, _statsHelpPanelRect)))
             overClickable = true;
 
         Raylib.SetMouseCursor(overClickable
@@ -1456,6 +1511,7 @@ public sealed class Game : IGame
         CloseBuildDialog();
         CloseControllerDebug();
         CloseQuitConfirm();
+        CloseStatsHelp();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1476,6 +1532,7 @@ public sealed class Game : IGame
         CloseBuildDialog();
         CloseControllerDebug();
         CloseQuitConfirm();
+        CloseStatsHelp();
         _hasTrashBagTent = false;
         _buildFeedback = "";
         _storeBuyFeedback = "";
@@ -1603,6 +1660,18 @@ public sealed class Game : IGame
         _showQuitConfirm = false;
         _quitConfirmYesHovered = false;
         _quitConfirmNoHovered = false;
+    }
+
+    private void OpenStatsHelp()
+    {
+        _showStatsHelp = true;
+        _statsHelpCloseHovered = false;
+    }
+
+    private void CloseStatsHelp()
+    {
+        _showStatsHelp = false;
+        _statsHelpCloseHovered = false;
     }
 
     private static bool IsOutdoorsPhase(Phase phase) =>
@@ -2284,6 +2353,115 @@ public sealed class Game : IGame
             labelSize, 0.7f, Palette.TextPrimary);
     }
 
+    private static void DrawInfoIcon(Font font, Rectangle rect, bool hovered)
+    {
+        float cx = rect.X + rect.Width / 2f;
+        float cy = rect.Y + rect.Height / 2f;
+        float radius = rect.Width / 2f;
+        Color fill = hovered ? Palette.ButtonSelectedBg : new Color(28, 30, 36, 255);
+        Color border = hovered ? Palette.ButtonSelectedBorder : Palette.TextDim;
+        Raylib.DrawCircleV(new Vector2(cx, cy), radius, fill);
+        Raylib.DrawCircleLines((int)cx, (int)cy, radius, border);
+        const float labelSize = 11f;
+        const string label = "i";
+        Vector2 size = Raylib.MeasureTextEx(font, label, labelSize, 0.5f);
+        Color textColor = hovered ? Palette.TextPrimary : Palette.TextSecondary;
+        Raylib.DrawTextEx(font, label,
+            new Vector2(cx - size.X / 2f, cy - size.Y / 2f - 1f),
+            labelSize, 0.5f, textColor);
+    }
+
+    // =====================================================================
+    // STATS HELP (modal) — explains sidebar status values
+    // =====================================================================
+    private void DrawStatsHelpDialog()
+    {
+        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 170));
+
+        Font font = _uiFont;
+        int panelW = 500;
+        int panelH = 560;
+        int panelX = (_screenWidth - panelW) / 2;
+        int panelY = (_screenHeight - panelH) / 2 - 12;
+
+        _statsHelpPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        const int titleSize = 24;
+        string title = "WHAT THE STATS MEAN";
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.75f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
+            titleSize, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 36, panelY + 52, panelX + panelW - 36, panelY + 52, Palette.SubtleBorder);
+
+        int textX = panelX + 28;
+        int textMaxW = panelW - 56;
+        int y = panelY + 64;
+        const float bodySize = 15f;
+        const float bodySpacing = 0.55f;
+        const int lineHeight = 20;
+
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Health", Palette.Health,
+            "Your overall physical condition. Food and drinks from the convenience store can raise it.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Energy", Palette.Energy,
+            "How rested you are. Time passing drains energy; very low energy will eventually force sleep.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Satiation", Palette.Satiation,
+            "How well fed you are. Meals at home and store food restore it.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Hydration", Palette.Hydration,
+            "How hydrated you are. Drink bottled water or buy drinks at the store.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Comfort", Palette.Comfort,
+            "Protection from cold and exposure. Outdoors and low temperatures wear it down; heated places and a trash-bag tent help.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Money", Palette.Money,
+            "Rubles in hand. Spend them at the convenience store kiosk.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Status", Palette.TextMuted,
+            "Your current situation — where you are and how close the authorities are.");
+
+        y += 4;
+        var (arrowLines, _) = WrapTextForBox(
+            "Arrows beside a stat show change: your recent choices (briefly), plus ongoing outdoor effects such as cold.",
+            font, bodySize, bodySpacing, textMaxW, lineHeight);
+        foreach (string line in arrowLines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(textX, y), bodySize, bodySpacing, Palette.TextSecondary);
+            y += lineHeight;
+        }
+
+        const int btnW = 120;
+        const int btnH = 36;
+        int btnX = panelX + (panelW - btnW) / 2;
+        int btnY = panelY + panelH - 52;
+        _statsHelpCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+        DrawDialogButton(_statsHelpCloseRect, "CLOSE", _statsHelpCloseHovered, font);
+    }
+
+    private void DrawStatsHelpEntry(ref int y, int x, int maxWidth, Font font, float bodySize, float spacing,
+        int lineHeight, string name, Color nameColor, string description)
+    {
+        string heading = name + " —";
+        Raylib.DrawTextEx(font, heading, new Vector2(x, y), bodySize + 1f, spacing, nameColor);
+        y += lineHeight;
+
+        var (lines, _) = WrapTextForBox(description, font, bodySize, spacing, maxWidth, lineHeight);
+        foreach (string line in lines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(x + 8, y), bodySize, spacing, Palette.TextSecondary);
+            y += lineHeight;
+        }
+
+        y += 6;
+    }
+
     // =====================================================================
     // BUILD DIALOG (modal) — crafting and construction
     // =====================================================================
@@ -2587,6 +2765,11 @@ public sealed class Game : IGame
             DrawQuitConfirmDialog();
         }
 
+        if (_showStatsHelp)
+        {
+            DrawStatsHelpDialog();
+        }
+
         if (_showControllerDebug)
         {
             DrawControllerDebugScreen();
@@ -2611,19 +2794,29 @@ public sealed class Game : IGame
         int row1Y = 14;   // upper line (45pt title)
         int row2Y = 48;   // lower line
 
-        // LEFT ZONE — prominent title
+        // LEFT ZONE — title logo (conscript-title.png)
         int leftX = 26;
-        Raylib.DrawTextEx(font, "CONSCRIPT",
-            new Vector2(leftX, row1Y),
-            LayoutConstants.TitleFontSize, 0.85f, Palette.TextPrimary);
-
-        // Elegant underline (positioned for the 45pt title)
-        int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
-        Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
+        const int titleLogoHeight = 38;
+        int titleW;
+        if (_titleLogoTexture.Id != 0)
+        {
+            titleW = (int)(titleLogoHeight * (_titleLogoTexture.Width / (float)_titleLogoTexture.Height));
+            Rectangle src = new Rectangle(0, 0, _titleLogoTexture.Width, _titleLogoTexture.Height);
+            Rectangle dst = new Rectangle(leftX, row1Y, titleW, titleLogoHeight);
+            Raylib.DrawTexturePro(_titleLogoTexture, src, dst, Vector2.Zero, 0f, Color.WHITE);
+        }
+        else
+        {
+            Raylib.DrawTextEx(font, "CONSCRIPT",
+                new Vector2(leftX, row1Y),
+                LayoutConstants.TitleFontSize, 0.85f, Palette.TextPrimary);
+            titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
+            Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
+        }
 
         // Build stamp — to the right of the title
         const int buildStampGap = 18;
-        int buildY = row1Y + (LayoutConstants.TitleFontSize - LayoutConstants.TopMetaFontSize) / 2;
+        int buildY = row1Y + (titleLogoHeight - LayoutConstants.TopMetaFontSize) / 2;
         Raylib.DrawTextEx(font, BuildInfo.Timestamp,
             new Vector2(leftX + titleW + buildStampGap, buildY),
             LayoutConstants.TopMetaFontSize, 0.8f, Palette.TextMuted);
@@ -2809,9 +3002,13 @@ public sealed class Game : IGame
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;   // comfortable top padding for the STATUS section with larger fonts
 
-        // === STATUS header ===
+        // === STATUS header + info icon ===
+        const int statsInfoIconSize = 16;
         Raylib.DrawTextEx(font, "STATUS",
             new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
+        int statusLabelW = (int)Raylib.MeasureTextEx(font, "STATUS", LayoutConstants.SidebarHeaderSize, 0.7f).X;
+        _statsHelpIconRect = new Rectangle(tx + statusLabelW + 8, cy + 1, statsInfoIconSize, statsInfoIconSize);
+        DrawInfoIcon(font, _statsHelpIconRect, _statsHelpIconHovered);
         cy += 20;
 
         // Subtle underline
