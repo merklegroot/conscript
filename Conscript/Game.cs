@@ -747,11 +747,13 @@ public sealed class Game : IGame
         // Horizontal navigation for bottom action buttons
         if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm)
         {
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D))
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
+                IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT))
             {
                 _selectedIndex = (_selectedIndex + 1) % _choices.Length;
             }
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A))
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
+                IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT))
             {
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
             }
@@ -1523,6 +1525,16 @@ public sealed class Game : IGame
     private void CycleControllerDebugPad(int delta)
     {
         _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + MaxGamepadsToShow) % MaxGamepadsToShow;
+    }
+
+    private static bool IsAnyGamepadButtonPressed(GamepadButton button)
+    {
+        for (int i = 0; i < MaxGamepadsToShow; i++)
+        {
+            if (Raylib.IsGamepadAvailable(i) && Raylib.IsGamepadButtonPressed(i, button))
+                return true;
+        }
+        return false;
     }
 
     private void OpenQuitConfirm()
