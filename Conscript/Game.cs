@@ -236,9 +236,9 @@ public sealed class Game : IGame
 
     // Opening scene narrative (the knock)
     private const string OpeningNarrative =
-        "The knock is loud, final, and exactly what you have been dreading.\n\n" +
+        "The knock is final — the one you dreaded.\n\n" +
         "“Military Commissariat! Open up!”\n\n" +
-        "Your mother’s hand finds yours under the table. Your little sister has gone completely silent in the next room. Your father stands frozen by the window. There is nowhere left to hide.";
+        "Your mother grips your hand under the table. Your sister is silent. Your father stands frozen at the window. Nowhere left to hide.";
 
     // Forest narrative (existing)
     private const string ForestNarrative =
