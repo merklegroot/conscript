@@ -446,14 +446,13 @@ public sealed class Game : IGame
         // - Basic Latin + common punctuation (including ' " ° … – — etc.)
         // - Rouble symbol ₽
         // - Full Cyrillic (Russian alphabet, including Ё/ё)
-        // - Common symbols used in the game (↻ restart icon, etc.)
+        // - Common symbols used in the game (stat trend arrows, etc.)
         // We must use LoadFontEx with an explicit glyph list; passing null/0 only loads
         // a tiny default set (ASCII ~95 chars), which is why ' , ₽ and Cyrillic were missing.
         const string chars =
             "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
             " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~°©®™…–—•·‘’“”«»₽" +
             "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
-            "\u21BB" + // ↻ (clockwise arrow, used for restart button)
             "\u25B2\u25BC"; // ▲▼ (stat trend arrows)
 
         int[] codepoints = new int[chars.Length];
@@ -1446,13 +1445,59 @@ public sealed class Game : IGame
         Raylib.DrawRectangleRec(_restartButtonRect, bg);
         Raylib.DrawRectangleLinesEx(_restartButtonRect, 1.0f, border);
 
-        // Clockwise circular arrow symbol (Unicode)
-        const string sym = "\u21BB";   // ↻
-        float symSize = 16f;
-        Vector2 m = Raylib.MeasureTextEx(_uiFont, sym, symSize, 0.6f);
-        float sx = _restartButtonRect.X + (_restartButtonRect.Width - m.X) / 2f;
-        float sy = _restartButtonRect.Y + (_restartButtonRect.Height - symSize) / 2f - 0.5f;
-        Raylib.DrawTextEx(_uiFont, sym, new Vector2(sx, sy), symSize, 0.6f, Palette.TextPrimary);
+        Color iconColor = _restartHovered ? Palette.TextPrimary : Palette.TextSecondary;
+        float cx = _restartButtonRect.X + _restartButtonRect.Width / 2f;
+        float cy = _restartButtonRect.Y + _restartButtonRect.Height / 2f;
+        float iconSize = _restartButtonRect.Width * 0.72f;
+        DrawRestartIcon(cx, cy, iconSize, iconColor);
+    }
+
+    /// <summary>
+    /// Minimal clockwise refresh arrow (vector icon, matches season/thermometer style).
+    /// </summary>
+    private static void DrawRestartIcon(float cx, float cy, float size, Color color)
+    {
+        float r = size * 0.38f;
+        float thick = Math.Max(1.6f, size * 0.13f);
+
+        // Nearly full ring with a gap at the bottom-right; Raylib angles are degrees, CCW from +X.
+        const float arcStart = 38f;
+        const float arcEnd = 302f;
+        const int segments = 28;
+        float span = arcEnd - arcStart;
+
+        for (int i = 0; i < segments; i++)
+        {
+            float t0 = (arcStart + span * i / segments) * MathF.PI / 180f;
+            float t1 = (arcStart + span * (i + 1) / segments) * MathF.PI / 180f;
+            Raylib.DrawLineEx(
+                new Vector2(cx + MathF.Cos(t0) * r, cy + MathF.Sin(t0) * r),
+                new Vector2(cx + MathF.Cos(t1) * r, cy + MathF.Sin(t1) * r),
+                thick, color);
+        }
+
+        // Arrowhead at the arc start, tangent points along CCW motion (into the arc).
+        float headAngle = arcStart * MathF.PI / 180f;
+        float hx = cx + MathF.Cos(headAngle) * r;
+        float hy = cy + MathF.Sin(headAngle) * r;
+        float tangent = headAngle + MathF.PI / 2f;
+        float ah = size * 0.24f;
+
+        float tx = hx + MathF.Cos(tangent) * ah;
+        float ty = hy + MathF.Sin(tangent) * ah;
+        Raylib.DrawLineEx(new Vector2(hx, hy), new Vector2(tx, ty), thick, color);
+
+        float wing = tangent - 2.35f;
+        Raylib.DrawLineEx(
+            new Vector2(tx, ty),
+            new Vector2(tx + MathF.Cos(wing) * ah * 0.55f, ty + MathF.Sin(wing) * ah * 0.55f),
+            thick, color);
+
+        wing = tangent + 2.35f;
+        Raylib.DrawLineEx(
+            new Vector2(tx, ty),
+            new Vector2(tx + MathF.Cos(wing) * ah * 0.55f, ty + MathF.Sin(wing) * ah * 0.55f),
+            thick, color);
     }
 
     private void DrawDebugStartButton()
