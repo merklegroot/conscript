@@ -52,6 +52,19 @@
         "${workspaceFolder}/Conscript/Conscript.csproj"
       ],
       "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build Steam Deck",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/build_steam_deck.sh",
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "focus": true,
+        "clear": true
+      },
+      "problemMatcher": "$msCompile"
     }
   ]
 }
