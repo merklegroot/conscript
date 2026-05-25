@@ -3482,6 +3482,9 @@ public sealed class Game : IGame
 
         DrawSceneBackground(artX, artY, artW, artH);
 
+        if (_hasTrashBagTent && IsOutdoorsPhase(_phase))
+            DrawTrashBagTentOverlay(artX, artY, artW, artH);
+
         // Light atmospheric snow (fits both a cold night in the yard and the forest)
         int groundY = artY + (int)(artH * 0.68f);
         DrawAtmosphericSnow(artX, artY, artW, groundY, 48);
@@ -3591,6 +3594,64 @@ public sealed class Game : IGame
         DrawActionBar();
 
         DrawTopRightButtons();
+    }
+
+    /// <summary>
+    /// Crude A-frame shelter rigged from trash bags and duct tape, drawn over the outdoor scene photo.
+    /// </summary>
+    private void DrawTrashBagTentOverlay(int artX, int artY, int artW, int artH)
+    {
+        int groundY = artY + (int)(artH * 0.73f);
+        float scale = artW / 1280f;
+        int tentW = Math.Max(120, (int)(240 * scale));
+        int tentH = Math.Max(72, (int)(155 * scale));
+        int baseX = artX + (int)(artW * 0.07f);
+        int baseRight = baseX + tentW;
+        int apexX = baseX + tentW / 2;
+        int apexY = groundY - tentH;
+        int midBase = apexX;
+
+        // Ground shadow
+        Raylib.DrawEllipse(baseX + tentW / 2, groundY + 6, tentW * 0.42f, 10 * scale, new Color(0, 0, 0, 55));
+
+        // Plastic sheeting — left and right faces
+        var plasticDark = new Color(156, 164, 176, 215);
+        var plasticLight = new Color(192, 200, 212, 225);
+        Raylib.DrawTriangle(
+            new Vector2(baseX, groundY),
+            new Vector2(apexX, apexY),
+            new Vector2(midBase, groundY),
+            plasticDark);
+        Raylib.DrawTriangle(
+            new Vector2(midBase, groundY),
+            new Vector2(apexX, apexY),
+            new Vector2(baseRight, groundY),
+            plasticLight);
+
+        // Ridge seam + sagging plastic folds
+        Raylib.DrawLineEx(new Vector2(apexX, apexY), new Vector2(midBase, groundY), 2f * scale, new Color(118, 124, 134, 200));
+        Raylib.DrawLineEx(new Vector2(apexX, apexY + 4), new Vector2(baseX + tentW / 4, groundY - 8), 1.5f * scale, new Color(140, 148, 158, 120));
+        Raylib.DrawLineEx(new Vector2(apexX, apexY + 4), new Vector2(baseRight - tentW / 4, groundY - 10), 1.5f * scale, new Color(140, 148, 158, 110));
+
+        // Duct-tape strips along the base and ridge
+        var tape = new Color(168, 132, 72, 235);
+        int tapeH = Math.Max(4, (int)(7 * scale));
+        Raylib.DrawRectangle(baseX + 8, groundY - tapeH, tentW - 16, tapeH, tape);
+        Raylib.DrawRectangle(apexX - (int)(14 * scale), apexY - tapeH / 2, (int)(28 * scale), tapeH, tape);
+        Raylib.DrawRectangle(baseX + tentW / 5, groundY - tentH / 3, (int)(18 * scale), tapeH, tape);
+        Raylib.DrawRectangle(baseRight - tentW / 5 - (int)(18 * scale), groundY - tentH / 3, (int)(18 * scale), tapeH, tape);
+
+        // Dark entry gap
+        int doorW = Math.Max(28, tentW / 5);
+        int doorH = Math.Max(36, tentH / 3);
+        Raylib.DrawRectangle(apexX - doorW / 2, groundY - doorH, doorW, doorH, new Color(18, 20, 24, 170));
+
+        // Stakes / weighted corners (tied-off bag corners)
+        var stake = new Color(42, 38, 34, 230);
+        int stakeR = Math.Max(3, (int)(5 * scale));
+        Raylib.DrawCircle(baseX + 6, groundY + 2, stakeR, stake);
+        Raylib.DrawCircle(baseRight - 6, groundY + 2, stakeR, stake);
+        Raylib.DrawCircle(midBase, groundY + 3, stakeR - 1, stake);
     }
 
     private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
