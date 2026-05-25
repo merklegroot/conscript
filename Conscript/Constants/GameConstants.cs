@@ -31,7 +31,7 @@ public static class GameConstants
     public const int ScenePadding = 24;
 
     // === Bottom Action Bar ===
-    public const int ActionBarHeight = 100;     // taller for 26pt buttons + hint
+    public const int ActionBarHeight = 104;     // taller for 32pt action buttons + hint
     public const int ActionBarPaddingY = 13;
     public const int ActionButtonGap = 12;
     public const int ActionButtonCount = 4;

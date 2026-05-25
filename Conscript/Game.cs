@@ -77,10 +77,26 @@ public sealed class Game : IGame
 
     // Controller debug overlay (opened from top-right gamepad button)
     private bool _showControllerDebug;
+    private int _controllerDebugPadIndex;
     private Rectangle _controllerDebugCloseRect;
     private bool _controllerDebugCloseHovered;
+    private Rectangle _controllerDebugPrevRect;
+    private Rectangle _controllerDebugNextRect;
+    private bool _controllerDebugPrevHovered;
+    private bool _controllerDebugNextHovered;
+    private readonly Rectangle[] _controllerDebugTabRects = new Rectangle[4];
+    private readonly bool[] _controllerDebugTabHovered = new bool[4];
 
     private const int MaxGamepadsToShow = 4;
+
+    // Typography for controller debug (larger for readability)
+    private const int ControllerDebugTitleSize = 28;
+    private const int ControllerDebugSubtitleSize = 17;
+    private const int ControllerDebugMetaSize = 16;
+    private const int ControllerDebugSectionSize = 18;
+    private const int ControllerDebugBodySize = 15;
+    private const int ControllerDebugButtonRowSize = 20;
+    private const int ControllerDebugButtonRowStep = 28;
 
     private static readonly (GamepadButton Button, string Label)[] GamepadButtonsToShow =
     {
@@ -823,10 +839,40 @@ public sealed class Game : IGame
         {
             var panelRect = new Rectangle(36, 28, _screenWidth - 72, _screenHeight - 56);
             _controllerDebugCloseHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect);
+            _controllerDebugPrevHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugPrevRect);
+            _controllerDebugNextHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugNextRect);
+            for (int i = 0; i < MaxGamepadsToShow; i++)
+                _controllerDebugTabHovered[i] = Raylib.CheckCollisionPointRec(mouse, _controllerDebugTabRects[i]);
+
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
+                Raylib.IsKeyPressed(KeyboardKey.KEY_COMMA))
+                CycleControllerDebugPad(-1);
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
+                Raylib.IsKeyPressed(KeyboardKey.KEY_PERIOD))
+                CycleControllerDebugPad(1);
+
             if (leftClicked && _controllerDebugCloseHovered)
             {
                 CloseControllerDebug();
                 return;
+            }
+            if (leftClicked && _controllerDebugPrevHovered)
+            {
+                CycleControllerDebugPad(-1);
+                return;
+            }
+            if (leftClicked && _controllerDebugNextHovered)
+            {
+                CycleControllerDebugPad(1);
+                return;
+            }
+            for (int i = 0; i < MaxGamepadsToShow; i++)
+            {
+                if (leftClicked && _controllerDebugTabHovered[i])
+                {
+                    _controllerDebugPadIndex = i;
+                    return;
+                }
             }
             if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, panelRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) &&
@@ -1096,7 +1142,11 @@ public sealed class Game : IGame
         if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
-            (_showControllerDebug && Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect)))
+            (_showControllerDebug && (
+                Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _controllerDebugPrevRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _controllerDebugNextRect) ||
+                _controllerDebugTabHovered.Any(h => h))))
             overClickable = true;
 
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm)
@@ -1446,12 +1496,33 @@ public sealed class Game : IGame
     {
         _showControllerDebug = true;
         _controllerDebugCloseHovered = false;
+        _controllerDebugPrevHovered = false;
+        _controllerDebugNextHovered = false;
+        Array.Clear(_controllerDebugTabHovered);
+
+        _controllerDebugPadIndex = 0;
+        for (int i = 0; i < MaxGamepadsToShow; i++)
+        {
+            if (Raylib.IsGamepadAvailable(i))
+            {
+                _controllerDebugPadIndex = i;
+                break;
+            }
+        }
     }
 
     private void CloseControllerDebug()
     {
         _showControllerDebug = false;
         _controllerDebugCloseHovered = false;
+        _controllerDebugPrevHovered = false;
+        _controllerDebugNextHovered = false;
+        Array.Clear(_controllerDebugTabHovered);
+    }
+
+    private void CycleControllerDebugPad(int delta)
+    {
+        _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + MaxGamepadsToShow) % MaxGamepadsToShow;
     }
 
     private void OpenQuitConfirm()
@@ -1721,28 +1792,73 @@ public sealed class Game : IGame
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
 
         Raylib.DrawTextEx(font, "CONTROLLER DEBUG",
-            new Vector2(panelX + 22, panelY + 16), 22, 0.75f, Palette.TextPrimary);
+            new Vector2(panelX + 22, panelY + 16),
+            ControllerDebugTitleSize, 0.75f, Palette.TextPrimary);
 
-        Raylib.DrawTextEx(font, "Live input from Raylib / SDL — press buttons and move sticks to verify mappings.",
-            new Vector2(panelX + 22, panelY + 44), 13, 0.55f, Palette.TextSecondary);
+        Raylib.DrawTextEx(font, "Live input from Raylib / SDL — one gamepad at a time.",
+            new Vector2(panelX + 22, panelY + 50),
+            ControllerDebugSubtitleSize, 0.55f, Palette.TextSecondary);
 
         int lastPressed = Raylib.GetGamepadButtonPressed();
         string lastLine = lastPressed >= 0
             ? $"Last button pressed (any pad): {(GamepadButton)lastPressed}"
             : "Last button pressed (any pad): —";
         Raylib.DrawTextEx(font, lastLine,
-            new Vector2(panelX + 22, panelY + 62), 12, 0.5f, Palette.TextMuted);
+            new Vector2(panelX + 22, panelY + 76),
+            ControllerDebugMetaSize, 0.5f, Palette.TextMuted);
 
-        int contentTop = panelY + 88;
-        int contentH = panelH - 150;
-        int colW = (panelW - 44) / MaxGamepadsToShow;
-        int colGap = 8;
+        // Pad selector: Prev / tabs / Next
+        int selectorY = panelY + 104;
+        const int navBtnW = 100;
+        const int navBtnH = 34;
+        int tabW = 52;
+        int tabH = 34;
+        int tabGap = 8;
+        int tabsTotalW = MaxGamepadsToShow * tabW + (MaxGamepadsToShow - 1) * tabGap;
+        int tabsX = panelX + (panelW - tabsTotalW) / 2;
 
-        for (int gp = 0; gp < MaxGamepadsToShow; gp++)
+        _controllerDebugPrevRect = new Rectangle(panelX + 22, selectorY, navBtnW, navBtnH);
+        _controllerDebugNextRect = new Rectangle(panelX + panelW - 22 - navBtnW, selectorY, navBtnW, navBtnH);
+        DrawDialogButton(_controllerDebugPrevRect, "PREV", _controllerDebugPrevHovered, font);
+        DrawDialogButton(_controllerDebugNextRect, "NEXT", _controllerDebugNextHovered, font);
+
+        for (int i = 0; i < MaxGamepadsToShow; i++)
         {
-            int colX = panelX + 16 + gp * (colW + colGap);
-            DrawGamepadDebugColumn(font, gp, colX, contentTop, colW, contentH);
+            int tabX = tabsX + i * (tabW + tabGap);
+            _controllerDebugTabRects[i] = new Rectangle(tabX, selectorY, tabW, tabH);
+            bool selected = i == _controllerDebugPadIndex;
+            bool connected = Raylib.IsGamepadAvailable(i);
+            bool hovered = _controllerDebugTabHovered[i];
+
+            Color tabBg = selected
+                ? Palette.ButtonSelectedBg
+                : hovered ? new Color(48, 52, 60, 255) : new Color(24, 26, 32, 255);
+            Color tabBorder = selected
+                ? Palette.ButtonSelectedBorder
+                : connected ? new Color(90, 120, 95, 255) : Palette.SubtleBorder;
+
+            Raylib.DrawRectangleRec(_controllerDebugTabRects[i], tabBg);
+            Raylib.DrawRectangleLinesEx(_controllerDebugTabRects[i], 1.5f, tabBorder);
+
+            string tabLabel = $"{i}";
+            int labelSize = 18;
+            int lw = (int)Raylib.MeasureTextEx(font, tabLabel, labelSize, 0.6f).X;
+            Raylib.DrawTextEx(font, tabLabel,
+                new Vector2(tabX + (tabW - lw) / 2f, selectorY + 7),
+                labelSize, 0.6f, selected ? Palette.TextPrimary : Palette.TextSecondary);
+
+            if (connected)
+            {
+                Raylib.DrawCircle(tabX + tabW - 10, selectorY + 10, 4f,
+                    selected ? Palette.Positive : new Color(70, 100, 78, 255));
+            }
         }
+
+        int contentTop = selectorY + navBtnH + 18;
+        int contentH = panelH - (contentTop - panelY) - 72;
+        int contentX = panelX + 22;
+        int contentW = panelW - 44;
+        DrawGamepadDebugDetail(font, _controllerDebugPadIndex, contentX, contentTop, contentW, contentH);
 
         int btnW = 140;
         int btnH = 36;
@@ -1751,62 +1867,107 @@ public sealed class Game : IGame
         _controllerDebugCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
         DrawDialogButton(_controllerDebugCloseRect, "CLOSE", _controllerDebugCloseHovered, font);
 
-        Raylib.DrawTextEx(font, "Esc · Close · or gamepad button again",
+        Raylib.DrawTextEx(font, "Esc · Close  ·  ← → or , . to switch gamepad",
             new Vector2(panelX + 22, panelY + panelH - 28),
-            11, 0.45f, Palette.TextDim);
+            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
     }
 
-    private void DrawGamepadDebugColumn(Font font, int gamepad, int x, int y, int width, int height)
+    private void DrawGamepadDebugDetail(Font font, int gamepad, int x, int y, int width, int height)
     {
         Raylib.DrawRectangle(x, y, width, height, new Color(12, 14, 18, 255));
         Raylib.DrawRectangleLines(x, y, width, height, Palette.SubtleBorder);
 
-        int pad = 10;
+        int pad = 18;
         int cy = y + pad;
+        int innerW = width - pad * 2;
+
+        bool connected = Raylib.IsGamepadAvailable(gamepad);
+        string status = connected ? "Connected" : "Not connected";
+        Color statusColor = connected ? Palette.Positive : Palette.TextDim;
 
         string header = $"Gamepad {gamepad}";
-        Raylib.DrawTextEx(font, header, new Vector2(x + pad, cy), 14, 0.65f, Palette.TextPrimary);
-        cy += 20;
+        Raylib.DrawTextEx(font, header, new Vector2(x + pad, cy), 22, 0.7f, Palette.TextPrimary);
+        int statusW = (int)Raylib.MeasureTextEx(font, status, ControllerDebugBodySize, 0.55f).X;
+        Raylib.DrawTextEx(font, status,
+            new Vector2(x + width - pad - statusW, cy + 2),
+            ControllerDebugBodySize, 0.55f, statusColor);
+        cy += 30;
 
-        if (!Raylib.IsGamepadAvailable(gamepad))
+        if (!connected)
         {
-            Raylib.DrawTextEx(font, "Not connected",
-                new Vector2(x + pad, cy), 12, 0.5f, Palette.TextDim);
+            Raylib.DrawTextEx(font, "No device on this slot. Use PREV/NEXT or tabs 0–3 to check other slots.",
+                new Vector2(x + pad, cy), ControllerDebugBodySize, 0.55f, Palette.TextSecondary);
             return;
         }
 
         string name = Raylib.GetGamepadName_(gamepad);
         if (string.IsNullOrWhiteSpace(name))
             name = "(unnamed device)";
-        DrawTruncatedDebugLine(font, name, x + pad, ref cy, width - pad * 2, 11, Palette.TextSecondary);
-        cy += 4;
+        DrawTruncatedDebugLine(font, name, x + pad, ref cy, innerW, ControllerDebugBodySize, Palette.TextSecondary);
+        cy += 6;
 
         int axisCount = Raylib.GetGamepadAxisCount(gamepad);
         Raylib.DrawTextEx(font, $"Axis count: {axisCount}",
-            new Vector2(x + pad, cy), 11, 0.45f, Palette.TextMuted);
-        cy += 18;
+            new Vector2(x + pad, cy), ControllerDebugMetaSize, 0.5f, Palette.TextMuted);
+        cy += 28;
 
-        // Stick visuals
+        int leftColW = innerW / 2 - 12;
+        int rightColX = x + pad + leftColW + 24;
+        int rightColW = innerW - leftColW - 24;
+        int leftY = cy;
+
+        // Left column: sticks + axes
         float lx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_X);
         float ly = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_Y);
         float rx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_X);
         float ry = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_Y);
 
-        int stickSize = Math.Min(36, (width - pad * 2 - 8) / 2);
-        int stickY = cy + stickSize + 4;
-        DrawStickDebugVisual(x + pad + stickSize, stickY, stickSize, lx, ly, Palette.Hydration);
-        DrawStickDebugVisual(x + pad + stickSize * 3 + 12, stickY, stickSize, rx, ry, Palette.Energy);
-        Raylib.DrawTextEx(font, "L", new Vector2(x + pad + stickSize - 4, cy), 10, 0.4f, Palette.TextDim);
-        Raylib.DrawTextEx(font, "R", new Vector2(x + pad + stickSize * 3 + 8, cy), 10, 0.4f, Palette.TextDim);
-        cy = stickY + stickSize + 14;
+        int stickSize = 56;
+        int stickRowY = leftY;
+        Raylib.DrawTextEx(font, "Sticks", new Vector2(x + pad, stickRowY),
+            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+        stickRowY += 24;
 
-        Raylib.DrawTextEx(font, "Buttons", new Vector2(x + pad, cy), 12, 0.55f, Palette.TextMuted);
-        cy += 16;
+        int stickCenterY = stickRowY + stickSize + 8;
+        DrawStickDebugVisual(x + pad + stickSize, stickCenterY, stickSize, lx, ly, Palette.Hydration);
+        DrawStickDebugVisual(x + pad + stickSize * 2 + 36, stickCenterY, stickSize, rx, ry, Palette.Energy);
+        Raylib.DrawTextEx(font, "Left", new Vector2(x + pad + stickSize - 18, stickRowY + 4),
+            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
+        Raylib.DrawTextEx(font, "Right", new Vector2(x + pad + stickSize * 2 + 18, stickRowY + 4),
+            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
 
-        foreach (var (button, label) in GamepadButtonsToShow)
+        int axisY = stickCenterY + stickSize + 22;
+        Raylib.DrawTextEx(font, "Axes", new Vector2(x + pad, axisY),
+            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+        axisY += 24;
+
+        foreach (var (axis, label) in GamepadAxesToShow)
         {
-            if (cy > y + height - pad - 8)
-                break;
+            float value = Raylib.GetGamepadAxisMovement(gamepad, axis);
+            Raylib.DrawTextEx(font, label, new Vector2(x + pad, axisY),
+                ControllerDebugBodySize, 0.45f, Palette.TextDim);
+            DrawAxisDebugBar(x + pad, axisY + 20, leftColW, 10, value);
+            Raylib.DrawTextEx(font, $"{value:F3}",
+                new Vector2(x + pad + leftColW - 52, axisY + 2),
+                ControllerDebugBodySize, 0.45f, Palette.TextSecondary);
+            axisY += 38;
+        }
+
+        // Right column: buttons (two sub-columns)
+        Raylib.DrawTextEx(font, "Buttons", new Vector2(rightColX, leftY),
+            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+        int btnY = leftY + 24;
+        int btnColW = (rightColW - 12) / 2;
+        int btnCount = GamepadButtonsToShow.Length;
+        int rowsPerCol = (btnCount + 1) / 2;
+
+        for (int i = 0; i < btnCount; i++)
+        {
+            var (button, label) = GamepadButtonsToShow[i];
+            int col = i / rowsPerCol;
+            int row = i % rowsPerCol;
+            int bx = rightColX + col * (btnColW + 12);
+            int by = btnY + row * ControllerDebugButtonRowStep;
 
             bool down = Raylib.IsGamepadButtonDown(gamepad, button);
             bool pressed = Raylib.IsGamepadButtonPressed(gamepad, button);
@@ -1818,33 +1979,12 @@ public sealed class Game : IGame
             else if (released)
                 dot = Palette.Satiation;
 
-            Raylib.DrawCircle(x + pad + 4, cy + 6, 4f, dot);
+            Raylib.DrawCircle(bx + 7, by + 11, 6f, dot);
 
-            string suffix = pressed ? " [pressed]" : released ? " [released]" : down ? " [down]" : "";
-            string line = label + suffix;
+            string suffix = pressed ? "  pressed" : released ? "  released" : down ? "  down" : "";
             Color textColor = down || pressed ? Palette.TextPrimary : Palette.TextDim;
-            Raylib.DrawTextEx(font, line, new Vector2(x + pad + 14, cy), 10, 0.4f, textColor);
-            cy += 14;
-        }
-
-        cy += 6;
-        if (cy < y + height - 80)
-        {
-            Raylib.DrawTextEx(font, "Axes", new Vector2(x + pad, cy), 12, 0.55f, Palette.TextMuted);
-            cy += 16;
-
-            foreach (var (axis, label) in GamepadAxesToShow)
-            {
-                if (cy > y + height - pad - 20)
-                    break;
-
-                float value = Raylib.GetGamepadAxisMovement(gamepad, axis);
-                Raylib.DrawTextEx(font, label, new Vector2(x + pad, cy), 9, 0.35f, Palette.TextDim);
-                DrawAxisDebugBar(x + pad, cy + 12, width - pad * 2, 6, value);
-                Raylib.DrawTextEx(font, $"{value:F3}",
-                    new Vector2(x + width - pad - 36, cy), 9, 0.35f, Palette.TextSecondary);
-                cy += 24;
-            }
+            Raylib.DrawTextEx(font, label + suffix, new Vector2(bx + 18, by + 2),
+                ControllerDebugButtonRowSize, 0.45f, textColor);
         }
     }
 
@@ -1856,7 +1996,7 @@ public sealed class Game : IGame
 
         float px = cx + axisX * (radius - 4);
         float py = cy + axisY * (radius - 4);
-        Raylib.DrawCircleV(new Vector2(px, py), 5f, color);
+        Raylib.DrawCircleV(new Vector2(px, py), 7f, color);
     }
 
     private static void DrawAxisDebugBar(int x, int y, int width, int height, float value)
@@ -2025,10 +2165,11 @@ public sealed class Game : IGame
         Raylib.DrawRectangleLinesEx(rect, 1.5f, btnBorder);
         Raylib.DrawRectangle((int)rect.X + 2, (int)rect.Y + 2, (int)rect.Width - 4, 2, Palette.ButtonTopAccent);
 
-        int labelSize = 22;
-        int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.7f).X;
-        Raylib.DrawTextEx(font, label,
-            new Vector2(rect.X + (rect.Width - labelW) / 2, rect.Y + 9),
+        float labelSize = LayoutConstants.DialogButtonFontSize;
+        Vector2 labelSizeVec = Raylib.MeasureTextEx(font, label, labelSize, 0.7f);
+        float tx = rect.X + (rect.Width - labelSizeVec.X) / 2f;
+        float ty = rect.Y + (rect.Height - labelSizeVec.Y) / 2f - 1f;
+        Raylib.DrawTextEx(font, label, new Vector2(tx, ty),
             labelSize, 0.7f, Palette.TextPrimary);
     }
 

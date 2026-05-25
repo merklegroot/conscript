@@ -20,6 +20,7 @@ public static class LayoutConstants
     // Central scene narrative card (right side)
     public const int NarrativeLongSize = 25;
 
-    // Bottom action buttons
-    public const int ActionButtonFontSize = 26;
+    // Buttons (action bar, dialogs, sidebar)
+    public const int ActionButtonFontSize = 32;
+    public const int DialogButtonFontSize = 28;
 }
