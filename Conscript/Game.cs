@@ -734,7 +734,8 @@ public sealed class Game : IGame
                 CloseQuitConfirm();
                 return;
             }
-            _shouldExit = true;
+            if (Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
+                _shouldExit = true;
             return;
         }
 
