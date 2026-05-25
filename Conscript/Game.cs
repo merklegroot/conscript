@@ -1452,8 +1452,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot: late-night kiosk after fleeing the apartment.
-    /// Resets stats, money, and backpack to a clean starting point for store testing.
+    /// Jump to a reproducible debug snapshot: deep forest with trash bags and duct tape.
+    /// Resets stats, money, and backpack for outdoor survival / tent-building testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -1471,16 +1471,16 @@ public sealed class Game : IGame
         _deathLine2 = "The war took you on the first day.";
 
         _health = 96;
-        _energy = 58;       // exhausted after fleeing the apartment
-        _satiation = 69;    // ate at home, then lost some fleeing the courtyard
+        _energy = 58;
+        _satiation = 69;
         _hydration = 76;
-        _comfort = 80;      // warm kiosk after the cold yard
+        _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", null, null, null };
         ClearEnvDeltas();
         ClearActionDeltas();
 
-        EnterPhase(Phase.Store);
+        EnterPhase(Phase.Forest);
     }
 
     private void OpenItemDialog(int slotIndex)
@@ -2562,6 +2562,13 @@ public sealed class Game : IGame
         // Elegant underline (positioned for the 45pt title)
         int titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
         Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
+
+        // Build stamp — to the right of the title
+        const int buildStampGap = 18;
+        int buildY = row1Y + (LayoutConstants.TitleFontSize - LayoutConstants.TopMetaFontSize) / 2;
+        Raylib.DrawTextEx(font, BuildInfo.Timestamp,
+            new Vector2(leftX + titleW + buildStampGap, buildY),
+            LayoutConstants.TopMetaFontSize, 0.8f, Palette.TextMuted);
 
         // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
         string dayLine = $"Day {_day} — {GetTimeOfDayDisplay()}";

@@ -7,12 +7,20 @@ static class Program
 {
     static void Main(string[] args)
     {
-        var builder = Host.CreateApplicationBuilder(args);
-        builder.Services.AddSingleton<IGame, Game>();
+        SteamBootstrap.TryInit();
+        try
+        {
+            var builder = Host.CreateApplicationBuilder(args);
+            builder.Services.AddSingleton<IGame, Game>();
 
-        using var host = builder.Build();
+            using var host = builder.Build();
 
-        var game = host.Services.GetRequiredService<IGame>();
-        game.Run();
+            var game = host.Services.GetRequiredService<IGame>();
+            game.Run();
+        }
+        finally
+        {
+            SteamBootstrap.Shutdown();
+        }
     }
 }

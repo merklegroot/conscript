@@ -6,6 +6,12 @@ namespace Conscript.Constants;
 /// </summary>
 public static class GameConstants
 {
+    /// <summary>
+    /// Spacewar — Valve's standard Steamworks SDK test App ID for local development.
+    /// Replace with your real App ID before shipping; remove <c>steam_appid.txt</c> from depots.
+    /// </summary>
+    public const uint SteamAppId = 480;
+
     public const int ScreenWidth = 1280;
     public const int ScreenHeight = 720;
 

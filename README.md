@@ -97,6 +97,8 @@ cd Conscript
 dotnet run
 ```
 
+**Steamworks (dev):** Uses App ID **480** (Spacewar, Valve’s standard SDK test app). `steam_appid.txt` is copied next to the build output so you can run from the debugger or `dotnet run` without launching through Steam. Steam must be running for `SteamClient.Init` to succeed; if it isn’t, the game still starts without Steam features. Replace `GameConstants.SteamAppId` and remove `steam_appid.txt` from shipping depots when you get a real App ID.
+
 **Regenerate the sidebar region map** (Natural Earth boundaries via GeoPandas):
 
 ```bash
