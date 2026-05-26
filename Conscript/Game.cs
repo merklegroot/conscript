@@ -32,6 +32,7 @@ public sealed class Game : IGame
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
     private Texture2D _storeBackground;
+    private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
     private Texture2D _titleLogoTexture;
@@ -54,6 +55,7 @@ public sealed class Game : IGame
     private const string ItemDuctTape = "Duct Tape";
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
+    private const string ChoiceExitTent = "EXIT TENT";
 
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
@@ -139,10 +141,12 @@ public sealed class Game : IGame
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
         Store,     // Inside a late-night convenience store / kiosk
         Forest,    // Deep forest survival
+        Tent,      // Inside the trash-bag shelter
         Death
     }
 
     private Phase _phase = Phase.Opening;
+    private Phase _phaseOutdoorBeforeTent = Phase.Forest;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -263,6 +267,9 @@ public sealed class Game : IGame
     private float _buildFeedbackTimer;
     private const float BuildFeedbackDuration = 2.2f;
     private const int TrashBagTentComfortBonus = 8;
+    private const int TentInteriorComfortBonus = 14;
+    private Rectangle _trashBagTentClickRect;
+    private bool _trashBagTentHovered;
 
     // Region map — sidebar thumbnail opens expanded view
     private bool _showRegionMap;
@@ -334,6 +341,10 @@ public sealed class Game : IGame
         "A security camera stares from the ceiling with a dead red eye.\n" +
         "The clerk is glued to his phone behind the counter.\n" +
         "You have never felt more visible in your life.";
+
+    private const string TentNarrative =
+        "Your crude tent made from trash bags and duct tape\n"
+        + "provides at least some protection from the elements.";
 
     private string _actionMessage = "";
     private float _actionMessageTimer;
@@ -431,6 +442,12 @@ public sealed class Game : IGame
                 _temperatureF = 24;   // slightly warmer inside
                 // other stats carry over
                 break;
+
+            case Phase.Tent:
+                _choices = new[] { ChoiceExitTent, "WAIT" };
+                ApplyEnvironmentTentInterior();
+                _location = "Trash Bag Tent";
+                break;
         }
 
         // Swap the background image for the new phase
@@ -440,6 +457,7 @@ public sealed class Game : IGame
             Phase.Outside => _outsideBackground,
             Phase.Store   => _storeBackground,
             Phase.Forest  => _forestBackground,
+            Phase.Tent    => _tentBackground,
             _             => _forestBackground
         };
     }
@@ -677,6 +695,7 @@ public sealed class Game : IGame
         _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
         _forestBackground    = LoadEmbeddedTexture("trees.png");
         _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        _tentBackground      = LoadEmbeddedTexture("tent-interior.png");
         _regionMapTexture    = LoadEmbeddedTexture("region-map.png");
         _trashBagTentTexture = LoadEmbeddedTexture("trash-bag-tent.png");
         _titleLogoTexture    = LoadEmbeddedTexture("conscript-title.png");
@@ -697,6 +716,8 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_forestBackground);
         if (_storeBackground.Id != 0)
             Raylib.UnloadTexture(_storeBackground);
+        if (_tentBackground.Id != 0)
+            Raylib.UnloadTexture(_tentBackground);
         if (_regionMapTexture.Id != 0)
             Raylib.UnloadTexture(_regionMapTexture);
         if (_trashBagTentTexture.Id != 0)
@@ -1115,6 +1136,20 @@ public sealed class Game : IGame
                 return;
             }
 
+            if (_hasTrashBagTent && IsOutdoorsPhase(_phase) && _trashBagTentClickRect.Width > 0)
+            {
+                _trashBagTentHovered = Raylib.CheckCollisionPointRec(mouse, _trashBagTentClickRect);
+                if (leftClicked && _trashBagTentHovered)
+                {
+                    EnterTent();
+                    return;
+                }
+            }
+            else
+            {
+                _trashBagTentHovered = false;
+            }
+
             for (int i = 0; i < buttonRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, buttonRects[i]))
@@ -1229,6 +1264,9 @@ public sealed class Game : IGame
             if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
+            if (_trashBagTentHovered)
+                overClickable = true;
+
             // Bottom action buttons
             for (int i = 0; i < buttonRects.Length; i++)
             {
@@ -1338,6 +1376,10 @@ public sealed class Game : IGame
                 HandleStoreChoice(index);
                 break;
 
+            case Phase.Tent:
+                HandleTentChoice(index);
+                break;
+
             case Phase.Death:
                 if (index == 0)
                 {
@@ -1383,7 +1425,7 @@ public sealed class Game : IGame
                 break;
 
             case ChoiceEnterTent:
-                ShowNotImplementedAction("Entering the tent");
+                EnterTent();
                 break;
 
             case "WAIT":
@@ -1427,7 +1469,7 @@ public sealed class Game : IGame
                 return;
 
             case ChoiceEnterTent:
-                ShowNotImplementedAction("Entering the tent");
+                EnterTent();
                 return;
 
             case "WAIT":
@@ -1438,6 +1480,23 @@ public sealed class Game : IGame
         AdvanceTime();
         ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleTentChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceExitTent:
+                ExitTent();
+                break;
+
+            case "WAIT":
+                PerformIdle();
+                break;
+        }
     }
 
     private void HandleStoreChoice(int index)
@@ -1478,6 +1537,9 @@ public sealed class Game : IGame
                 break;
             case Phase.Forest:
                 _actionMessage = "You stay low and motionless. The forest is quiet.";
+                break;
+            case Phase.Tent:
+                _actionMessage = "You sit still in the cramped shelter, listening to the wind on the plastic.";
                 break;
             default:
                 return;
@@ -1719,6 +1781,27 @@ public sealed class Game : IGame
     {
         _actionMessage = $"{actionDescription} is not implemented yet.";
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void EnterTent()
+    {
+        if (!_hasTrashBagTent || !IsOutdoorsPhase(_phase))
+            return;
+
+        _phaseOutdoorBeforeTent = _phase;
+        _actionMessage = "You crawl through the flap into the cramped shelter.";
+        _actionMessageTimer = 2.2f;
+        EnterPhase(Phase.Tent);
+    }
+
+    private void ExitTent()
+    {
+        if (_phase != Phase.Tent)
+            return;
+
+        _actionMessage = "You push back out into the cold air.";
+        _actionMessageTimer = 2f;
+        EnterPhase(_phaseOutdoorBeforeTent);
     }
 
     private bool HasBackpackItem(string itemName) =>
@@ -2728,6 +2811,7 @@ public sealed class Game : IGame
             case Phase.Outside:
             case Phase.Store:
             case Phase.Forest:
+            case Phase.Tent:
                 DrawTopBar();
                 DrawLeftSidebar();
                 DrawRightSidebar();
@@ -3709,8 +3793,34 @@ public sealed class Game : IGame
             Phase.Outside => OutsideNarrative,
             Phase.Store   => StoreNarrative,
             Phase.Forest  => ForestNarrative,
+            Phase.Tent    => TentNarrative,
             _             => ForestNarrative
         };
+    }
+
+    private static void GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH)
+    {
+        int left = GameConstants.SceneLeft;
+        int top = GameConstants.SceneTop;
+        int w = GameConstants.SceneWidth;
+        int h = GameConstants.SceneHeight;
+        artX = left + GameConstants.ScenePadding;
+        artY = top + GameConstants.ScenePadding;
+        artW = w - GameConstants.ScenePadding * 2;
+        artH = h - GameConstants.ScenePadding * 2;
+    }
+
+    private static Rectangle ComputeTrashBagTentDestRect(int artX, int artY, int artW, int artH, int tentTexW, int tentTexH)
+    {
+        if (tentTexW <= 0 || tentTexH <= 0)
+            return default;
+
+        int groundY = artY + (int)(artH * 0.73f);
+        int destW = (int)(artW * 0.34f);
+        int destH = (int)(destW * (tentTexH / (float)tentTexW));
+        int destX = artX + (int)(artW * 0.04f);
+        int destY = groundY - destH + (int)(destH * 0.06f);
+        return new Rectangle(destX, destY, destW, destH);
     }
 
     // =====================================================================
@@ -3729,20 +3839,19 @@ public sealed class Game : IGame
         // Outer dark stage
         Raylib.DrawRectangle(left, top, w, h, Palette.SceneBg);
 
-        // Inner breathing room for the art
-        int artX = left + GameConstants.ScenePadding;
-        int artY = top + GameConstants.ScenePadding;
-        int artW = w - GameConstants.ScenePadding * 2;
-        int artH = h - GameConstants.ScenePadding * 2;
+        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
 
         DrawSceneBackground(artX, artY, artW, artH);
 
         if (_hasTrashBagTent && IsOutdoorsPhase(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
 
-        // Light atmospheric snow (fits both a cold night in the yard and the forest)
-        int groundY = artY + (int)(artH * 0.68f);
-        DrawAtmosphericSnow(artX, artY, artW, groundY, 48);
+        // Light atmospheric snow (outdoor scenes only)
+        if (IsOutdoorsPhase(_phase))
+        {
+            int groundY = artY + (int)(artH * 0.68f);
+            DrawAtmosphericSnow(artX, artY, artW, groundY, 48);
+        }
 
         // === Inner elegant frame + vignette for cinematic feel ===
         Raylib.DrawRectangleLines(artX + 2, artY + 2, artW - 4, artH - 4, Palette.SubtleBorder);
@@ -3857,18 +3966,25 @@ public sealed class Game : IGame
     private void DrawTrashBagTentOverlay(int artX, int artY, int artW, int artH)
     {
         if (_trashBagTentTexture.Id == 0)
+        {
+            _trashBagTentClickRect = default;
             return;
+        }
 
-        int groundY = artY + (int)(artH * 0.73f);
-        int destW = (int)(artW * 0.34f);
-        int destH = (int)(destW * (_trashBagTentTexture.Height / (float)_trashBagTentTexture.Width));
-        int destX = artX + (int)(artW * 0.04f);
-        int destY = groundY - destH + (int)(destH * 0.06f);
+        Rectangle dst = ComputeTrashBagTentDestRect(
+            artX, artY, artW, artH, _trashBagTentTexture.Width, _trashBagTentTexture.Height);
+        _trashBagTentClickRect = dst;
 
         Rectangle src = new Rectangle(0, 0, _trashBagTentTexture.Width, _trashBagTentTexture.Height);
-        Rectangle dst = new Rectangle(destX, destY, destW, destH);
         Color tint = GetOutdoorTimeOfDayTint();
         Raylib.DrawTexturePro(_trashBagTentTexture, src, dst, Vector2.Zero, 0f, tint);
+
+        if (_trashBagTentHovered)
+        {
+            Raylib.DrawRectangleLinesEx(dst, 2f, new Color(200, 185, 120, 200));
+            Raylib.DrawRectangle((int)dst.X, (int)dst.Y, (int)dst.Width, (int)dst.Height,
+                new Color(200, 185, 120, 18));
+        }
     }
 
     private void DrawAtmosphericSnow(int artX, int artY, int artW, int groundY, int count)
@@ -4132,6 +4248,12 @@ public sealed class Game : IGame
     {
         ClearNonComfortEnvDeltas();
         SetEnvironmentComfort(HeatedBuildingComfortBonus);
+    }
+
+    private void ApplyEnvironmentTentInterior()
+    {
+        ClearNonComfortEnvDeltas();
+        SetEnvironmentComfort(TentInteriorComfortBonus);
     }
 
     private const int HeatedBuildingComfortBonus = 4;   // 1 green arrow — warmed up a little indoors
