@@ -87,6 +87,12 @@ public sealed class Game : IGame
     private const int TentSleepHydrationCost = -8;
     private const int TentSleepHealthGain = 2;
 
+    // Items left on the ground in a room (location = phase)
+    private const int DroppedItemLifetimeTurns = 5;
+    private const int MaxDroppedItemsPerRoom = 6;
+    private const int DroppedItemSceneIconSize = 54;
+    private const int DroppedItemScenePlatePad = 5;
+
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, string> ItemIconFiles = new(StringComparer.OrdinalIgnoreCase)
@@ -254,9 +260,16 @@ public sealed class Game : IGame
     // Remaining uses per slot (null = full/default for that item type)
     private int?[] _backpackItemCharges = new int?[8];
 
+    // Items dropped in the current scene (per-room, expire after several turns)
+    private readonly List<DroppedItem> _droppedItems = new();
+    private readonly List<Rectangle> _droppedItemClickRects = new();
+    private readonly List<int> _droppedItemVisibleIndices = new(); // parallel to click rects → _droppedItems index
+    private int _hoveredDroppedItemListIndex = -1; // index into visible/click lists
+
     // Item interaction dialog (simple modal for now)
     private bool _showItemDialog;
     private int _dialogItemIndex = -1;
+    private int _dialogDroppedItemIndex = -1;
     private string _dialogItemName = "";
     private Rectangle _dialogCloseRect;
     private bool _dialogCloseHovered;
@@ -264,6 +277,8 @@ public sealed class Game : IGame
     private bool _dialogActionHovered;
     private Rectangle _dialogSecondaryActionRect;
     private bool _dialogSecondaryActionHovered;
+    private Rectangle _dialogDropRect;
+    private bool _dialogDropHovered;
     private Rectangle _dialogPanelRect;
 
     // Convenience store buy menu (modal) — list left, item detail + buy right
@@ -528,6 +543,8 @@ public sealed class Game : IGame
         };
 
         RefreshConcealment();
+        if (newPhase == Phase.Opening)
+            ClearDroppedItems();
     }
 
     /// <summary>
@@ -605,6 +622,7 @@ public sealed class Game : IGame
         }
 
         RefreshConcealment();
+        TickDroppedItemsInCurrentRoom(steps);
     }
 
     private int GetTimeSlotIndex()
@@ -810,15 +828,24 @@ public sealed class Game : IGame
         }
     }
 
-    private void DrawItemIcon(string itemName, Rectangle dest, Color tint, int slotIndex = -1)
+    private int GetItemChargesForDisplay(string itemName, int slotIndex, int? chargesOverride)
+    {
+        if (chargesOverride is int c)
+            return c;
+        if (slotIndex >= 0)
+            return GetBackpackSlotCharges(slotIndex, itemName);
+        return GetMaxChargesForItem(itemName);
+    }
+
+    private void DrawItemIcon(string itemName, Rectangle dest, Color tint, int slotIndex = -1, int? chargesOverride = null)
     {
         if (!_itemIcons.TryGetValue(itemName, out Texture2D tex) || tex.Id == 0)
             return;
 
         int maxCharges = GetMaxChargesForItem(itemName);
-        if (maxCharges > 0 && slotIndex >= 0)
+        if (maxCharges > 0)
         {
-            int remaining = GetBackpackSlotCharges(slotIndex, itemName);
+            int remaining = GetItemChargesForDisplay(itemName, slotIndex, chargesOverride);
             if (remaining > 0 && remaining < maxCharges)
             {
                 DrawPartialChargeIcon(tex, dest, tint, remaining, maxCharges);
@@ -1311,22 +1338,44 @@ public sealed class Game : IGame
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
-            bool canDrink = CanDrinkFromDialogSlot(_dialogItemIndex);
-            bool canFill = CanFillBottleAtStream(_dialogItemIndex);
-            _dialogActionHovered = Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
-                (canDrink || (canFill && !canDrink));
-            _dialogSecondaryActionHovered = canDrink && canFill &&
+            bool isGround = IsDroppedItemDialog;
+            bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
+            bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
+            DialogItemAction eatAction = isGround
+                ? DialogItemAction.None
+                : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
+            bool canAct = !isGround && (canDrink || canFill || eatAction == DialogItemAction.EatSoup);
+
+            _dialogActionHovered = _dialogActionRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
+                (isGround || canDrink || (canFill && !canDrink) || eatAction == DialogItemAction.EatSoup);
+            _dialogSecondaryActionHovered = _dialogSecondaryActionRect.Width > 0 &&
+                canDrink && canFill &&
                 Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
+            _dialogDropHovered = _dialogDropRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _dialogDropRect);
             _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
 
             if (leftClicked && _dialogActionHovered)
             {
-                TryPerformDialogItemAction(canDrink ? DialogItemAction.DrinkWater : DialogItemAction.FillBottle);
+                if (isGround)
+                    TryPickupDroppedItem();
+                else if (canDrink)
+                    TryPerformDialogItemAction(DialogItemAction.DrinkWater);
+                else if (canFill)
+                    TryPerformDialogItemAction(DialogItemAction.FillBottle);
+                else if (eatAction == DialogItemAction.EatSoup)
+                    TryPerformDialogItemAction(DialogItemAction.EatSoup);
                 return;
             }
             if (leftClicked && _dialogSecondaryActionHovered)
             {
                 TryPerformDialogItemAction(DialogItemAction.FillBottle);
+                return;
+            }
+            if (leftClicked && _dialogDropHovered)
+            {
+                TryDropItemFromBackpack();
                 return;
             }
             if (leftClicked && _dialogCloseHovered)
@@ -1401,6 +1450,21 @@ public sealed class Game : IGame
             else
             {
                 _trashBagTentHovered = false;
+            }
+
+            _hoveredDroppedItemListIndex = -1;
+            for (int i = 0; i < _droppedItemClickRects.Count; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _droppedItemClickRects[i]))
+                {
+                    _hoveredDroppedItemListIndex = i;
+                    if (leftClicked)
+                    {
+                        OpenDroppedItemDialog(_droppedItemVisibleIndices[i]);
+                        return;
+                    }
+                    break;
+                }
             }
 
             for (int i = 0; i < buttonRects.Length; i++)
@@ -1520,6 +1584,9 @@ public sealed class Game : IGame
             if (_trashBagTentHovered)
                 overClickable = true;
 
+            if (_hoveredDroppedItemListIndex >= 0)
+                overClickable = true;
+
             // Bottom action buttons
             for (int i = 0; i < buttonRects.Length; i++)
             {
@@ -1557,6 +1624,7 @@ public sealed class Game : IGame
             if (Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect) ||
                 Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) ||
                 Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _dialogDropRect) ||
                 !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
             {
                 overClickable = true;
@@ -1908,6 +1976,7 @@ public sealed class Game : IGame
         _buildFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
+        ClearDroppedItems();
         EnterPhase(Phase.Opening);
     }
 
@@ -1950,21 +2019,149 @@ public sealed class Game : IGame
         if (string.IsNullOrEmpty(item)) return;
 
         _dialogItemIndex = slotIndex;
+        _dialogDroppedItemIndex = -1;
         _dialogItemName = item;
         _showItemDialog = true;
+        ResetItemDialogHover();
+    }
+
+    private void OpenDroppedItemDialog(int droppedIndex)
+    {
+        if (droppedIndex < 0 || droppedIndex >= _droppedItems.Count) return;
+        DroppedItem dropped = _droppedItems[droppedIndex];
+        if (dropped.Room != _phase || dropped.TurnsRemaining <= 0) return;
+
+        _dialogItemIndex = -1;
+        _dialogDroppedItemIndex = droppedIndex;
+        _dialogItemName = dropped.Name;
+        _showItemDialog = true;
+        ResetItemDialogHover();
+    }
+
+    private void ResetItemDialogHover()
+    {
         _dialogCloseHovered = false;
         _dialogActionHovered = false;
         _dialogSecondaryActionHovered = false;
+        _dialogDropHovered = false;
     }
 
     private void CloseItemDialog()
     {
         _showItemDialog = false;
         _dialogItemIndex = -1;
+        _dialogDroppedItemIndex = -1;
         _dialogItemName = "";
-        _dialogCloseHovered = false;
-        _dialogActionHovered = false;
-        _dialogSecondaryActionHovered = false;
+        ResetItemDialogHover();
+    }
+
+    private bool IsDroppedItemDialog => _dialogDroppedItemIndex >= 0;
+
+    private int GetDialogSlotIndex() =>
+        IsDroppedItemDialog ? -1 : _dialogItemIndex;
+
+    private int? GetDialogChargesOverride() =>
+        IsDroppedItemDialog ? _droppedItems[_dialogDroppedItemIndex].Charges : null;
+
+    private void ClearDroppedItems() => _droppedItems.Clear();
+
+    private int CountDroppedItemsInRoom(Phase room)
+    {
+        int count = 0;
+        foreach (DroppedItem item in _droppedItems)
+        {
+            if (item.Room == room && item.TurnsRemaining > 0)
+                count++;
+        }
+        return count;
+    }
+
+    private void TickDroppedItemsInCurrentRoom(int steps)
+    {
+        if (steps <= 0 || _phase == Phase.Death) return;
+
+        foreach (DroppedItem item in _droppedItems)
+        {
+            if (item.Room == _phase)
+                item.TurnsRemaining -= steps;
+        }
+
+        _droppedItems.RemoveAll(d => d.TurnsRemaining <= 0);
+        if (IsDroppedItemDialog)
+            ValidateDroppedItemDialog();
+    }
+
+    private void ValidateDroppedItemDialog()
+    {
+        if (_dialogDroppedItemIndex < 0)
+            return;
+        if (_dialogDroppedItemIndex >= _droppedItems.Count)
+        {
+            CloseItemDialog();
+            return;
+        }
+
+        DroppedItem dropped = _droppedItems[_dialogDroppedItemIndex];
+        if (dropped.Room != _phase || dropped.TurnsRemaining <= 0)
+            CloseItemDialog();
+    }
+
+    private void TryDropItemFromBackpack()
+    {
+        if (IsDroppedItemDialog || _dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
+
+        string? item = _backpack[_dialogItemIndex];
+        if (string.IsNullOrEmpty(item)) return;
+
+        if (CountDroppedItemsInRoom(_phase) >= MaxDroppedItemsPerRoom)
+        {
+            _actionMessage = "There is no room to leave anything else here.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        int anchor = CountDroppedItemsInRoom(_phase);
+        _droppedItems.Add(new DroppedItem
+        {
+            Name = item,
+            Charges = _backpackItemCharges[_dialogItemIndex],
+            Room = _phase,
+            TurnsRemaining = DroppedItemLifetimeTurns,
+            AnchorIndex = anchor
+        });
+
+        _backpack[_dialogItemIndex] = null;
+        _backpackItemCharges[_dialogItemIndex] = null;
+        CompactBackpack();
+
+        _actionMessage = $"You set down the {item}.";
+        _actionMessageTimer = ActionMessageDuration;
+        CloseItemDialog();
+    }
+
+    private void TryPickupDroppedItem()
+    {
+        if (!IsDroppedItemDialog || _dialogDroppedItemIndex < 0 || _dialogDroppedItemIndex >= _droppedItems.Count)
+            return;
+
+        DroppedItem dropped = _droppedItems[_dialogDroppedItemIndex];
+        if (dropped.Room != _phase || dropped.TurnsRemaining <= 0)
+        {
+            CloseItemDialog();
+            return;
+        }
+
+        if (!TryAddToBackpack(dropped.Name, dropped.Charges))
+        {
+            _actionMessage = "Backpack is full — make space before picking this up.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        _droppedItems.RemoveAt(_dialogDroppedItemIndex);
+        _actionMessage = $"You pick up the {dropped.Name}.";
+        _actionMessageTimer = ActionMessageDuration;
+        CloseItemDialog();
     }
 
     private void OpenBuildDialog()
@@ -2482,13 +2679,14 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private bool TryAddToBackpack(string item)
+    private bool TryAddToBackpack(string item, int? charges = null)
     {
         for (int i = 0; i < _backpack.Length; i++)
         {
             if (string.IsNullOrEmpty(_backpack[i]))
             {
                 _backpack[i] = item;
+                _backpackItemCharges[i] = charges;
                 return true;
             }
         }
@@ -2987,42 +3185,66 @@ public sealed class Game : IGame
     // =====================================================================
     // ITEM DIALOG (modal) — use / examine / close per item
     // =====================================================================
+    private string GetItemDialogBody(bool isGround, DialogItemAction eatAction, bool canDrink, bool canFill)
+    {
+        if (isGround)
+        {
+            int turns = _droppedItems[_dialogDroppedItemIndex].TurnsRemaining;
+            return turns == 1
+                ? "On the ground here. About one turn left before you lose track of it."
+                : $"On the ground here. About {turns} turns left before you lose track of it.";
+        }
+
+        int slot = _dialogItemIndex;
+        return eatAction switch
+        {
+            DialogItemAction.EatSoup => GetCannedSoupDialogText(slot),
+            _ when canDrink => GetBottledWaterDialogText(slot),
+            _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
+                "An empty plastic bottle. The stream is right here — you could fill it.",
+            _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
+                ? "An empty plastic bottle. Nothing left to drink."
+                : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
+                    ? "An empty can. Nothing left to eat."
+                    : "Set it down here to lighten your pack, or keep carrying it."
+        };
+    }
+
     private void DrawItemDialog()
     {
         int screenW = _screenWidth;
         int screenH = _screenHeight;
 
-        // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
-        DialogItemAction eatAction = GetDialogItemAction(_dialogItemName, _dialogItemIndex);
-        bool canDrink = CanDrinkFromDialogSlot(_dialogItemIndex);
-        bool canFill = CanFillBottleAtStream(_dialogItemIndex);
+        bool isGround = IsDroppedItemDialog;
+        DialogItemAction eatAction = isGround
+            ? DialogItemAction.None
+            : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
+        bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
+        bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
         bool canAct = canDrink || canFill || eatAction == DialogItemAction.EatSoup;
 
-        // Centered dialog panel
-        int panelW = 380;
+        int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
         int panelH = 240;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 20;
 
         _dialogPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
 
-        // Card background + border (matches existing card style)
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
 
         Font font = _uiFont;
 
-        // Item icon
         const int iconSize = 56;
         int iconX = panelX + (panelW - iconSize) / 2;
         int iconY = panelY + 16;
         Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
         Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
-        DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE, _dialogItemIndex);
+        DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE,
+            GetDialogSlotIndex(), GetDialogChargesOverride());
 
-        // Item name as title
         string title = _dialogItemName.ToUpperInvariant();
         int titleSize = 28;
         int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
@@ -3030,68 +3252,74 @@ public sealed class Game : IGame
             new Vector2(panelX + (panelW - titleW) / 2, panelY + 82),
             titleSize, 0.8f, Palette.TextPrimary);
 
-        // Subtle separator
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
-        string body = eatAction switch
-        {
-            DialogItemAction.EatSoup => GetCannedSoupDialogText(_dialogItemIndex),
-            _ when canDrink => GetBottledWaterDialogText(_dialogItemIndex),
-            _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
-                "An empty plastic bottle. The stream is right here — you could fill it.",
-            _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
-                ? "An empty plastic bottle. Nothing left to drink."
-                : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
-                    ? "An empty can. Nothing left to eat."
-                    : "No special actions defined for this item yet."
-        };
-        int bodySize = 20;
+        string body = GetItemDialogBody(isGround, eatAction, canDrink, canFill);
+        int bodySize = 18;
         int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
+        if (bodyW > panelW - 48)
+            bodySize = 16;
+        bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
         Raylib.DrawTextEx(font, body,
-            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
+            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 124),
             bodySize, 0.6f, Palette.TextSecondary);
 
         int btnH = 36;
         int btnY = panelY + panelH - 52;
-        int gap = 10;
+        int gap = 8;
+        _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
+        _dialogDropRect = new Rectangle(0, 0, 0, 0);
 
-        if (canDrink && canFill)
+        if (isGround)
+        {
+            int btnW = 120;
+            int totalW = btnW * 2 + gap;
+            int startX = panelX + (panelW - totalW) / 2;
+            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            DrawDialogButton(_dialogActionRect, "PICK UP", _dialogActionHovered, font);
+            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+        }
+        else if (canDrink && canFill)
+        {
+            int btnW = 78;
+            int totalW = btnW * 4 + gap * 3;
+            int startX = panelX + (panelW - totalW) / 2;
+            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogSecondaryActionRect = new Rectangle(startX + (btnW + gap), btnY, btnW, btnH);
+            _dialogDropRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
+            _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 3, btnY, btnW, btnH);
+            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
+            DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
+            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
+            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+        }
+        else if (canAct)
         {
             int btnW = 88;
             int totalW = btnW * 3 + gap * 2;
             int startX = panelX + (panelW - totalW) / 2;
             _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogSecondaryActionRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            _dialogDropRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
             _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
-
-            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
-            DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
-            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
-        }
-        else if (canAct)
-        {
-            int btnW = 108;
-            int totalW = btnW * 2 + gap;
-            int startX = panelX + (panelW - totalW) / 2;
-            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
-            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
-
             string actionLabel = canDrink
                 ? "DRINK"
                 : canFill
                     ? "FILL"
                     : GetDialogItemActionLabel(eatAction);
             DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
+            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
             DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
         {
+            int btnW = 100;
+            int totalW = btnW * 2 + gap;
+            int startX = panelX + (panelW - totalW) / 2;
             _dialogActionRect = new Rectangle(0, 0, 0, 0);
-            _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
-            int btnW = 120;
-            int btnX = panelX + (panelW - btnW) / 2;
-            _dialogCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+            _dialogDropRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
             DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
     }
@@ -4568,6 +4796,75 @@ public sealed class Game : IGame
         artH = h - GameConstants.ScenePadding * 2;
     }
 
+    // Foreground floor positions (left/center — clear of the right-side narrative card)
+    private static readonly (float x, float y)[] DroppedItemSceneAnchors =
+    {
+        (0.22f, 0.62f), (0.36f, 0.65f), (0.50f, 0.60f), (0.28f, 0.68f), (0.42f, 0.63f), (0.56f, 0.66f)
+    };
+
+    /// <summary>Draw clickable item icons for things left on the ground in this room.</summary>
+    private void DrawDroppedItemsInScene(int artX, int artY, int artW, int artH)
+    {
+        _droppedItemClickRects.Clear();
+        _droppedItemVisibleIndices.Clear();
+
+        for (int i = 0; i < _droppedItems.Count; i++)
+        {
+            DroppedItem item = _droppedItems[i];
+            if (item.Room != _phase || item.TurnsRemaining <= 0)
+                continue;
+
+            int anchor = item.AnchorIndex % DroppedItemSceneAnchors.Length;
+            (float ax, float ay) = DroppedItemSceneAnchors[anchor];
+            int plate = DroppedItemSceneIconSize + DroppedItemScenePlatePad * 2;
+            int px = artX + (int)(artW * ax) - plate / 2;
+            int py = artY + (int)(artH * ay) - plate / 2;
+            var clickRect = new Rectangle(px, py, plate, plate);
+
+            int listIndex = _droppedItemClickRects.Count;
+            bool hovered = _hoveredDroppedItemListIndex == listIndex;
+
+            DrawDroppedItemMarker(item.Name, clickRect, hovered, -1, item.Charges);
+
+            _droppedItemVisibleIndices.Add(i);
+            _droppedItemClickRects.Add(clickRect);
+        }
+    }
+
+    /// <summary>High-contrast ground marker so dropped items stay visible on dark scene photos.</summary>
+    private void DrawDroppedItemMarker(string itemName, Rectangle plateRect, bool hovered, int slotIndex, int? chargesOverride)
+    {
+        int px = (int)plateRect.X;
+        int py = (int)plateRect.Y;
+        int plate = (int)plateRect.Width;
+
+        Raylib.DrawRectangle(px + 3, py + plate - 7, plate - 6, 6, new Color(0, 0, 0, 120));
+
+        var plateBg = hovered ? new Color(48, 44, 38, 245) : new Color(28, 26, 22, 235);
+        Raylib.DrawRectangle(px, py, plate, plate, plateBg);
+        Color border = hovered ? Palette.ActionFlash : new Color(110, 102, 88, 255);
+        Raylib.DrawRectangleLines(px, py, plate, plate, border);
+        if (hovered)
+            Raylib.DrawRectangle(px + 1, py + 1, plate - 2, plate - 2, new Color(200, 185, 120, 22));
+
+        int pad = DroppedItemScenePlatePad;
+        var iconDest = new Rectangle(px + pad, py + pad, plate - pad * 2, plate - pad * 2);
+        var tint = hovered ? Color.WHITE : new Color(235, 230, 218, 255);
+
+        if (_itemIcons.ContainsKey(itemName))
+            DrawItemIcon(itemName, iconDest, tint, slotIndex, chargesOverride);
+        else
+        {
+            Font font = _uiFont;
+            string label = itemName.Length > 6 ? itemName[..6] : itemName;
+            float fz = 11f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fz, 0.4f);
+            Raylib.DrawTextEx(font, label.ToUpperInvariant(),
+                new Vector2(iconDest.X + (iconDest.Width - size.X) / 2f, iconDest.Y + (iconDest.Height - size.Y) / 2f),
+                fz, 0.4f, Palette.TextPrimary);
+        }
+    }
+
     private static Rectangle ComputeTrashBagTentDestRect(int artX, int artY, int artW, int artH, int tentTexW, int tentTexH)
     {
         if (tentTexW <= 0 || tentTexH <= 0)
@@ -4623,6 +4920,9 @@ public sealed class Game : IGame
         // === Main narrative / flavor text box — clean, anchored to the right side of the image ===
         DrawRightSideNarrative(artX, artY, artW, artH, GetSceneNarrative());
 
+        // Dropped items on top of overlays/narrative so they stay visible and clickable
+        DrawDroppedItemsInScene(artX, artY, artW, artH);
+
         // Temporary action result toast (centered low in the image)
         if (_actionMessageTimer > 0f && !string.IsNullOrEmpty(_actionMessage))
         {
@@ -4669,6 +4969,8 @@ public sealed class Game : IGame
 
         // The right-side narrative card
         DrawRightSideNarrative(artX, artY, artW, artH, OpeningNarrative);
+
+        DrawDroppedItemsInScene(artX, artY, artW, artH);
 
         // Bottom action bar (3 choices for the opening)
         DrawActionBar();
@@ -5091,5 +5393,14 @@ public sealed class Game : IGame
         if (abs <= 4) return 1;
         if (abs <= 10) return 2;
         return 3;
+    }
+
+    private sealed class DroppedItem
+    {
+        public required string Name { get; init; }
+        public int? Charges { get; init; }
+        public Phase Room { get; init; }
+        public int TurnsRemaining { get; set; }
+        public int AnchorIndex { get; init; }
     }
 }
