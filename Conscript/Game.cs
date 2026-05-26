@@ -60,6 +60,13 @@ public sealed class Game : IGame
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
+    private const string ChoiceSleep = "SLEEP";
+
+    // Resting: sleeping should be a meaningful time-skip with a strong energy restore.
+    private const int TentSleepTimeSteps = 3;      // ~9 hours (8 slots/day ≈ 3 hours each)
+    private const int TentSleepSatiationCost = -8;
+    private const int TentSleepHydrationCost = -8;
+    private const int TentSleepHealthGain = 2;
 
     // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
@@ -455,7 +462,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Tent:
-                _choices = new[] { ChoiceExitTent, "WAIT" };
+                _choices = new[] { ChoiceExitTent, ChoiceSleep, "WAIT" };
                 ApplyEnvironmentTentInterior();
                 _location = "Trash Bag Tent";
                 break;
@@ -1598,10 +1605,32 @@ public sealed class Game : IGame
                 ExitTent();
                 break;
 
+            case ChoiceSleep:
+                SleepInTent();
+                break;
+
             case "WAIT":
                 PerformIdle();
                 break;
         }
+    }
+
+    private void SleepInTent()
+    {
+        if (_phase != Phase.Tent)
+            return;
+
+        _actionMessage = "You curl up inside the shelter and sleep.";
+        _actionMessageTimer = 2.4f;
+
+        // Time passes; the player wakes rested. We apply the energy refill after time-drain.
+        AdvanceTime(TentSleepTimeSteps);
+        SetStatFromAction(ref _energy, ref _actionEnergyDelta, 100);
+
+        // Sleeping still costs water/food, but the body recovers a bit.
+        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, TentSleepSatiationCost);
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, TentSleepHydrationCost);
+        ModifyStatFromAction(ref _health, ref _actionHealthDelta, TentSleepHealthGain);
     }
 
     private void HandleStoreChoice(int index)
