@@ -1831,6 +1831,23 @@ public sealed class Game : IGame
     private bool HasBackpackItem(string itemName) =>
         _backpack.Any(i => string.Equals(i, itemName, StringComparison.OrdinalIgnoreCase));
 
+    private void CompactBackpack()
+    {
+        int write = 0;
+        for (int read = 0; read < _backpack.Length; read++)
+        {
+            if (!string.IsNullOrEmpty(_backpack[read]))
+            {
+                if (write != read)
+                    _backpack[write] = _backpack[read];
+                write++;
+            }
+        }
+
+        for (int i = write; i < _backpack.Length; i++)
+            _backpack[i] = null;
+    }
+
     private bool TryConsumeBackpackItem(string itemName)
     {
         for (int i = 0; i < _backpack.Length; i++)
@@ -1838,6 +1855,7 @@ public sealed class Game : IGame
             if (string.Equals(_backpack[i], itemName, StringComparison.OrdinalIgnoreCase))
             {
                 _backpack[i] = null;
+                CompactBackpack();
                 return true;
             }
         }
