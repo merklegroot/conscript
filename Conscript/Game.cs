@@ -1630,7 +1630,7 @@ public sealed class Game : IGame
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", null, null, null };
+        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", ItemBottledWater, null, null };
         ClearEnvDeltas();
         ClearActionDeltas();
 
