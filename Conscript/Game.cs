@@ -267,6 +267,7 @@ public sealed class Game : IGame
 
     // Convenience store buy menu (modal)
     private bool _showStoreBuyMenu;
+    private int _storeBuySelectedIndex;
     private string _storeBuyFeedback = "";
     private float _storeBuyFeedbackTimer;
     private Rectangle[] _storeBuyItemRects = new Rectangle[5];  // populated during DrawStoreBuyMenu
@@ -1016,6 +1017,14 @@ public sealed class Game : IGame
             return;
         }
 
+        if (_showStoreBuyMenu)
+        {
+            if (IsVerticalNavUpPressed())
+                _storeBuySelectedIndex = (_storeBuySelectedIndex - 1 + _storeCatalog.Length) % _storeCatalog.Length;
+            if (IsVerticalNavDownPressed())
+                _storeBuySelectedIndex = (_storeBuySelectedIndex + 1) % _storeCatalog.Length;
+        }
+
         // Horizontal navigation for bottom action buttons
         if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
         {
@@ -1046,6 +1055,10 @@ public sealed class Game : IGame
             else if (_showBuildDialog)
             {
                 CloseBuildDialog();
+            }
+            else if (_showStoreBuyMenu)
+            {
+                TryBuyStoreItem(_storeBuySelectedIndex);
             }
             else
             {
@@ -1403,6 +1416,8 @@ public sealed class Game : IGame
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
                 {
+                    _storeBuySelectedIndex = i;
+
                     if (leftClicked)
                     {
                         TryBuyStoreItem(i);
@@ -1802,6 +1817,7 @@ public sealed class Game : IGame
         {
             case 0: // Browse shelves → open the buy menu
                 _showStoreBuyMenu = true;
+                _storeBuySelectedIndex = 0;
                 _storeBuyFeedback = "";
                 _storeBuyFeedbackTimer = 0;
                 return;   // do not advance time or close the store phase yet
@@ -1999,6 +2015,14 @@ public sealed class Game : IGame
     private static bool IsHorizontalNavRightPressed() =>
         Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
         IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
+
+    private static bool IsVerticalNavUpPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_UP) || Raylib.IsKeyPressed(KeyboardKey.KEY_W) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_UP);
+
+    private static bool IsVerticalNavDownPressed() =>
+        Raylib.IsKeyPressed(KeyboardKey.KEY_DOWN) || Raylib.IsKeyPressed(KeyboardKey.KEY_S) ||
+        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_DOWN);
 
     private static bool IsConfirmPressed() =>
         Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE) ||
@@ -3333,9 +3357,10 @@ public sealed class Game : IGame
             bool hasSpace = _backpack.Any(s => string.IsNullOrEmpty(s));
 
             bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _storeBuyItemRects[i]);
+            bool rowSelected = i == _storeBuySelectedIndex;
 
             // Row background
-            if (rowHovered && canAfford && hasSpace)
+            if (rowHovered || rowSelected)
                 Raylib.DrawRectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4, new Color(48, 46, 40, 180));
 
             // Store the rect for input
