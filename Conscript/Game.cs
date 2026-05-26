@@ -22,6 +22,8 @@ public sealed class Game : IGame
     private readonly int _screenWidth = GameConstants.ScreenWidth;
     private readonly int _screenHeight = GameConstants.ScreenHeight;
 
+    private readonly Random _rng = new();
+
     private bool _shouldExit;
     public bool ShouldExit => _shouldExit;
 
@@ -55,12 +57,17 @@ public sealed class Game : IGame
     private const int BottledWaterHydrationPerSip = 25;
     private const string ItemTrashBags = "Trash Bags";
     private const string ItemDuctTape = "Duct Tape";
+    private const string ItemRaccoon = "Raccoon";
+    private const string ItemRabbit = "Rabbit";
     private const int TrashBagsMaxUses = 3;
     private const int DuctTapeMaxUses = 3;
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
     private const string ChoiceSleep = "SLEEP";
+    private const string ChoiceHunt = "HUNT";
+
+    private const int EnergyCostHunt = 6; // in addition to time passing drain
 
     // Resting: sleeping should be a meaningful time-skip with a strong energy restore.
     private const int TentSleepTimeSteps = 3;      // ~9 hours (8 slots/day ≈ 3 hours each)
@@ -1538,6 +1545,10 @@ public sealed class Game : IGame
                 EnterTent();
                 break;
 
+            case ChoiceHunt:
+                PerformHunt();
+                break;
+
             case "WAIT":
                 PerformIdle();
                 break;
@@ -1901,8 +1912,8 @@ public sealed class Game : IGame
         else if (_phase == Phase.Forest)
         {
             _choices = _hasTrashBagTent
-                ? new[] { "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
-                : new[] { "GO BACK TO TOWN", "WAIT" };
+                ? new[] { ChoiceHunt, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { ChoiceHunt, "GO BACK TO TOWN", "WAIT" };
         }
         else
         {
@@ -1911,6 +1922,45 @@ public sealed class Game : IGame
 
         if (_selectedIndex >= _choices.Length)
             _selectedIndex = Math.Max(0, _choices.Length - 1);
+    }
+
+    private void PerformHunt()
+    {
+        if (_phase != Phase.Forest)
+            return;
+
+        ApplyEnvironmentOnAction();
+        AdvanceTime();
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostHunt);
+
+        // Weighted outcomes: raccoon most likely, rabbit next, otherwise nothing.
+        double roll = _rng.NextDouble();
+        string? catchItem = roll < 0.55 ? ItemRaccoon : roll < 0.80 ? ItemRabbit : null;
+
+        if (catchItem is null)
+        {
+            _actionMessage = "You stalk through the brush for an hour, but come up empty-handed.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        bool stored = TryAddToBackpack(catchItem);
+        if (string.Equals(catchItem, ItemRaccoon, StringComparison.OrdinalIgnoreCase))
+        {
+            ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, 12);
+            _actionMessage = stored
+                ? "You catch a raccoon. You eat what you can, then stash the rest."
+                : "You catch a raccoon. You eat what you can, but your pack is full — you leave the rest.";
+        }
+        else
+        {
+            ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, 8);
+            _actionMessage = stored
+                ? "You catch a rabbit. You eat what you can, then stash the rest."
+                : "You catch a rabbit. You eat what you can, but your pack is full — you leave the rest.";
+        }
+
+        _actionMessageTimer = ActionMessageDuration;
     }
 
     private void ShowNotImplementedAction(string actionDescription)
