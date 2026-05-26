@@ -88,6 +88,8 @@ public sealed class Game : IGame
         ["Canned Soup"]            = "items.canned-soup.png",
         [ItemTrashBags]            = "items.trash-bags.png",
         [ItemDuctTape]             = "items.duct-tape.png",
+        [ItemRaccoon]              = "items.raccoon.png",
+        [ItemRabbit]               = "items.rabbit.png",
     };
 
     // Restart + debug + controller buttons (top right, always available)
@@ -346,13 +348,12 @@ public sealed class Game : IGame
 
     // Opening scene narrative (the knock)
     private const string OpeningNarrative =
-        "The knock is final — the one you dreaded.\n\n" +
         "“Military Commissariat! Open up!”\n\n" +
         "Your mother grips your hand under the table. Your sister is silent. Your father stands frozen at the window. Nowhere left to hide.";
 
     // Forest narrative (existing)
     private const string ForestNarrative =
-        "You pushed deeper into the forest.\nThe city is far behind. First light snow\nhas begun to fall — winter is arriving\nsooner than expected. This will not be easy.";
+        "You pushed deeper into the forest.\nThe city is far behind. First light snow has begun to fall — winter is arriving sooner than expected. This will not be easy.";
 
     private const string OutsideNarrative =
         "You hit the ground hard behind the apartment block.\n" +
