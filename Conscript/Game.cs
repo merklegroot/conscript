@@ -603,6 +603,8 @@ public sealed class Game : IGame
             if (_phase == Phase.Outside)
                 RefreshOutdoorComfortEnvironment();
         }
+
+        RefreshConcealment();
     }
 
     private int GetTimeSlotIndex()
@@ -3180,7 +3182,7 @@ public sealed class Game : IGame
             "Protection from cold and exposure. Outdoors and low temperatures wear it down; heated places and a trash-bag tent help.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Concealment", Palette.Concealment,
-            "How unlikely you are to be spotted or caught. For now this follows where you are — forest and your tent hide you best; open yards and shops expose you.");
+            "How unlikely you are to be spotted or caught. Darkness helps — you are harder to find at night. Where you are matters too: forest and your tent hide you best; open yards and shops expose you.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Money", Palette.Money,
             "Rubles in hand. Spend them at the convenience store kiosk.");
@@ -5049,7 +5051,7 @@ public sealed class Game : IGame
         SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
     }
 
-    /// <summary>Location-based hide rating (0–100). More factors will modify this later.</summary>
+    /// <summary>Location-based hide rating before time-of-day modifiers.</summary>
     private static int ConcealmentForPhase(Phase phase) => phase switch
     {
         Phase.Opening => 35,        // indoors at home — some cover, not yet in the wild
@@ -5062,8 +5064,25 @@ public sealed class Game : IGame
         _ => 50
     };
 
+    /// <summary>Extra concealment from darkness; scaled down in well-lit or already-hidden places.</summary>
+    private int ConcealmentTimeBonus()
+    {
+        if (!IsNightTimeSlot())
+            return 0;
+
+        int bonus = _timeOfDay == "Late Night" ? 14 : 10;
+
+        return _phase switch
+        {
+            Phase.Store => bonus / 4,    // lit interior — night barely helps
+            Phase.Tent => bonus / 3,     // already hidden
+            Phase.Opening => bonus / 2,  // indoors with lights on
+            _ => bonus
+        };
+    }
+
     private void RefreshConcealment() =>
-        _concealment = ConcealmentForPhase(_phase);
+        _concealment = Clamp(ConcealmentForPhase(_phase) + ConcealmentTimeBonus());
 
     private static int StatArrowCount(int delta)
     {
