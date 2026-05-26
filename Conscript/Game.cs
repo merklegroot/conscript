@@ -628,6 +628,10 @@ public sealed class Game : IGame
     private bool IsOutdoorPhase() =>
         _phase is Phase.Outside or Phase.Forest;
 
+    /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
+    private bool SceneUsesTimeOfDayLighting() =>
+        IsOutdoorPhase() || _phase == Phase.Tent;
+
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
     /// </summary>
@@ -666,12 +670,12 @@ public sealed class Game : IGame
     {
         if (_backgroundTexture.Id != 0)
         {
-            Color tint = IsOutdoorPhase() ? GetOutdoorTimeOfDayTint() : Color.WHITE;
+            Color tint = SceneUsesTimeOfDayLighting() ? GetOutdoorTimeOfDayTint() : Color.WHITE;
             Rectangle src = new Rectangle(0, 0, _backgroundTexture.Width, _backgroundTexture.Height);
             Rectangle dst = new Rectangle(artX, artY, artW, artH);
             Raylib.DrawTexturePro(_backgroundTexture, src, dst, Vector2.Zero, 0.0f, tint);
 
-            if (IsOutdoorPhase())
+            if (SceneUsesTimeOfDayLighting())
             {
                 Color overlay = GetOutdoorTimeOfDayOverlay();
                 if (overlay.A > 0)
