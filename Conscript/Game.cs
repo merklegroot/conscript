@@ -161,7 +161,11 @@ public sealed class Game : IGame
         "Late Night"
     };
 
-    private const int EnergyDrainPerTimeSlot = 4;   // 8 slots × 4 ≈ former 4 slots × 8
+    // Passive drain rises through the day (Morning 2 → Late Night 9 per slot).
+    private const int EnergyDrainBasePerTimeSlot = 2;
+    private const int EnergyDrainIncreasePerSlot = 1;
+    private const int EnergyCostTravel = 4;        // longer moves (yard ↔ forest, store exit)
+    private const int EnergyCostTravelShort = 2;   // tent flap, nearby kiosk
 
     // Player-facing time text (clock + mood); index matches _timeSlots.
     private static readonly string[] TimeOfDayDisplay =
@@ -466,22 +470,30 @@ public sealed class Game : IGame
     /// Advances the time of day by the given number of slots.
     /// Wrapping from Late Night to Morning starts a new day.
     /// </summary>
+    private int GetEnergyDrainForTimeSlot(int slotIndex) =>
+        EnergyDrainBasePerTimeSlot + slotIndex * EnergyDrainIncreasePerSlot;
+
+    private void ApplyTravelEnergyCost(int cost = EnergyCostTravel)
+    {
+        if (cost > 0)
+            ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -cost);
+    }
+
     private void AdvanceTime(int steps = 1)
     {
         if (steps <= 0) return;
 
         int idx = GetTimeSlotIndex();
 
-        int newIdx = (idx + steps) % _timeSlots.Length;
-        _timeOfDay = _timeSlots[newIdx];
-
-        if (newIdx < idx)   // wrapped around → new day
+        for (int s = 0; s < steps; s++)
         {
-            _day++;
+            int newIdx = (idx + 1) % _timeSlots.Length;
+            if (newIdx < idx)
+                _day++;
+            idx = newIdx;
+            _timeOfDay = _timeSlots[idx];
+            ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -GetEnergyDrainForTimeSlot(idx));
         }
-
-        // Actions and time passing wear you down
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyDrainPerTimeSlot * steps);
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
         if (_phase == Phase.Outside || _phase == Phase.Forest)
@@ -1407,6 +1419,7 @@ public sealed class Game : IGame
                 _actionMessage = "You climb out the window and drop into the yard behind the block.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();   // the climb and landing take a moment
+                ApplyTravelEnergyCost();
                 EnterPhase(Phase.Outside);
                 break;
 
@@ -1425,6 +1438,8 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case "GO BACK TO TOWN":
+                ApplyTravelEnergyCost();
+                AdvanceTime();
                 EnterPhase(Phase.Outside);
                 break;
 
@@ -1455,6 +1470,7 @@ public sealed class Game : IGame
                 ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
+                ApplyTravelEnergyCost();
                 ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Forest);
                 return;
@@ -1469,6 +1485,7 @@ public sealed class Game : IGame
                 ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
                 EnterPhase(Phase.Store);
                 return;
 
@@ -1516,6 +1533,7 @@ public sealed class Game : IGame
             case 1: // Leave the way you came
                 _actionMessage = "You push back out into the cold dark yard.";
                 AdvanceTime();
+                ApplyTravelEnergyCost();
                 EnterPhase(Phase.Outside);
                 return;
 
@@ -1795,6 +1813,7 @@ public sealed class Game : IGame
         _phaseOutdoorBeforeTent = _phase;
         _actionMessage = "You crawl through the flap into the cramped shelter.";
         _actionMessageTimer = 2.2f;
+        ApplyTravelEnergyCost(EnergyCostTravelShort);
         EnterPhase(Phase.Tent);
     }
 
@@ -1805,6 +1824,7 @@ public sealed class Game : IGame
 
         _actionMessage = "You push back out into the cold air.";
         _actionMessageTimer = 2f;
+        ApplyTravelEnergyCost(EnergyCostTravelShort);
         EnterPhase(_phaseOutdoorBeforeTent);
     }
 
@@ -2497,7 +2517,7 @@ public sealed class Game : IGame
             "Your overall physical condition. Food and drinks from the convenience store can raise it.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Energy", Palette.Energy,
-            "How rested you are. Time passing drains energy; very low energy will eventually force sleep.");
+            "How rested you are. Energy fades faster as the day wears on; travel between places costs extra. Very low energy will eventually force sleep.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Satiation", Palette.Satiation,
             "How well fed you are. Meals at home and store food restore it.");
