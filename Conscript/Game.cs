@@ -51,6 +51,8 @@ public sealed class Game : IGame
     // Item names (inventory strings)
     private const string ItemBottledWater = "Bottled Water";
     private const string ItemEmptyBottle = "Empty Bottle of Water";
+    private const int BottledWaterMaxSips = 4;
+    private const int BottledWaterHydrationPerSip = 25;
     private const string ItemTrashBags = "Trash Bags";
     private const string ItemDuctTape = "Duct Tape";
     private const string BuildTrashBagTent = "Trash Bag Tent";
@@ -216,6 +218,8 @@ public sealed class Game : IGame
 
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+    // Remaining uses per slot (null = full/default for that item type)
+    private int?[] _backpackItemCharges = new int?[8];
 
     // Item interaction dialog (simple modal for now)
     private bool _showItemDialog;
@@ -393,6 +397,7 @@ public sealed class Game : IGame
 
                 // Reset backpack to starting gear (knife, lighter, phone)
                 _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+                _backpackItemCharges = new int?[8];
                 _hasTrashBagTent = false;
                 ClearEnvDeltas();
                 ClearActionDeltas();
@@ -628,8 +633,60 @@ public sealed class Game : IGame
         _itemIcons.Clear();
     }
 
-    private void DrawItemIcon(string itemName, Rectangle dest, Color tint)
+    private static int GetMaxChargesForItem(string itemName) =>
+        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase)
+            ? BottledWaterMaxSips
+            : 0;
+
+    private int GetBackpackSlotCharges(int slotIndex, string itemName)
     {
+        if (slotIndex >= 0 && slotIndex < _backpackItemCharges.Length && _backpackItemCharges[slotIndex] is int stored)
+            return stored;
+        return GetMaxChargesForItem(itemName);
+    }
+
+    private string GetBottledWaterDialogText(int slotIndex)
+    {
+        int remaining = slotIndex >= 0
+            ? GetBackpackSlotCharges(slotIndex, ItemBottledWater)
+            : BottledWaterMaxSips;
+        return remaining >= BottledWaterMaxSips
+            ? $"A full bottle — {BottledWaterMaxSips} sips. Each sip restores hydration."
+            : remaining == 1
+                ? "One sip left. Drink it before the bottle is empty."
+                : $"{remaining} sips left. Each sip restores some hydration.";
+    }
+
+    private void DrawItemChargeOverlay(Rectangle dest, int remaining, int maxCharges)
+    {
+        if (maxCharges <= 0 || remaining <= 0 || remaining >= maxCharges)
+            return;
+
+        float remainFrac = remaining / (float)maxCharges;
+        int greenW = (int)(dest.Width * remainFrac);
+        int redW = (int)dest.Width - greenW;
+        if (greenW > 0)
+        {
+            Raylib.DrawRectangle((int)dest.X, (int)dest.Y, greenW, (int)dest.Height,
+                new Color(48, 108, 58, 115));
+        }
+
+        if (redW > 0)
+        {
+            Raylib.DrawRectangle((int)dest.X + greenW, (int)dest.Y, redW, (int)dest.Height,
+                new Color(128, 52, 52, 115));
+        }
+    }
+
+    private void DrawItemIcon(string itemName, Rectangle dest, Color tint, int slotIndex = -1)
+    {
+        int maxCharges = GetMaxChargesForItem(itemName);
+        if (maxCharges > 0 && slotIndex >= 0)
+        {
+            int remaining = GetBackpackSlotCharges(slotIndex, itemName);
+            DrawItemChargeOverlay(dest, remaining, maxCharges);
+        }
+
         if (!_itemIcons.TryGetValue(itemName, out Texture2D tex) || tex.Id == 0)
             return;
 
@@ -1090,7 +1147,7 @@ public sealed class Game : IGame
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
-            bool canDrink = CanDrinkItem(_dialogItemName);
+            bool canDrink = CanDrinkItem(_dialogItemName, _dialogItemIndex);
             _dialogActionHovered = canDrink && Raylib.CheckCollisionPointRec(mouse, _dialogActionRect);
             _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
 
@@ -1631,6 +1688,7 @@ public sealed class Game : IGame
         _comfort = 50;
         _money = 10000;
         _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", ItemBottledWater, null, null };
+        _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
 
@@ -1839,13 +1897,19 @@ public sealed class Game : IGame
             if (!string.IsNullOrEmpty(_backpack[read]))
             {
                 if (write != read)
+                {
                     _backpack[write] = _backpack[read];
+                    _backpackItemCharges[write] = _backpackItemCharges[read];
+                }
                 write++;
             }
         }
 
         for (int i = write; i < _backpack.Length; i++)
+        {
             _backpack[i] = null;
+            _backpackItemCharges[i] = null;
+        }
     }
 
     private bool TryConsumeBackpackItem(string itemName)
@@ -1855,6 +1919,7 @@ public sealed class Game : IGame
             if (string.Equals(_backpack[i], itemName, StringComparison.OrdinalIgnoreCase))
             {
                 _backpack[i] = null;
+                _backpackItemCharges[i] = null;
                 CompactBackpack();
                 return true;
             }
@@ -1914,20 +1979,35 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private static bool CanDrinkItem(string itemName) =>
-        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase);
+    private bool CanDrinkItem(string itemName, int slotIndex = -1) =>
+        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
+        GetBackpackSlotCharges(slotIndex, itemName) > 0;
 
     private void TryDrinkBottledWater()
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
-        if (!CanDrinkItem(_backpack[_dialogItemIndex] ?? "")) return;
+        string itemName = _backpack[_dialogItemIndex] ?? "";
+        if (!CanDrinkItem(itemName, _dialogItemIndex)) return;
 
-        _backpack[_dialogItemIndex] = ItemEmptyBottle;
+        int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
         ClearActionDeltas();
-        SetStatFromAction(ref _hydration, ref _actionHydrationDelta, 100);
-        _actionMessage = "You drink the water. Fully hydrated.";
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, BottledWaterHydrationPerSip);
+
+        if (remaining <= 0)
+        {
+            _backpack[_dialogItemIndex] = ItemEmptyBottle;
+            _backpackItemCharges[_dialogItemIndex] = null;
+            _actionMessage = "You finish the last of the water. The bottle is empty.";
+            _actionMessageTimer = ActionMessageDuration;
+            CloseItemDialog();
+            return;
+        }
+
+        _backpackItemCharges[_dialogItemIndex] = remaining;
+        _actionMessage = remaining == 1
+            ? "You take a drink. One sip left in the bottle."
+            : $"You take a drink. {remaining} sips left in the bottle.";
         _actionMessageTimer = ActionMessageDuration;
-        CloseItemDialog();
     }
 
     private bool TryAddToBackpack(string item)
@@ -2391,7 +2471,7 @@ public sealed class Game : IGame
         // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
-        bool canDrink = CanDrinkItem(_dialogItemName);
+        bool canDrink = CanDrinkItem(_dialogItemName, _dialogItemIndex);
 
         // Centered dialog panel
         int panelW = 380;
@@ -2413,7 +2493,7 @@ public sealed class Game : IGame
         int iconY = panelY + 16;
         Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
         Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
-        DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
+        DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE, _dialogItemIndex);
 
         // Item name as title
         string title = _dialogItemName.ToUpperInvariant();
@@ -2427,7 +2507,7 @@ public sealed class Game : IGame
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
         string body = canDrink
-            ? "Drink it to fully restore hydration."
+            ? GetBottledWaterDialogText(_dialogItemIndex)
             : string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : "No special actions defined for this item yet.";
@@ -3459,7 +3539,7 @@ public sealed class Game : IGame
                 {
                     if (_itemIcons.ContainsKey(item!))
                     {
-                        DrawItemIcon(item!, new Rectangle(sx + 2, sy + 2, slot - 4, slot - 4), Color.WHITE);
+                        DrawItemIcon(item!, new Rectangle(sx + 2, sy + 2, slot - 4, slot - 4), Color.WHITE, idx);
                     }
                     else
                     {
