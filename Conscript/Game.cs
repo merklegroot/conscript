@@ -33,6 +33,7 @@ public sealed class Game : IGame
     private Texture2D _apartmentBackground;
     private Texture2D _outsideBackground;
     private Texture2D _forestBackground;
+    private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -49,6 +50,8 @@ public sealed class Game : IGame
     private const double UlanUdeLat = 51.834;
     private const double ForestCampLon = 107.35;
     private const double ForestCampLat = 51.95;
+    private const double ForestStreamLon = 107.32;
+    private const double ForestStreamLat = 51.97;
 
     // Item names (inventory strings)
     private const string ItemBottledWater = "Bottled Water";
@@ -72,6 +75,8 @@ public sealed class Game : IGame
     private const string ChoiceExitTent = "EXIT TENT";
     private const string ChoiceSleep = "SLEEP";
     private const string ChoiceHunt = "HUNT";
+    private const string ChoiceFollowStream = "FOLLOW THE STREAM";
+    private const string ChoiceBackToDeepForest = "BACK TO DEEP FOREST";
 
     private const int EnergyCostHunt = 6; // in addition to time passing drain
 
@@ -167,8 +172,9 @@ public sealed class Game : IGame
         Opening,   // At home with family — the knock on the door
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
         Store,     // Inside a late-night convenience store / kiosk
-        Forest,    // Deep forest survival
-        Tent,      // Inside the trash-bag shelter
+        Forest,       // Deep forest survival
+        ForestStream, // Forest stream — reachable from deep forest
+        Tent,         // Inside the trash-bag shelter
         Death
     }
 
@@ -362,6 +368,11 @@ public sealed class Game : IGame
     private const string ForestNarrative =
         "You pushed deeper into the forest.\nThe city is far behind. First light snow has begun to fall — winter is arriving sooner than expected. This will not be easy.";
 
+    private const string ForestStreamNarrative =
+        "A narrow stream cuts through the pines.\n" +
+        "The water is painfully cold, but it is the first clean water you have seen since you fled.\n" +
+        "Tracks along the bank suggest animals come here to drink.";
+
     private const string OutsideNarrative =
         "You hit the ground hard behind the apartment block.\n" +
         "The window you escaped through is still lit.\n" +
@@ -486,13 +497,48 @@ public sealed class Game : IGame
         // Swap the background image for the new phase
         _backgroundTexture = _phase switch
         {
-            Phase.Opening => _apartmentBackground,
-            Phase.Outside => _outsideBackground,
-            Phase.Store   => _storeBackground,
-            Phase.Forest  => _forestBackground,
-            Phase.Tent    => _tentBackground,
-            _             => _forestBackground
+            Phase.Opening      => _apartmentBackground,
+            Phase.Outside      => _outsideBackground,
+            Phase.Store        => _storeBackground,
+            Phase.Forest       => _forestBackground,
+            Phase.ForestStream => _forestStreamBackground,
+            Phase.Tent         => _tentBackground,
+            _                  => _forestBackground
         };
+    }
+
+    /// <summary>
+    /// Move between deep forest and the stream without resetting day, stats, or inventory.
+    /// </summary>
+    private void EnterForestArea(Phase area)
+    {
+        if (area is not (Phase.Forest or Phase.ForestStream))
+            return;
+
+        _phase = area;
+        _selectedIndex = 0;
+        _actionMessage = "";
+        _actionMessageTimer = 0;
+
+        switch (area)
+        {
+            case Phase.Forest:
+                _location = "Deep Forest";
+                _status = "Fugitive - Deep Forest";
+                _temperatureF = 19;
+                _backgroundTexture = _forestBackground;
+                break;
+            case Phase.ForestStream:
+                _location = "Forest Stream";
+                _status = "Fugitive - Forest Stream";
+                _temperatureF = 17;
+                _backgroundTexture = _forestStreamBackground;
+                break;
+        }
+
+        ClearEnvDeltas();
+        RefreshOutdoorComfortEnvironment();
+        RefreshOutdoorActionChoices();
     }
 
     /// <summary>
@@ -525,7 +571,7 @@ public sealed class Game : IGame
         }
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
-        if (_phase == Phase.Outside || _phase == Phase.Forest)
+        if (_phase == Phase.Outside || IsForestSurvivalPhase(_phase))
         {
             if (IsNightTimeSlot())
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
@@ -757,8 +803,11 @@ public sealed class Game : IGame
         Raylib.DrawTexturePro(tex, src, dest, Vector2.Zero, 0f, tint);
     }
 
+    private static bool IsForestSurvivalPhase(Phase phase) =>
+        phase is Phase.Forest or Phase.ForestStream;
+
     private bool IsOutdoorPhase() =>
-        _phase is Phase.Outside or Phase.Forest;
+        _phase is Phase.Outside or Phase.Forest or Phase.ForestStream;
 
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
@@ -829,8 +878,9 @@ public sealed class Game : IGame
         _uiFont = LoadUiFont();
         _apartmentBackground = LoadEmbeddedTexture("apartment-inside.png");
         _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
-        _forestBackground    = LoadEmbeddedTexture("trees.png");
-        _storeBackground     = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        _forestBackground       = LoadEmbeddedTexture("trees.png");
+        _forestStreamBackground = LoadEmbeddedTexture("forest-stream.png");
+        _storeBackground        = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _tentBackground      = LoadEmbeddedTexture("tent-interior.png");
         _regionMapTexture    = LoadEmbeddedTexture("region-map.png");
         _trashBagTentTexture = LoadEmbeddedTexture("trash-bag-tent.png");
@@ -850,6 +900,8 @@ public sealed class Game : IGame
             Raylib.UnloadTexture(_outsideBackground);
         if (_forestBackground.Id != 0)
             Raylib.UnloadTexture(_forestBackground);
+        if (_forestStreamBackground.Id != 0)
+            Raylib.UnloadTexture(_forestStreamBackground);
         if (_storeBackground.Id != 0)
             Raylib.UnloadTexture(_storeBackground);
         if (_tentBackground.Id != 0)
@@ -1504,6 +1556,10 @@ public sealed class Game : IGame
                 HandleForestChoice(index);
                 break;
 
+            case Phase.ForestStream:
+                HandleForestStreamChoice(index);
+                break;
+
             case Phase.Outside:
                 HandleOutsideChoice(index);
                 break;
@@ -1557,6 +1613,51 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceFollowStream:
+                _actionMessage = "You pick your way downhill toward the sound of running water.";
+                _actionMessageTimer = 2.5f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterForestArea(Phase.ForestStream);
+                break;
+
+            case "GO BACK TO TOWN":
+                ApplyTravelEnergyCost();
+                AdvanceTime();
+                EnterPhase(Phase.Outside);
+                break;
+
+            case ChoiceEnterTent:
+                EnterTent();
+                break;
+
+            case ChoiceHunt:
+                PerformHunt();
+                break;
+
+            case "WAIT":
+                PerformIdle();
+                break;
+        }
+    }
+
+    private void HandleForestStreamChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceBackToDeepForest:
+                _actionMessage = "You climb back up through the pines toward your camp.";
+                _actionMessageTimer = 2.5f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterForestArea(Phase.Forest);
+                break;
+
             case "GO BACK TO TOWN":
                 ApplyTravelEnergyCost();
                 AdvanceTime();
@@ -1705,6 +1806,9 @@ public sealed class Game : IGame
                 break;
             case Phase.Forest:
                 _actionMessage = "You stay low and motionless. The forest is quiet.";
+                break;
+            case Phase.ForestStream:
+                _actionMessage = "You crouch by the icy water. The stream mutters over the stones.";
                 break;
             case Phase.Tent:
                 _actionMessage = "You sit still in the cramped shelter, listening to the wind on the plastic.";
@@ -1906,7 +2010,7 @@ public sealed class Game : IGame
     }
 
     private static bool IsOutdoorsPhase(Phase phase) =>
-        phase is Phase.Outside or Phase.Forest;
+        phase is Phase.Outside or Phase.Forest or Phase.ForestStream;
 
     private void RefreshOutdoorActionChoices()
     {
@@ -1934,8 +2038,14 @@ public sealed class Game : IGame
         else if (_phase == Phase.Forest)
         {
             _choices = _hasTrashBagTent
-                ? new[] { ChoiceHunt, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceHunt, "GO BACK TO TOWN", "WAIT" };
+                ? new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", "WAIT" };
+        }
+        else if (_phase == Phase.ForestStream)
+        {
+            _choices = _hasTrashBagTent
+                ? new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", "WAIT" };
         }
         else
         {
@@ -1948,7 +2058,7 @@ public sealed class Game : IGame
 
     private void PerformHunt()
     {
-        if (_phase != Phase.Forest)
+        if (!IsForestSurvivalPhase(_phase))
             return;
 
         ApplyEnvironmentOnAction();
@@ -3185,6 +3295,7 @@ public sealed class Game : IGame
             case Phase.Outside:
             case Phase.Store:
             case Phase.Forest:
+            case Phase.ForestStream:
             case Phase.Tent:
                 DrawTopBar();
                 DrawLeftSidebar();
@@ -4131,7 +4242,7 @@ public sealed class Game : IGame
         Raylib.DrawCircle(px, py, markerRadius, Palette.ActionFlash);
         Raylib.DrawCircleLines(px, py, (int)(markerRadius + 1.5f), Palette.TextPrimary);
 
-        string markerLabel = _phase == Phase.Forest ? "You" : "Ulan-Ude";
+        string markerLabel = IsForestSurvivalPhase(_phase) ? "You" : "Ulan-Ude";
         int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelFontSize, 0.35f).X;
         Raylib.DrawTextEx(font, markerLabel,
             new Vector2(player.X - labelW / 2f, player.Y + markerRadius + 4),
@@ -4139,9 +4250,12 @@ public sealed class Game : IGame
     }
 
     private (double lon, double lat) GetMapPlayerGeoPosition() =>
-        _phase == Phase.Forest
-            ? (ForestCampLon, ForestCampLat)
-            : (UlanUdeLon, UlanUdeLat);
+        _phase switch
+        {
+            Phase.Forest       => (ForestCampLon, ForestCampLat),
+            Phase.ForestStream => (ForestStreamLon, ForestStreamLat),
+            _                  => (UlanUdeLon, UlanUdeLat)
+        };
 
     private Vector2 GeoToMapPixel(
         Rectangle mapRect,
@@ -4166,9 +4280,10 @@ public sealed class Game : IGame
             Phase.Opening => OpeningNarrative,
             Phase.Outside => OutsideNarrative,
             Phase.Store   => StoreNarrative,
-            Phase.Forest  => ForestNarrative,
-            Phase.Tent    => TentNarrative,
-            _             => ForestNarrative
+            Phase.Forest       => ForestNarrative,
+            Phase.ForestStream => ForestStreamNarrative,
+            Phase.Tent         => TentNarrative,
+            _                  => ForestNarrative
         };
     }
 

@@ -12,5 +12,9 @@
   "forestCamp": {
     "lon": 107.35,
     "lat": 51.95
+  },
+  "forestStream": {
+    "lon": 107.32,
+    "lat": 51.97
   }
 }
