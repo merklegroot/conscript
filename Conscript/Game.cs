@@ -92,8 +92,7 @@ public sealed class Game : IGame
         [ItemEmptyBottle]          = "items.empty-bottle.png",
         ["Loaf of Bread"]          = "items.loaf-of-bread.png",
         [ItemCannedSoup]           = "items.canned-soup.png",
-        // Reuse the empty-bottle icon until we add a dedicated can asset.
-        [ItemEmptyCan]             = "items.empty-bottle.png",
+        [ItemEmptyCan]             = "items.empty-can.png",
         [ItemTrashBags]            = "items.trash-bags.png",
         [ItemDuctTape]             = "items.duct-tape.png",
         [ItemRaccoon]              = "items.raccoon.png",
