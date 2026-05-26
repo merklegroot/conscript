@@ -79,6 +79,7 @@ public sealed class Game : IGame
     private const string ChoiceBackToDeepForest = "BACK TO DEEP FOREST";
 
     private const int EnergyCostHunt = 6; // in addition to time passing drain
+    private const int EnergyCostFillBottle = 2;
 
     // Resting: sleeping should be a meaningful time-skip with a strong energy restore.
     private const int TentSleepTimeSteps = 3;      // ~9 hours (8 slots/day ≈ 3 hours each)
@@ -260,6 +261,8 @@ public sealed class Game : IGame
     private bool _dialogCloseHovered;
     private Rectangle _dialogActionRect;
     private bool _dialogActionHovered;
+    private Rectangle _dialogSecondaryActionRect;
+    private bool _dialogSecondaryActionHovered;
     private Rectangle _dialogPanelRect;
 
     // Convenience store buy menu (modal)
@@ -450,6 +453,19 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 19;   // colder the deeper you go
                 // _money carries over from the Opening phase (starts at 10,000 ₽)
+                RefreshOutdoorActionChoices();
+                break;
+
+            case Phase.ForestStream:
+                ClearEnvDeltas();
+                RefreshOutdoorComfortEnvironment();
+                _day = 3;
+                _timeOfDay = "Morning";
+                _location = "Forest Stream";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "Fugitive - Forest Stream";
+                _season = "Early Autumn";
+                _temperatureF = 17;
                 RefreshOutdoorActionChoices();
                 break;
 
@@ -728,11 +744,14 @@ public sealed class Game : IGame
         int remaining = slotIndex >= 0
             ? GetBackpackSlotCharges(slotIndex, ItemBottledWater)
             : BottledWaterMaxSips;
-        return remaining >= BottledWaterMaxSips
+        string baseText = remaining >= BottledWaterMaxSips
             ? $"A full bottle — {BottledWaterMaxSips} sips. Each sip restores hydration."
             : remaining == 1
                 ? "One sip left. Drink it before the bottle is empty."
                 : $"{remaining} sips left. Each sip restores some hydration.";
+        if (_phase == Phase.ForestStream && remaining < BottledWaterMaxSips)
+            baseText += " You can top it off at the stream.";
+        return baseText;
     }
 
     private string GetCannedSoupDialogText(int slotIndex)
@@ -1262,13 +1281,22 @@ public sealed class Game : IGame
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
-            bool canAct = CanPerformDialogItemAction(_dialogItemName, _dialogItemIndex);
-            _dialogActionHovered = canAct && Raylib.CheckCollisionPointRec(mouse, _dialogActionRect);
+            bool canDrink = CanDrinkFromDialogSlot(_dialogItemIndex);
+            bool canFill = CanFillBottleAtStream(_dialogItemIndex);
+            _dialogActionHovered = Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
+                (canDrink || (canFill && !canDrink));
+            _dialogSecondaryActionHovered = canDrink && canFill &&
+                Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
             _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
 
             if (leftClicked && _dialogActionHovered)
             {
-                TryPerformDialogItemAction();
+                TryPerformDialogItemAction(canDrink ? DialogItemAction.DrinkWater : DialogItemAction.FillBottle);
+                return;
+            }
+            if (leftClicked && _dialogSecondaryActionHovered)
+            {
+                TryPerformDialogItemAction(DialogItemAction.FillBottle);
                 return;
             }
             if (leftClicked && _dialogCloseHovered)
@@ -1491,6 +1519,7 @@ public sealed class Game : IGame
         {
             if (Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect) ||
                 Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) ||
+                Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect) ||
                 !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
             {
                 overClickable = true;
@@ -1855,7 +1884,7 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot: deep forest with trash bags and duct tape.
+    /// Jump to a reproducible debug snapshot: forest stream with trash bags, duct tape, and an empty bottle.
     /// Resets stats, money, and backpack for outdoor survival / tent-building testing.
     /// </summary>
     private void DebugStartGame()
@@ -1880,12 +1909,12 @@ public sealed class Game : IGame
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", ItemBottledWater, null, null };
+        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", ItemEmptyBottle, null, null };
         _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
 
-        EnterPhase(Phase.Forest);
+        EnterPhase(Phase.ForestStream);
     }
 
     private void OpenItemDialog(int slotIndex)
@@ -1899,6 +1928,7 @@ public sealed class Game : IGame
         _showItemDialog = true;
         _dialogCloseHovered = false;
         _dialogActionHovered = false;
+        _dialogSecondaryActionHovered = false;
     }
 
     private void CloseItemDialog()
@@ -1906,7 +1936,9 @@ public sealed class Game : IGame
         _showItemDialog = false;
         _dialogItemIndex = -1;
         _dialogItemName = "";
+        _dialogCloseHovered = false;
         _dialogActionHovered = false;
+        _dialogSecondaryActionHovered = false;
     }
 
     private void OpenBuildDialog()
@@ -2054,6 +2086,52 @@ public sealed class Game : IGame
 
         if (_selectedIndex >= _choices.Length)
             _selectedIndex = Math.Max(0, _choices.Length - 1);
+    }
+
+    private bool CanDrinkFromDialogSlot(int slotIndex) =>
+        slotIndex >= 0 &&
+        slotIndex < _backpack.Length &&
+        string.Equals(_backpack[slotIndex], ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
+        GetBackpackSlotCharges(slotIndex, ItemBottledWater) > 0;
+
+    private bool CanFillBottleAtStream(int slotIndex)
+    {
+        if (_phase != Phase.ForestStream || slotIndex < 0 || slotIndex >= _backpack.Length)
+            return false;
+
+        string? item = _backpack[slotIndex];
+        if (string.Equals(item, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return string.Equals(item, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
+               GetBackpackSlotCharges(slotIndex, ItemBottledWater) < BottledWaterMaxSips;
+    }
+
+    private void PerformFillBottleFromStream()
+    {
+        if (!CanFillBottleAtStream(_dialogItemIndex))
+        {
+            _actionMessage = "You need a bottle that is not already full, and you must be at the stream.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        int slot = _dialogItemIndex;
+        bool wasEmpty = string.Equals(_backpack[slot], ItemEmptyBottle, StringComparison.OrdinalIgnoreCase);
+
+        ClearActionDeltas();
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostFillBottle);
+
+        _backpack[slot] = ItemBottledWater;
+        _backpackItemCharges[slot] = BottledWaterMaxSips;
+
+        _actionMessage = wasEmpty
+            ? "You kneel in the icy water and fill the bottle. It is painfully cold, but drinkable."
+            : "You kneel in the stream and top off the bottle until it is full.";
+        _actionMessageTimer = ActionMessageDuration;
+        CloseItemDialog();
     }
 
     private void PerformHunt()
@@ -2263,7 +2341,8 @@ public sealed class Game : IGame
     {
         None,
         DrinkWater,
-        EatSoup
+        EatSoup,
+        FillBottle
     }
 
     private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
@@ -2276,31 +2355,38 @@ public sealed class Game : IGame
             GetBackpackSlotCharges(slotIndex, ItemCannedSoup) > 0)
             return DialogItemAction.EatSoup;
 
+        if (string.Equals(itemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) &&
+            _phase == Phase.ForestStream)
+            return DialogItemAction.FillBottle;
+
         return DialogItemAction.None;
     }
 
     private bool CanPerformDialogItemAction(string itemName, int slotIndex) =>
-        GetDialogItemAction(itemName, slotIndex) != DialogItemAction.None;
+        CanDrinkFromDialogSlot(slotIndex) || CanFillBottleAtStream(slotIndex);
 
     private static string GetDialogItemActionLabel(DialogItemAction action) =>
         action switch
         {
             DialogItemAction.DrinkWater => "DRINK",
             DialogItemAction.EatSoup => "EAT",
+            DialogItemAction.FillBottle => "FILL",
             _ => ""
         };
 
-    private void TryPerformDialogItemAction()
+    private void TryPerformDialogItemAction(DialogItemAction action)
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
-        string itemName = _backpack[_dialogItemIndex] ?? "";
-        switch (GetDialogItemAction(itemName, _dialogItemIndex))
+        switch (action)
         {
             case DialogItemAction.DrinkWater:
                 TryDrinkBottledWater();
                 return;
             case DialogItemAction.EatSoup:
                 TryEatCannedSoup();
+                return;
+            case DialogItemAction.FillBottle:
+                PerformFillBottleFromStream();
                 return;
             default:
                 return;
@@ -2310,10 +2396,9 @@ public sealed class Game : IGame
     private void TryDrinkBottledWater()
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
-        string itemName = _backpack[_dialogItemIndex] ?? "";
-        if (GetDialogItemAction(itemName, _dialogItemIndex) != DialogItemAction.DrinkWater) return;
+        if (!CanDrinkFromDialogSlot(_dialogItemIndex)) return;
 
-        int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
+        int remaining = GetBackpackSlotCharges(_dialogItemIndex, ItemBottledWater) - 1;
         ClearActionDeltas();
         ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, BottledWaterHydrationPerSip);
 
@@ -2824,8 +2909,10 @@ public sealed class Game : IGame
         // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
-        DialogItemAction action = GetDialogItemAction(_dialogItemName, _dialogItemIndex);
-        bool canAct = action != DialogItemAction.None;
+        DialogItemAction eatAction = GetDialogItemAction(_dialogItemName, _dialogItemIndex);
+        bool canDrink = CanDrinkFromDialogSlot(_dialogItemIndex);
+        bool canFill = CanFillBottleAtStream(_dialogItemIndex);
+        bool canAct = canDrink || canFill || eatAction == DialogItemAction.EatSoup;
 
         // Centered dialog panel
         int panelW = 380;
@@ -2860,10 +2947,12 @@ public sealed class Game : IGame
         // Subtle separator
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
-        string body = action switch
+        string body = eatAction switch
         {
-            DialogItemAction.DrinkWater => GetBottledWaterDialogText(_dialogItemIndex),
             DialogItemAction.EatSoup => GetCannedSoupDialogText(_dialogItemIndex),
+            _ when canDrink => GetBottledWaterDialogText(_dialogItemIndex),
+            _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
+                "An empty plastic bottle. The stream is right here — you could fill it.",
             _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
@@ -2876,24 +2965,45 @@ public sealed class Game : IGame
             new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
             bodySize, 0.6f, Palette.TextSecondary);
 
-        int btnW = canAct ? 108 : 120;
         int btnH = 36;
         int btnY = panelY + panelH - 52;
+        int gap = 10;
 
-        if (canAct)
+        if (canDrink && canFill)
         {
-            int gap = 14;
+            int btnW = 88;
+            int totalW = btnW * 3 + gap * 2;
+            int startX = panelX + (panelW - totalW) / 2;
+            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogSecondaryActionRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
+
+            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
+            DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
+            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+        }
+        else if (canAct)
+        {
+            int btnW = 108;
             int totalW = btnW * 2 + gap;
             int startX = panelX + (panelW - totalW) / 2;
             _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
             _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
 
-            DrawDialogButton(_dialogActionRect, GetDialogItemActionLabel(action), _dialogActionHovered, font);
+            string actionLabel = canDrink
+                ? "DRINK"
+                : canFill
+                    ? "FILL"
+                    : GetDialogItemActionLabel(eatAction);
+            DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
             DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
         {
             _dialogActionRect = new Rectangle(0, 0, 0, 0);
+            _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
+            int btnW = 120;
             int btnX = panelX + (panelW - btnW) / 2;
             _dialogCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
             DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
