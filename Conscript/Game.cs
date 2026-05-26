@@ -228,8 +228,9 @@ public sealed class Game : IGame
     private int _energy = 70;    // how rested you are (higher = better; low energy will eventually force sleep)
     private int _satiation = 63;   // how fed you are (higher = better)
     private int _hydration = 72;   // how hydrated you are (higher = better)
-    private string _status = "Fugitive - Deep Forest";
+    private string _status = "Fugitive";
     private int _comfort = 62;   // protection from the elements (higher = better)
+    private int _concealment = 35;   // how hard you are to find (higher = better); location-driven for now
 
     // Environment-driven stat changes (persistent while in that location)
     private int _envHealthDelta;
@@ -453,7 +454,7 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _location = "Deep Forest";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "Fugitive - Deep Forest";
+                _status = "Fugitive";
                 _season = "Early Autumn";
                 _temperatureF = 19;   // colder the deeper you go
                 // _money carries over from the Opening phase (starts at 10,000 ₽)
@@ -467,7 +468,7 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _location = "Forest Stream";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "Fugitive - Forest Stream";
+                _status = "Fugitive";
                 _season = "Early Autumn";
                 _temperatureF = 17;
                 RefreshOutdoorActionChoices();
@@ -525,6 +526,8 @@ public sealed class Game : IGame
             Phase.Tent         => _tentBackground,
             _                  => _forestBackground
         };
+
+        RefreshConcealment();
     }
 
     /// <summary>
@@ -544,13 +547,11 @@ public sealed class Game : IGame
         {
             case Phase.Forest:
                 _location = "Deep Forest";
-                _status = "Fugitive - Deep Forest";
                 _temperatureF = 19;
                 _backgroundTexture = _forestBackground;
                 break;
             case Phase.ForestStream:
                 _location = "Forest Stream";
-                _status = "Fugitive - Forest Stream";
                 _temperatureF = 17;
                 _backgroundTexture = _forestStreamBackground;
                 break;
@@ -558,6 +559,7 @@ public sealed class Game : IGame
 
         ClearEnvDeltas();
         RefreshOutdoorComfortEnvironment();
+        RefreshConcealment();
         RefreshOutdoorActionChoices();
     }
 
@@ -3136,7 +3138,7 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
         int panelW = 500;
-        int panelH = 560;
+        int panelH = 600;
         int panelX = (_screenWidth - panelW) / 2;
         int panelY = (_screenHeight - panelH) / 2 - 12;
 
@@ -3176,6 +3178,9 @@ public sealed class Game : IGame
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Comfort", Palette.Comfort,
             "Protection from cold and exposure. Outdoors and low temperatures wear it down; heated places and a trash-bag tent help.");
+        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
+            "Concealment", Palette.Concealment,
+            "How unlikely you are to be spotted or caught. For now this follows where you are — forest and your tent hide you best; open yards and shops expose you.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Money", Palette.Money,
             "Rubles in hand. Spend them at the convenience store kiosk.");
@@ -3852,6 +3857,7 @@ public sealed class Game : IGame
         DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, _envSatiationDelta, _actionSatiationDelta, Palette.Satiation);
         DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, _envHydrationDelta, _actionHydrationDelta, Palette.Hydration);
         DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, _envComfortDelta, _actionComfortDelta, Palette.Comfort);
+        DrawCleanStatLine(ref cy, tx, "Concealment", _concealment, 0, 0, Palette.Concealment);
 
         cy += 6;
 
@@ -5042,6 +5048,22 @@ public sealed class Game : IGame
         if (!IsOutdoorsPhase(_phase)) return;
         SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
     }
+
+    /// <summary>Location-based hide rating (0–100). More factors will modify this later.</summary>
+    private static int ConcealmentForPhase(Phase phase) => phase switch
+    {
+        Phase.Opening => 35,        // indoors at home — some cover, not yet in the wild
+        Phase.Outside => 12,        // exposed courtyard
+        Phase.Store => 8,           // bright public kiosk
+        Phase.Forest => 78,         // deep woods
+        Phase.ForestStream => 68,   // forest edge at open water
+        Phase.Tent => 92,           // cramped trash-bag shelter
+        Phase.Death => 0,
+        _ => 50
+    };
+
+    private void RefreshConcealment() =>
+        _concealment = ConcealmentForPhase(_phase);
 
     private static int StatArrowCount(int delta)
     {

@@ -32,6 +32,7 @@ public static class Palette
     public static readonly Color Satiation = new Color(168, 105, 68, 255);     // dull clay / warmth (higher = better)
     public static readonly Color Hydration = new Color(72, 118, 138, 255);       // cold desaturated blue
     public static readonly Color Comfort = new Color(138, 122, 88, 255);         // warm sheltered ochre (higher = better)
+    public static readonly Color Concealment = new Color(82, 98, 112, 255);    // shadowy blue-gray (higher = harder to spot)
     public static readonly Color Money = new Color(138, 125, 78, 255);         // tarnished gold
 
     // === UI State ===
