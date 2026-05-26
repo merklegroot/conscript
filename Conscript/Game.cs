@@ -4796,10 +4796,10 @@ public sealed class Game : IGame
         artH = h - GameConstants.ScenePadding * 2;
     }
 
-    // Foreground floor positions (left/center — clear of the right-side narrative card)
+    // Floor scatter (varied x, low y — left/center, clear of the narrative card)
     private static readonly (float x, float y)[] DroppedItemSceneAnchors =
     {
-        (0.22f, 0.62f), (0.36f, 0.65f), (0.50f, 0.60f), (0.28f, 0.68f), (0.42f, 0.63f), (0.56f, 0.66f)
+        (0.22f, 0.78f), (0.36f, 0.82f), (0.50f, 0.76f), (0.28f, 0.85f), (0.42f, 0.79f), (0.56f, 0.83f)
     };
 
     /// <summary>Draw clickable item icons for things left on the ground in this room.</summary>
