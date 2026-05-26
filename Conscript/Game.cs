@@ -265,15 +265,18 @@ public sealed class Game : IGame
     private bool _dialogSecondaryActionHovered;
     private Rectangle _dialogPanelRect;
 
-    // Convenience store buy menu (modal)
+    // Convenience store buy menu (modal) — list left, item detail + buy right
     private bool _showStoreBuyMenu;
-    private int _storeBuySelectedIndex;
+    private int _storeBuyHighlightedIndex;  // list cursor (keyboard, controller, or mouse hover)
+    private int _storeBuyDetailIndex = -1;  // item shown in the right panel (click or keyboard/controller nav)
     private string _storeBuyFeedback = "";
     private float _storeBuyFeedbackTimer;
     private Rectangle[] _storeBuyItemRects = new Rectangle[5];  // populated during DrawStoreBuyMenu
     private Rectangle _storeBuyPanelRect;
     private Rectangle _storeBuyCloseRect;
     private bool _storeBuyCloseHovered;
+    private Rectangle _storeBuyPurchaseRect;
+    private bool _storeBuyPurchaseHovered;
 
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
@@ -950,8 +953,7 @@ public sealed class Game : IGame
             }
             if (_showStoreBuyMenu)
             {
-                _showStoreBuyMenu = false;
-                _storeBuyFeedback = "";
+                CloseStoreBuyMenu();
                 return;
             }
             if (_showRegionMap)
@@ -1020,9 +1022,15 @@ public sealed class Game : IGame
         if (_showStoreBuyMenu)
         {
             if (IsVerticalNavUpPressed())
-                _storeBuySelectedIndex = (_storeBuySelectedIndex - 1 + _storeCatalog.Length) % _storeCatalog.Length;
+            {
+                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + _storeCatalog.Length) % _storeCatalog.Length;
+                _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+            }
             if (IsVerticalNavDownPressed())
-                _storeBuySelectedIndex = (_storeBuySelectedIndex + 1) % _storeCatalog.Length;
+            {
+                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % _storeCatalog.Length;
+                _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+            }
         }
 
         // Horizontal navigation for bottom action buttons
@@ -1058,7 +1066,12 @@ public sealed class Game : IGame
             }
             else if (_showStoreBuyMenu)
             {
-                TryBuyStoreItem(_storeBuySelectedIndex);
+                if (_storeBuyPurchaseHovered && _storeBuyDetailIndex >= 0)
+                    TryBuyStoreItem(_storeBuyDetailIndex);
+                else if (_storeBuyDetailIndex == _storeBuyHighlightedIndex && _storeBuyDetailIndex >= 0)
+                    TryBuyStoreItem(_storeBuyDetailIndex);
+                else
+                    _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
             else
             {
@@ -1328,6 +1341,13 @@ public sealed class Game : IGame
         if (_showStoreBuyMenu)
         {
             _storeBuyCloseHovered = Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect);
+            bool mouseOverBuy = Raylib.CheckCollisionPointRec(mouse, _storeBuyPurchaseRect);
+            _storeBuyPurchaseHovered = mouseOverBuy;
+        }
+        else
+        {
+            _storeBuyCloseHovered = false;
+            _storeBuyPurchaseHovered = false;
         }
 
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
@@ -1411,34 +1431,32 @@ public sealed class Game : IGame
         // === Store buy menu input (when open) ===
         if (_showStoreBuyMenu)
         {
-            // Mouse clicks on item rows
             for (int i = 0; i < _storeCatalog.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
                 {
-                    _storeBuySelectedIndex = i;
-
+                    _storeBuyHighlightedIndex = i;
                     if (leftClicked)
-                    {
-                        TryBuyStoreItem(i);
-                        return;
-                    }
+                        _storeBuyDetailIndex = i;
+                    break;
                 }
             }
 
-            // Close button
-            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect))
+            if (leftClicked && _storeBuyPurchaseHovered && _storeBuyDetailIndex >= 0)
             {
-                _showStoreBuyMenu = false;
-                _storeBuyFeedback = "";
+                TryBuyStoreItem(_storeBuyDetailIndex);
                 return;
             }
 
-            // Click on the overlay (outside the panel) closes the menu
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect))
+            {
+                CloseStoreBuyMenu();
+                return;
+            }
+
             if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect))
             {
-                _showStoreBuyMenu = false;
-                _storeBuyFeedback = "";
+                CloseStoreBuyMenu();
                 return;
             }
         }
@@ -1541,19 +1559,13 @@ public sealed class Game : IGame
             }
         }
 
-        // Store buy menu: rows + close button + overlay
+        // Store buy menu: list rows, buy/close buttons, or overlay
         if (_showStoreBuyMenu)
         {
-            if (Raylib.CheckCollisionPointRec(mouse, _storeBuyCloseRect) ||
-                Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect))
-            {
+            if (_storeBuyCloseHovered || _storeBuyPurchaseHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _storeBuyPanelRect))
                 overClickable = true;
-            }
-            else
-            {
-                // Clicking the overlay closes the menu
-                overClickable = true;
-            }
 
             for (int i = 0; i < _storeBuyItemRects.Length; i++)
             {
@@ -1816,10 +1828,7 @@ public sealed class Game : IGame
         switch (index)
         {
             case 0: // Browse shelves → open the buy menu
-                _showStoreBuyMenu = true;
-                _storeBuySelectedIndex = 0;
-                _storeBuyFeedback = "";
-                _storeBuyFeedbackTimer = 0;
+                OpenStoreBuyMenu();
                 return;   // do not advance time or close the store phase yet
 
             case 1: // Leave the way you came
@@ -1885,7 +1894,7 @@ public sealed class Game : IGame
         _actionMessageTimer = 0f;
         _selectedIndex = 0;
         _showItemDialog = false;
-        _showStoreBuyMenu = false;
+        CloseStoreBuyMenu();
         CloseRegionMap();
         CloseBuildDialog();
         CloseControllerDebug();
@@ -1893,7 +1902,6 @@ public sealed class Game : IGame
         CloseStatsHelp();
         _hasTrashBagTent = false;
         _buildFeedback = "";
-        _storeBuyFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
         EnterPhase(Phase.Opening);
@@ -1906,7 +1914,7 @@ public sealed class Game : IGame
     private void DebugStartGame()
     {
         _showItemDialog = false;
-        _showStoreBuyMenu = false;
+        CloseStoreBuyMenu();
         CloseRegionMap();
         CloseBuildDialog();
         CloseControllerDebug();
@@ -1914,8 +1922,6 @@ public sealed class Game : IGame
         CloseStatsHelp();
         _hasTrashBagTent = false;
         _buildFeedback = "";
-        _storeBuyFeedback = "";
-        _storeBuyFeedbackTimer = 0f;
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
 
@@ -2483,6 +2489,58 @@ public sealed class Game : IGame
             }
         }
         return false; // backpack full
+    }
+
+    private void OpenStoreBuyMenu()
+    {
+        _showStoreBuyMenu = true;
+        _storeBuyHighlightedIndex = 0;
+        _storeBuyDetailIndex = -1;
+        _storeBuyFeedback = "";
+        _storeBuyFeedbackTimer = 0f;
+        _storeBuyCloseHovered = false;
+        _storeBuyPurchaseHovered = false;
+    }
+
+    private void CloseStoreBuyMenu()
+    {
+        _showStoreBuyMenu = false;
+        _storeBuyDetailIndex = -1;
+        _storeBuyFeedback = "";
+        _storeBuyFeedbackTimer = 0f;
+        _storeBuyCloseHovered = false;
+        _storeBuyPurchaseHovered = false;
+    }
+
+    private bool CanBuyStoreItem(int index)
+    {
+        if (index < 0 || index >= _storeCatalog.Length)
+            return false;
+
+        var (_, price, _, _, _) = _storeCatalog[index];
+        return _money >= price && _backpack.Any(s => string.IsNullOrEmpty(s));
+    }
+
+    private static string GetStoreItemFlavorText(string name) => name switch
+    {
+        ItemBottledWater => "A plastic bottle of still water from the cooler.",
+        "Loaf of Bread" => "A dense loaf, still soft enough to tear by hand.",
+        "Canned Soup" => "Tinned soup — heat is optional when you are desperate.",
+        ItemTrashBags => "Heavy-duty plastic bags. Useful for improvised shelter.",
+        "Duct Tape" => "Strong adhesive tape. Pairs with trash bags for a crude tent.",
+        _ => "Standard kiosk stock."
+    };
+
+    private static string FormatStoreItemEffects(int satiation, int hydration, int health)
+    {
+        var parts = new List<string>();
+        if (satiation > 0)
+            parts.Add($"Food +{satiation}");
+        if (hydration > 0)
+            parts.Add($"Hydration +{hydration}");
+        if (health > 0)
+            parts.Add($"Health +{health}");
+        return parts.Count > 0 ? string.Join("  ·  ", parts) : "No immediate stat effect.";
     }
 
     private void TryBuyStoreItem(int index)
@@ -3308,12 +3366,10 @@ public sealed class Game : IGame
         int screenW = _screenWidth;
         int screenH = _screenHeight;
 
-        // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 160));
 
-        // Larger panel for the list
-        int panelW = 460;
-        int panelH = 340;
+        int panelW = 720;
+        int panelH = 360;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 10;
 
@@ -3324,96 +3380,166 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
-        // Title
         string title = "SHELVES";
         int titleSize = 28;
-        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
         Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
+            new Vector2(panelX + 24, panelY + 18),
             titleSize, 0.8f, Palette.TextPrimary);
 
-        // Current money
         string moneyStr = $"{_money:N0} ₽";
         int moneyW = (int)Raylib.MeasureTextEx(font, moneyStr, 20, 0.6f).X;
         Raylib.DrawTextEx(font, moneyStr,
-            new Vector2(panelX + panelW - 30 - moneyW, panelY + 20),
+            new Vector2(panelX + panelW - 24 - moneyW, panelY + 20),
             20, 0.6f, Palette.TextSecondary);
 
-        // Separator
-        Raylib.DrawLine(panelX + 30, panelY + 48, panelX + panelW - 30, panelY + 48, Palette.SubtleBorder);
+        int headerBottom = panelY + 50;
+        Raylib.DrawLine(panelX + 20, headerBottom, panelX + panelW - 20, headerBottom, Palette.SubtleBorder);
 
-        // Item list
-        int rowStartY = panelY + 60;
+        int listX = panelX + 16;
+        int listW = 268;
+        int contentTop = headerBottom + 10;
+        int panelBottom = panelY + panelH - 12;
+        int closeH = 32;
+        int closeW = 100;
+        int closeY = panelBottom - closeH;
+        int closeX = listX + (listW - closeW) / 2;
+        int listBottom = closeY - 10;
+        int dividerX = listX + listW + 8;
+        int detailX = dividerX + 9;
+        int detailW = panelX + panelW - 20 - detailX;
+
+        Raylib.DrawLine(dividerX, contentTop, dividerX, panelBottom, Palette.SubtleBorder);
+        Raylib.DrawLine(listX, closeY - 6, listX + listW, closeY - 6, Palette.SubtleBorder);
+
         int rowHeight = 44;
-        const int iconSize = 32;
+        const int iconSize = 28;
 
         for (int i = 0; i < _storeCatalog.Length; i++)
         {
             var (name, price, _, _, _) = _storeCatalog[i];
 
-            int rowY = rowStartY + i * rowHeight;
-
+            int rowY = contentTop + i * rowHeight;
             bool canAfford = _money >= price;
             bool hasSpace = _backpack.Any(s => string.IsNullOrEmpty(s));
-
             bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _storeBuyItemRects[i]);
-            bool rowSelected = i == _storeBuySelectedIndex;
+            bool rowHighlighted = i == _storeBuyHighlightedIndex;
+            bool rowConfirmed = _storeBuyDetailIndex >= 0 && i == _storeBuyDetailIndex;
 
-            // Row background
-            if (rowHovered || rowSelected)
-                Raylib.DrawRectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4, new Color(48, 46, 40, 180));
+            _storeBuyItemRects[i] = new Rectangle(listX, rowY, listW, rowHeight - 4);
 
-            // Store the rect for input
-            _storeBuyItemRects[i] = new Rectangle(panelX + 20, rowY, panelW - 40, rowHeight - 4);
+            if (rowConfirmed)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(62, 58, 48, 200));
+            else if (rowHovered || rowHighlighted)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
 
             Color tint = (canAfford && hasSpace) ? Color.WHITE : new Color(120, 118, 112, 255);
-            int iconX = panelX + 28;
             int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
-            Raylib.DrawRectangle(iconX - 1, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
-            DrawItemIcon(name, new Rectangle(iconX, iconY, iconSize, iconSize), tint);
+            Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
+            DrawItemIcon(name, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
 
-            // Item name
             Color nameColor = (canAfford && hasSpace) ? Palette.TextPrimary : Palette.TextMuted;
-            Raylib.DrawTextEx(font, name, new Vector2(panelX + 68, rowY + 11), 21, 0.6f, nameColor);
+            Raylib.DrawTextEx(font, name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
 
-            // Price (right aligned)
             string priceStr = $"{price} ₽";
-            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 20, 0.6f).X;
+            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 17, 0.6f).X;
             Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
             Raylib.DrawTextEx(font, priceStr,
-                new Vector2(panelX + panelW - 32 - pW, rowY + 12), 20, 0.6f, priceColor);
+                new Vector2(listX + listW - 10 - pW, rowY + 8), 17, 0.6f, priceColor);
         }
 
-        // Feedback line at bottom of list area
+        DrawStoreBuyDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
+
         if (_storeBuyFeedbackTimer > 0f && !string.IsNullOrEmpty(_storeBuyFeedback))
         {
-            int fbW = (int)Raylib.MeasureTextEx(font, _storeBuyFeedback, 19, 0.5f).X;
+            int fbW = (int)Raylib.MeasureTextEx(font, _storeBuyFeedback, 17, 0.5f).X;
             Raylib.DrawTextEx(font, _storeBuyFeedback,
-                new Vector2(panelX + (panelW - fbW) / 2, panelY + panelH - 68),
-                19, 0.5f, Palette.TextSecondary);
+                new Vector2(detailX + (detailW - fbW) / 2, panelBottom - 48),
+                17, 0.5f, Palette.TextSecondary);
         }
 
-        // Close button
-        int btnW = 100;
-        int btnH = 32;
-        int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - 44;
+        _storeBuyCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
+        DrawDialogButton(_storeBuyCloseRect, "CLOSE", _storeBuyCloseHovered, font);
+    }
 
-        _storeBuyCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
+    private void DrawStoreBuyDetailPanel(Font font, int x, int y, int w, int h)
+    {
+        if (_storeBuyDetailIndex < 0)
+        {
+            string hint = "Select an item";
+            int hintSize = 20;
+            int hintW = (int)Raylib.MeasureTextEx(font, hint, hintSize, 0.6f).X;
+            Raylib.DrawTextEx(font, hint,
+                new Vector2(x + (w - hintW) / 2, y + h / 2 - 12),
+                hintSize, 0.6f, Palette.TextMuted);
+            _storeBuyPurchaseRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
 
-        Color btnBg = _storeBuyCloseHovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
-        Color btnBorder = _storeBuyCloseHovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
+        var (name, price, satiation, hydration, health) = _storeCatalog[_storeBuyDetailIndex];
+        bool canBuy = CanBuyStoreItem(_storeBuyDetailIndex);
 
-        Raylib.DrawRectangleRec(_storeBuyCloseRect, btnBg);
-        Raylib.DrawRectangleLinesEx(_storeBuyCloseRect, 1.5f, btnBorder);
-        Raylib.DrawRectangle(btnX + 2, btnY + 2, btnW - 4, 2, Palette.ButtonTopAccent);
+        const int iconSize = 64;
+        int iconX = x + (w - iconSize) / 2;
+        int iconY = y + 4;
+        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        DrawItemIcon(name, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
 
-        string closeText = "CLOSE";
-        int closeSize = 20;
-        int closeW = (int)Raylib.MeasureTextEx(font, closeText, closeSize, 0.7f).X;
-        Raylib.DrawTextEx(font, closeText,
-            new Vector2(btnX + (btnW - closeW) / 2, btnY + 7),
-            closeSize, 0.7f, Palette.TextPrimary);
+        string title = name.ToUpperInvariant();
+        int titleSize = 22;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.75f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
+            titleSize, 0.75f, Palette.TextPrimary);
+
+        string priceStr = $"{price} ₽";
+        int priceW = (int)Raylib.MeasureTextEx(font, priceStr, 20, 0.6f).X;
+        Color priceColor = _money >= price ? new Color(185, 160, 90, 255) : Palette.TextMuted;
+        Raylib.DrawTextEx(font, priceStr,
+            new Vector2(x + (w - priceW) / 2, iconY + iconSize + 36),
+            20, 0.6f, priceColor);
+
+        int textY = iconY + iconSize + 62;
+        string flavor = GetStoreItemFlavorText(name);
+        int flavorSize = 16;
+        float flavorSpacing = 0.55f;
+        int flavorLineHeight = 22;
+        var (flavorLines, _) = WrapTextForBox(flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
+        foreach (string line in flavorLines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(x + 4, textY), flavorSize, flavorSpacing, Palette.TextSecondary);
+            textY += flavorLineHeight;
+        }
+
+        textY += 4;
+        string effects = FormatStoreItemEffects(satiation, hydration, health);
+        Raylib.DrawTextEx(font, effects, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
+        textY += 22;
+
+        if (!canBuy)
+        {
+            string blockReason = _money < price ? "Not enough money." : "Backpack is full.";
+            Raylib.DrawTextEx(font, blockReason, new Vector2(x + 4, textY), 15, 0.5f, new Color(200, 130, 110, 255));
+        }
+
+        int btnW = 108;
+        int btnH = 34;
+        int btnX = x + (w - btnW) / 2;
+        int btnY = y + h - btnH;
+        _storeBuyPurchaseRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        if (canBuy)
+            DrawDialogButton(_storeBuyPurchaseRect, "BUY", _storeBuyPurchaseHovered, font);
+        else
+        {
+            Raylib.DrawRectangleRec(_storeBuyPurchaseRect, new Color(24, 26, 30, 255));
+            Raylib.DrawRectangleLinesEx(_storeBuyPurchaseRect, 1f, Palette.SubtleBorder);
+            int labelSize = 18;
+            int labelW = (int)Raylib.MeasureTextEx(font, "BUY", labelSize, 0.55f).X;
+            Raylib.DrawTextEx(font, "BUY",
+                new Vector2(btnX + (btnW - labelW) / 2f, btnY + 8),
+                labelSize, 0.55f, Palette.TextMuted);
+        }
     }
 
     private void Draw()
