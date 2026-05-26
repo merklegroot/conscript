@@ -55,6 +55,12 @@ public sealed class Game : IGame
     private const string ItemEmptyBottle = "Empty Bottle of Water";
     private const int BottledWaterMaxSips = 4;
     private const int BottledWaterHydrationPerSip = 25;
+    private const string ItemCannedSoup = "Canned Soup";
+    private const string ItemEmptyCan = "Empty Can";
+    private const int CannedSoupMaxServings = 3;
+    private const int CannedSoupSatiationPerServing = 12;
+    private const int CannedSoupHydrationPerServing = 3;
+    private const int CannedSoupHealthPerServing = 2;
     private const string ItemTrashBags = "Trash Bags";
     private const string ItemDuctTape = "Duct Tape";
     private const string ItemRaccoon = "Raccoon";
@@ -85,7 +91,9 @@ public sealed class Game : IGame
         [ItemBottledWater]         = "items.bottled-water.png",
         [ItemEmptyBottle]          = "items.empty-bottle.png",
         ["Loaf of Bread"]          = "items.loaf-of-bread.png",
-        ["Canned Soup"]            = "items.canned-soup.png",
+        [ItemCannedSoup]           = "items.canned-soup.png",
+        // Reuse the empty-bottle icon until we add a dedicated can asset.
+        [ItemEmptyCan]             = "items.empty-bottle.png",
         [ItemTrashBags]            = "items.trash-bags.png",
         [ItemDuctTape]             = "items.duct-tape.png",
         [ItemRaccoon]              = "items.raccoon.png",
@@ -654,6 +662,8 @@ public sealed class Game : IGame
     {
         if (string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase))
             return BottledWaterMaxSips;
+        if (string.Equals(itemName, ItemCannedSoup, StringComparison.OrdinalIgnoreCase))
+            return CannedSoupMaxServings;
         if (string.Equals(itemName, ItemTrashBags, StringComparison.OrdinalIgnoreCase))
             return TrashBagsMaxUses;
         if (string.Equals(itemName, ItemDuctTape, StringComparison.OrdinalIgnoreCase))
@@ -678,6 +688,18 @@ public sealed class Game : IGame
             : remaining == 1
                 ? "One sip left. Drink it before the bottle is empty."
                 : $"{remaining} sips left. Each sip restores some hydration.";
+    }
+
+    private string GetCannedSoupDialogText(int slotIndex)
+    {
+        int remaining = slotIndex >= 0
+            ? GetBackpackSlotCharges(slotIndex, ItemCannedSoup)
+            : CannedSoupMaxServings;
+        return remaining >= CannedSoupMaxServings
+            ? $"A sealed can — {CannedSoupMaxServings} servings. Each serving restores some stats."
+            : remaining == 1
+                ? "One serving left. Eat it before you toss the can."
+                : $"{remaining} servings left. Each serving restores some stats.";
     }
 
     /// <summary>
@@ -1189,13 +1211,13 @@ public sealed class Game : IGame
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
-            bool canDrink = CanDrinkItem(_dialogItemName, _dialogItemIndex);
-            _dialogActionHovered = canDrink && Raylib.CheckCollisionPointRec(mouse, _dialogActionRect);
+            bool canAct = CanPerformDialogItemAction(_dialogItemName, _dialogItemIndex);
+            _dialogActionHovered = canAct && Raylib.CheckCollisionPointRec(mouse, _dialogActionRect);
             _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
 
             if (leftClicked && _dialogActionHovered)
             {
-                TryDrinkBottledWater();
+                TryPerformDialogItemAction();
                 return;
             }
             if (leftClicked && _dialogCloseHovered)
@@ -2128,15 +2150,59 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private bool CanDrinkItem(string itemName, int slotIndex = -1) =>
-        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
-        GetBackpackSlotCharges(slotIndex, itemName) > 0;
+    private enum DialogItemAction
+    {
+        None,
+        DrinkWater,
+        EatSoup
+    }
+
+    private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
+    {
+        if (string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
+            GetBackpackSlotCharges(slotIndex, ItemBottledWater) > 0)
+            return DialogItemAction.DrinkWater;
+
+        if (string.Equals(itemName, ItemCannedSoup, StringComparison.OrdinalIgnoreCase) &&
+            GetBackpackSlotCharges(slotIndex, ItemCannedSoup) > 0)
+            return DialogItemAction.EatSoup;
+
+        return DialogItemAction.None;
+    }
+
+    private bool CanPerformDialogItemAction(string itemName, int slotIndex) =>
+        GetDialogItemAction(itemName, slotIndex) != DialogItemAction.None;
+
+    private static string GetDialogItemActionLabel(DialogItemAction action) =>
+        action switch
+        {
+            DialogItemAction.DrinkWater => "DRINK",
+            DialogItemAction.EatSoup => "EAT",
+            _ => ""
+        };
+
+    private void TryPerformDialogItemAction()
+    {
+        if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
+        string itemName = _backpack[_dialogItemIndex] ?? "";
+        switch (GetDialogItemAction(itemName, _dialogItemIndex))
+        {
+            case DialogItemAction.DrinkWater:
+                TryDrinkBottledWater();
+                return;
+            case DialogItemAction.EatSoup:
+                TryEatCannedSoup();
+                return;
+            default:
+                return;
+        }
+    }
 
     private void TryDrinkBottledWater()
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
         string itemName = _backpack[_dialogItemIndex] ?? "";
-        if (!CanDrinkItem(itemName, _dialogItemIndex)) return;
+        if (GetDialogItemAction(itemName, _dialogItemIndex) != DialogItemAction.DrinkWater) return;
 
         int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
         ClearActionDeltas();
@@ -2156,6 +2222,35 @@ public sealed class Game : IGame
         _actionMessage = remaining == 1
             ? "You take a drink. One sip left in the bottle."
             : $"You take a drink. {remaining} sips left in the bottle.";
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void TryEatCannedSoup()
+    {
+        if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
+        string itemName = _backpack[_dialogItemIndex] ?? "";
+        if (GetDialogItemAction(itemName, _dialogItemIndex) != DialogItemAction.EatSoup) return;
+
+        int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
+        ClearActionDeltas();
+        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, CannedSoupSatiationPerServing);
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, CannedSoupHydrationPerServing);
+        ModifyStatFromAction(ref _health, ref _actionHealthDelta, CannedSoupHealthPerServing);
+
+        if (remaining <= 0)
+        {
+            _backpack[_dialogItemIndex] = ItemEmptyCan;
+            _backpackItemCharges[_dialogItemIndex] = null;
+            _actionMessage = "You scrape the last of the soup. The can is empty.";
+            _actionMessageTimer = ActionMessageDuration;
+            CloseItemDialog();
+            return;
+        }
+
+        _backpackItemCharges[_dialogItemIndex] = remaining;
+        _actionMessage = remaining == 1
+            ? "You eat a serving. One serving left in the can."
+            : $"You eat a serving. {remaining} servings left in the can.";
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -2620,7 +2715,8 @@ public sealed class Game : IGame
         // Dark overlay
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
-        bool canDrink = CanDrinkItem(_dialogItemName, _dialogItemIndex);
+        DialogItemAction action = GetDialogItemAction(_dialogItemName, _dialogItemIndex);
+        bool canAct = action != DialogItemAction.None;
 
         // Centered dialog panel
         int panelW = 380;
@@ -2655,22 +2751,27 @@ public sealed class Game : IGame
         // Subtle separator
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
-        string body = canDrink
-            ? GetBottledWaterDialogText(_dialogItemIndex)
-            : string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
+        string body = action switch
+        {
+            DialogItemAction.DrinkWater => GetBottledWaterDialogText(_dialogItemIndex),
+            DialogItemAction.EatSoup => GetCannedSoupDialogText(_dialogItemIndex),
+            _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
-                : "No special actions defined for this item yet.";
+                : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
+                    ? "An empty can. Nothing left to eat."
+                    : "No special actions defined for this item yet."
+        };
         int bodySize = 20;
         int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
         Raylib.DrawTextEx(font, body,
             new Vector2(panelX + (panelW - bodyW) / 2, panelY + 128),
             bodySize, 0.6f, Palette.TextSecondary);
 
-        int btnW = canDrink ? 108 : 120;
+        int btnW = canAct ? 108 : 120;
         int btnH = 36;
         int btnY = panelY + panelH - 52;
 
-        if (canDrink)
+        if (canAct)
         {
             int gap = 14;
             int totalW = btnW * 2 + gap;
@@ -2678,7 +2779,7 @@ public sealed class Game : IGame
             _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
             _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
 
-            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
+            DrawDialogButton(_dialogActionRect, GetDialogItemActionLabel(action), _dialogActionHovered, font);
             DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
