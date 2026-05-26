@@ -55,6 +55,8 @@ public sealed class Game : IGame
     private const int BottledWaterHydrationPerSip = 25;
     private const string ItemTrashBags = "Trash Bags";
     private const string ItemDuctTape = "Duct Tape";
+    private const int TrashBagsMaxUses = 3;
+    private const int DuctTapeMaxUses = 3;
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
@@ -633,10 +635,16 @@ public sealed class Game : IGame
         _itemIcons.Clear();
     }
 
-    private static int GetMaxChargesForItem(string itemName) =>
-        string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase)
-            ? BottledWaterMaxSips
-            : 0;
+    private static int GetMaxChargesForItem(string itemName)
+    {
+        if (string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase))
+            return BottledWaterMaxSips;
+        if (string.Equals(itemName, ItemTrashBags, StringComparison.OrdinalIgnoreCase))
+            return TrashBagsMaxUses;
+        if (string.Equals(itemName, ItemDuctTape, StringComparison.OrdinalIgnoreCase))
+            return DuctTapeMaxUses;
+        return 0;
+    }
 
     private int GetBackpackSlotCharges(int slotIndex, string itemName)
     {
@@ -1906,7 +1914,26 @@ public sealed class Game : IGame
     }
 
     private bool HasBackpackItem(string itemName) =>
-        _backpack.Any(i => string.Equals(i, itemName, StringComparison.OrdinalIgnoreCase));
+        FindBackpackSlotIndex(itemName) >= 0;
+
+    private int FindBackpackSlotIndex(string itemName)
+    {
+        for (int i = 0; i < _backpack.Length; i++)
+        {
+            if (string.Equals(_backpack[i], itemName, StringComparison.OrdinalIgnoreCase))
+                return i;
+        }
+        return -1;
+    }
+
+    private bool HasUsableBackpackItem(string itemName)
+    {
+        int slot = FindBackpackSlotIndex(itemName);
+        if (slot < 0)
+            return false;
+        int max = GetMaxChargesForItem(itemName);
+        return max <= 0 || GetBackpackSlotCharges(slot, itemName) > 0;
+    }
 
     private void CompactBackpack()
     {
@@ -1931,20 +1958,35 @@ public sealed class Game : IGame
         }
     }
 
-    private bool TryConsumeBackpackItem(string itemName)
+    /// <summary>Uses one charge of a partial-use item, or removes a non-charge item entirely.</summary>
+    private bool TryUseBackpackItemCharge(string itemName)
     {
-        for (int i = 0; i < _backpack.Length; i++)
+        int slot = FindBackpackSlotIndex(itemName);
+        if (slot < 0)
+            return false;
+
+        int max = GetMaxChargesForItem(itemName);
+        if (max <= 0)
         {
-            if (string.Equals(_backpack[i], itemName, StringComparison.OrdinalIgnoreCase))
-            {
-                _backpack[i] = null;
-                _backpackItemCharges[i] = null;
-                CompactBackpack();
-                return true;
-            }
+            _backpack[slot] = null;
+            _backpackItemCharges[slot] = null;
+            CompactBackpack();
+            return true;
         }
 
-        return false;
+        int remaining = GetBackpackSlotCharges(slot, itemName) - 1;
+        if (remaining <= 0)
+        {
+            _backpack[slot] = null;
+            _backpackItemCharges[slot] = null;
+            CompactBackpack();
+        }
+        else
+        {
+            _backpackItemCharges[slot] = remaining;
+        }
+
+        return true;
     }
 
     private bool CanBuildTrashBagTent(out string reason)
@@ -1961,13 +2003,13 @@ public sealed class Game : IGame
             return false;
         }
 
-        if (!HasBackpackItem(ItemTrashBags))
+        if (!HasUsableBackpackItem(ItemTrashBags))
         {
             reason = "Need trash bags.";
             return false;
         }
 
-        if (!HasBackpackItem(ItemDuctTape))
+        if (!HasUsableBackpackItem(ItemDuctTape))
         {
             reason = "Need duct tape.";
             return false;
@@ -1986,13 +2028,21 @@ public sealed class Game : IGame
             return;
         }
 
-        TryConsumeBackpackItem(ItemTrashBags);
-        TryConsumeBackpackItem(ItemDuctTape);
+        if (!TryUseBackpackItemCharge(ItemTrashBags) || !TryUseBackpackItemCharge(ItemDuctTape))
+            return;
+
         _hasTrashBagTent = true;
         RefreshOutdoorComfortEnvironment();
         RefreshOutdoorActionChoices();
 
-        _buildFeedback = "You rig a crude shelter from plastic and tape.";
+        int bagsSlot = FindBackpackSlotIndex(ItemTrashBags);
+        int tapeSlot = FindBackpackSlotIndex(ItemDuctTape);
+        bool materialsRemain = (bagsSlot >= 0 && GetBackpackSlotCharges(bagsSlot, ItemTrashBags) > 0) ||
+                               (tapeSlot >= 0 && GetBackpackSlotCharges(tapeSlot, ItemDuctTape) > 0);
+
+        _buildFeedback = materialsRemain
+            ? "Shelter pitched — bags and tape only partly used."
+            : "You rig a crude shelter from plastic and tape.";
         _buildFeedbackTimer = BuildFeedbackDuration;
         _actionMessage = "Trash bag tent pitched. A little warmer out here.";
         _actionMessageTimer = ActionMessageDuration;
@@ -2726,8 +2776,10 @@ public sealed class Game : IGame
         bool canBuild = CanBuildTrashBagTent(out string blockReason);
         bool built = _hasTrashBagTent;
         bool outdoors = IsOutdoorsPhase(_phase);
-        bool hasBags = HasBackpackItem(ItemTrashBags);
-        bool hasTape = HasBackpackItem(ItemDuctTape);
+        bool hasBags = HasUsableBackpackItem(ItemTrashBags);
+        bool hasTape = HasUsableBackpackItem(ItemDuctTape);
+        int bagsSlot = FindBackpackSlotIndex(ItemTrashBags);
+        int tapeSlot = FindBackpackSlotIndex(ItemDuctTape);
 
         Color rowBg = _buildTentButtonHovered
             ? Palette.ButtonSelectedBg
@@ -2738,9 +2790,9 @@ public sealed class Game : IGame
         const int iconSize = 28;
         int iconY = rowY + (rowH - iconSize) / 2;
         DrawItemIcon(ItemTrashBags, new Rectangle(rowX + 10, iconY, iconSize, iconSize),
-            hasBags || built ? Color.WHITE : new Color(255, 255, 255, 90));
+            hasBags || built ? Color.WHITE : new Color(255, 255, 255, 90), bagsSlot);
         DrawItemIcon(ItemDuctTape, new Rectangle(rowX + 10 + iconSize + 4, iconY, iconSize, iconSize),
-            hasTape || built ? Color.WHITE : new Color(255, 255, 255, 90));
+            hasTape || built ? Color.WHITE : new Color(255, 255, 255, 90), tapeSlot);
 
         int textX = rowX + 10 + iconSize * 2 + 14;
         Raylib.DrawTextEx(font, BuildTrashBagTent,
@@ -2749,7 +2801,7 @@ public sealed class Game : IGame
 
         string reqLine = built
             ? "Shelter pitched — +comfort outdoors"
-            : "Trash Bags + Duct Tape · Outdoors only";
+            : "Uses some bags & tape · Outdoors only";
         Raylib.DrawTextEx(font, reqLine,
             new Vector2(textX, rowY + 30), 14, 0.5f, Palette.TextDim);
 
@@ -2799,7 +2851,8 @@ public sealed class Game : IGame
         {
             int fbSize = 16;
             int fbW = (int)Raylib.MeasureTextEx(font, _buildFeedback, fbSize, 0.55f).X;
-            Color fbColor = _buildFeedback.Contains("crude shelter", StringComparison.OrdinalIgnoreCase)
+            Color fbColor = _buildFeedback.Contains("Shelter pitched", StringComparison.OrdinalIgnoreCase) ||
+                            _buildFeedback.Contains("crude shelter", StringComparison.OrdinalIgnoreCase)
                 ? Palette.Positive
                 : new Color(200, 130, 110, 255);
             Raylib.DrawTextEx(font, _buildFeedback,
