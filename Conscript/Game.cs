@@ -32,6 +32,8 @@ public sealed class Game : IGame
     private Texture2D _apartmentBackground;
     private Texture2D _outsideBackground;
     private Texture2D _townBackground;
+    private Texture2D _industrialDistrictBackground;
+    private Texture2D _commercialDistrictBackground;
     private Texture2D _forestEntryBackground;
     private Texture2D _forestBackground;
     private Texture2D _forestStreamBackground;
@@ -561,8 +563,8 @@ public sealed class Game : IGame
             Phase.Opening      => _apartmentBackground,
             Phase.Outside      => _outsideBackground,
             Phase.Town         => _townBackground,
-            Phase.IndustrialDistrict => _townBackground,
-            Phase.CommercialDistrict => _townBackground,
+            Phase.IndustrialDistrict => _industrialDistrictBackground,
+            Phase.CommercialDistrict => _commercialDistrictBackground,
             Phase.Store        => _storeBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
@@ -831,11 +833,18 @@ public sealed class Game : IGame
         Raylib.SetTargetFPS(60);
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
+        // Ensure Steam Input devices (Steam Deck / Steam Controller) are recognized as SDL "gamepads".
+        // Without explicit mappings, they can sometimes appear only as generic joysticks and won't be
+        // visible through Raylib's gamepad APIs.
+        Raylib.SetGamepadMappings(GamepadMappings.SdlMappings);
+
         _uiFont = UiFontLoader.Load();
         _uiFontItalic = UiFontLoader.LoadItalic();
         _apartmentBackground = EmbeddedTextureLoader.Load("apartment-inside.png");
         _outsideBackground   = EmbeddedTextureLoader.Load("apartment-outside.png");
         _townBackground        = EmbeddedTextureLoader.Load("town.png");
+        _industrialDistrictBackground = LoadTextureOrFallback("industrial.png", _townBackground);
+        _commercialDistrictBackground = LoadTextureOrFallback("commercial.png", _townBackground);
         _forestEntryBackground  = EmbeddedTextureLoader.Load("forest-entry.png");
         _forestBackground       = EmbeddedTextureLoader.Load("trees.png");
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
@@ -866,11 +875,25 @@ public sealed class Game : IGame
         texture = default;
     }
 
+    private static Texture2D LoadTextureOrFallback(string fileName, Texture2D fallback)
+    {
+        try
+        {
+            return EmbeddedTextureLoader.Load(fileName);
+        }
+        catch (FileNotFoundException)
+        {
+            return fallback;
+        }
+    }
+
     private void UnloadSceneTextures()
     {
         UnloadTextureIfLoaded(ref _apartmentBackground);
         UnloadTextureIfLoaded(ref _outsideBackground);
         UnloadTextureIfLoaded(ref _townBackground);
+        UnloadTextureIfLoaded(ref _industrialDistrictBackground);
+        UnloadTextureIfLoaded(ref _commercialDistrictBackground);
         UnloadTextureIfLoaded(ref _forestEntryBackground);
         UnloadTextureIfLoaded(ref _forestBackground);
         UnloadTextureIfLoaded(ref _forestStreamBackground);
