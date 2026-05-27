@@ -30,6 +30,7 @@ public sealed class Game : IGame
     private Texture2D _backgroundTexture;   // currently active scene background (swapped on phase change)
     private Texture2D _apartmentBackground;
     private Texture2D _outsideBackground;
+    private Texture2D _townBackground;
     private Texture2D _forestEntryBackground;
     private Texture2D _forestBackground;
     private Texture2D _forestStreamBackground;
@@ -57,6 +58,8 @@ public sealed class Game : IGame
     private const string ChoiceFollowStream = "FOLLOW THE STREAM";
     private const string ChoiceEnterDeepForest = "ENTER DEEP FOREST";
     private const string ChoiceBackToForestEntry = "BACK TO FOREST ENTRY";
+    private const string ChoiceGoIntoTown = "GO INTO TOWN";
+    private const string ChoiceBackToCourtyard = "BACK TO THE COURTYARD";
 
     private const int EnergyCostHunt = 6; // in addition to time passing drain
     private const int EnergyCostForage = 4;
@@ -103,6 +106,7 @@ public sealed class Game : IGame
     {
         Opening,   // At home with family — the knock on the door
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
+        Town,      // Streets of Ulan-Ude between the courtyard and the forest
         Store,     // Inside a late-night convenience store / kiosk
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
@@ -113,6 +117,7 @@ public sealed class Game : IGame
 
     private Phase _phase = Phase.Opening;
     private Phase _phaseOutdoorBeforeTent = Phase.ForestEntry;
+    private Phase _phaseBeforeStore = Phase.Town;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -342,6 +347,11 @@ public sealed class Game : IGame
         "No sirens yet — but the night is too quiet.\n" +
         "Every shadow could hide a patrol. Move.";
 
+    private const string TownNarrative =
+        "The residential streets are empty under the streetlights.\n" +
+        "Every parked car might hide a patrol.\n" +
+        "You keep to the shadows between the blocks and move quickly.";
+
     private const string StoreNarrative =
         "The fluorescent lights are brutal after the dark yard.\n" +
         "A security camera stares from the ceiling with a dead red eye.\n" +
@@ -456,6 +466,18 @@ public sealed class Game : IGame
                 RefreshOutdoorActionChoices();
                 break;
 
+            case Phase.Town:
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Ulan-Ude Streets";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 26;
+                ApplyEnvironmentOutside();
+                RefreshOutdoorActionChoices();
+                break;
+
             case Phase.Store:
                 _choices = new[]
                 {
@@ -486,6 +508,7 @@ public sealed class Game : IGame
         {
             Phase.Opening      => _apartmentBackground,
             Phase.Outside      => _outsideBackground,
+            Phase.Town         => _townBackground,
             Phase.Store        => _storeBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
@@ -574,14 +597,14 @@ public sealed class Game : IGame
         }
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
-        if (_phase == Phase.Outside || GamePhase.IsForestSurvival(_phase))
+        if (_phase == Phase.Outside || _phase == Phase.Town || GamePhase.IsForestSurvival(_phase))
         {
             if (IsNightTimeSlot())
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
             else if (IsMorningTimeSlot())
                 _temperatureF = Math.Min(60, _temperatureF + 1);
 
-            if (_phase == Phase.Outside)
+            if (_phase is Phase.Outside or Phase.Town)
                 RefreshOutdoorComfortEnvironment();
         }
 
@@ -757,6 +780,7 @@ public sealed class Game : IGame
         _uiFont = UiFontLoader.Load();
         _apartmentBackground = EmbeddedTextureLoader.Load("apartment-inside.png");
         _outsideBackground   = EmbeddedTextureLoader.Load("apartment-outside.png");
+        _townBackground        = EmbeddedTextureLoader.Load("town.png");
         _forestEntryBackground  = EmbeddedTextureLoader.Load("forest-entry.png");
         _forestBackground       = EmbeddedTextureLoader.Load("trees.png");
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
@@ -791,6 +815,7 @@ public sealed class Game : IGame
     {
         UnloadTextureIfLoaded(ref _apartmentBackground);
         UnloadTextureIfLoaded(ref _outsideBackground);
+        UnloadTextureIfLoaded(ref _townBackground);
         UnloadTextureIfLoaded(ref _forestEntryBackground);
         UnloadTextureIfLoaded(ref _forestBackground);
         UnloadTextureIfLoaded(ref _forestStreamBackground);
@@ -1603,6 +1628,10 @@ public sealed class Game : IGame
                 HandleOutsideChoice(index);
                 break;
 
+            case Phase.Town:
+                HandleTownChoice(index);
+                break;
+
             case Phase.Store:
                 HandleStoreChoice(index);
                 break;
@@ -1661,7 +1690,7 @@ public sealed class Game : IGame
             case "GO BACK TO TOWN":
                 ApplyTravelEnergyCost();
                 AdvanceTime();
-                EnterPhase(Phase.Outside);
+                EnterPhase(Phase.Town);
                 break;
 
             case ChoiceEnterTent:
@@ -1758,6 +1787,44 @@ public sealed class Game : IGame
                 EnterDeath("They found you.", "Dragged from the garbage like an animal.");
                 return;
 
+            case ChoiceGoIntoTown:
+                _actionMessage = "You slip through the gap in the fence and onto the empty street.";
+                _actionMessageTimer = 2.0f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.Town);
+                return;
+
+            case "GO TO UNCLE'S HOUSE":
+                EnterDeath("You went to your uncle.", "He called them before you could even sit down.");
+                return;
+
+            case ChoiceEnterTent:
+                EnterTent();
+                return;
+
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
+                return;
+
+            case "WAIT":
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleTownChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
             case "HEAD FOR THE FOREST":
                 ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
@@ -1767,11 +1834,21 @@ public sealed class Game : IGame
                 EnterPhase(Phase.ForestEntry);
                 return;
 
+            case ChoiceBackToCourtyard:
+                _actionMessage = "You duck back through the fence into the courtyard behind your block.";
+                _actionMessageTimer = 2.0f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.Outside);
+                return;
+
             case "GO TO UNCLE'S HOUSE":
                 EnterDeath("You went to your uncle.", "He called them before you could even sit down.");
                 return;
 
             case "CONVENIENCE STORE":
+                _phaseBeforeStore = Phase.Town;
                 ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
@@ -1849,10 +1926,12 @@ public sealed class Game : IGame
                 return;   // do not advance time or close the store phase yet
 
             case 1: // Leave the way you came
-                _actionMessage = "You push back out into the cold dark yard.";
+                _actionMessage = _phaseBeforeStore == Phase.Town
+                    ? "You push back out onto the empty street."
+                    : "You push back out into the cold dark yard.";
                 AdvanceTime();
                 ApplyTravelEnergyCost();
-                EnterPhase(Phase.Outside);
+                EnterPhase(_phaseBeforeStore is Phase.Outside or Phase.Town ? _phaseBeforeStore : Phase.Town);
                 return;
 
             case 2: // Wait inside the kiosk
@@ -1870,6 +1949,10 @@ public sealed class Game : IGame
         {
             case Phase.Outside:
                 _actionMessage = "You press yourself into the shadows and listen. Nothing moves.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.Town:
+                _actionMessage = "You flatten yourself against a wall and watch the street. Nothing moves.";
                 ApplyEnvironmentOnAction();
                 break;
             case Phase.Store:
@@ -2262,7 +2345,36 @@ public sealed class Game : IGame
                 ? new[]
                 {
                     "HIDE IN THE GARBAGE",
+                    ChoiceGoIntoTown,
+                    "GO TO UNCLE'S HOUSE",
+                    ChoiceEnterTent,
+                    ChoiceDisassembleTent,
+                    "WAIT"
+                }
+                : _hasTrashBagTent
+                ? new[]
+                {
+                    "HIDE IN THE GARBAGE",
+                    ChoiceGoIntoTown,
+                    "GO TO UNCLE'S HOUSE",
+                    ChoiceEnterTent,
+                    "WAIT"
+                }
+                : new[]
+                {
+                    "HIDE IN THE GARBAGE",
+                    ChoiceGoIntoTown,
+                    "GO TO UNCLE'S HOUSE",
+                    "WAIT"
+                };
+        }
+        else if (_phase == Phase.Town)
+        {
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Town
+                ? new[]
+                {
                     "HEAD FOR THE FOREST",
+                    ChoiceBackToCourtyard,
                     "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     ChoiceEnterTent,
@@ -2272,8 +2384,8 @@ public sealed class Game : IGame
                 : _hasTrashBagTent
                 ? new[]
                 {
-                    "HIDE IN THE GARBAGE",
                     "HEAD FOR THE FOREST",
+                    ChoiceBackToCourtyard,
                     "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     ChoiceEnterTent,
@@ -2281,8 +2393,8 @@ public sealed class Game : IGame
                 }
                 : new[]
                 {
-                    "HIDE IN THE GARBAGE",
                     "HEAD FOR THE FOREST",
+                    ChoiceBackToCourtyard,
                     "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     "WAIT"
@@ -3604,6 +3716,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Outside:
+            case Phase.Town:
             case Phase.Store:
             case Phase.ForestEntry:
             case Phase.Forest:
@@ -4496,6 +4609,7 @@ public sealed class Game : IGame
     private (double lon, double lat) GetMapPlayerGeoPosition() =>
         _phase switch
         {
+            Phase.Town         => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
             Phase.ForestStream => (RegionMapGeo.ForestStreamLon, RegionMapGeo.ForestStreamLat),
@@ -4508,6 +4622,7 @@ public sealed class Game : IGame
         {
             Phase.Opening => OpeningNarrative,
             Phase.Outside => OutsideNarrative,
+            Phase.Town    => TownNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,
             Phase.Forest       => ForestNarrative,

@@ -6,8 +6,8 @@ internal static class GamePhase
         phase is Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream;
 
     public static bool IsOutdoor(Game.Phase phase) =>
-        phase is Game.Phase.Outside or Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream;
+        phase is Game.Phase.Outside or Game.Phase.Town or Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream;
 
     public static bool IsOutdoorsSurvival(Game.Phase phase) =>
-        phase is Game.Phase.Outside or Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream;
+        phase is Game.Phase.Outside or Game.Phase.Town or Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream;
 }

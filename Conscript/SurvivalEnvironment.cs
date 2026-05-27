@@ -21,6 +21,7 @@ internal static class SurvivalEnvironment
     {
         Game.Phase.Opening => 35,
         Game.Phase.Outside => 12,
+        Game.Phase.Town => 20,
         Game.Phase.Store => 8,
         Game.Phase.ForestEntry => 42,
         Game.Phase.Forest => 78,
