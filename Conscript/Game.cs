@@ -62,6 +62,9 @@ public sealed class Game : IGame
     private const string ChoiceGoIntoTown = "GO INTO TOWN";
     private const string ChoiceBackToCourtyard = "BACK TO THE COURTYARD";
     private const string ChoiceGoBackToTown = "GO BACK TO TOWN";
+    private const string ChoiceIndustrialDistrict = "INDUSTRIAL DISTRICT";
+    private const string ChoiceCommercialDistrict = "COMMERCIAL DISTRICT";
+    private const string ChoiceBackToTownCenter = "BACK TO TOWN";
     private const string ChoiceHeadForForest = "HEAD FOR THE FOREST";
     private const string ChoiceHideInGarbage = "HIDE IN THE GARBAGE";
     private const string ChoiceGoToUnclesHouse = "GO TO UNCLE'S HOUSE";
@@ -119,7 +122,9 @@ public sealed class Game : IGame
     {
         Opening,   // At home with family — the knock on the door
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
-        Town,      // Streets of Ulan-Ude between the courtyard and the forest
+        Town,      // Central streets between the courtyard and the town districts
+        IndustrialDistrict,  // Warehouses and yards on the west side of town
+        CommercialDistrict,  // Shops and foot traffic on the east side; forest access is south from here
         Store,     // Inside a late-night convenience store / kiosk
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
@@ -130,7 +135,7 @@ public sealed class Game : IGame
 
     private Phase _phase = Phase.Opening;
     private Phase _phaseOutdoorBeforeTent = Phase.ForestEntry;
-    private Phase _phaseBeforeStore = Phase.Town;
+    private Phase _phaseBeforeStore = Phase.CommercialDistrict;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -361,9 +366,19 @@ public sealed class Game : IGame
         "Every shadow could hide a patrol. Move.";
 
     private const string TownNarrative =
-        "The residential streets are empty under the streetlights.\n" +
-        "Every parked car might hide a patrol.\n" +
-        "You keep to the shadows between the blocks and move quickly.";
+        "The streets around the courtyard are empty under the streetlights.\n" +
+        "Industrial blocks lie to the west; shopfronts and neon to the east.\n" +
+        "You keep to the shadows and move quickly.";
+
+    private const string IndustrialDistrictNarrative =
+        "Warehouses and fenced lots line the side streets.\n" +
+        "A distant rail yard clanks in the cold.\n" +
+        "Few windows are lit — this is the edge of town.";
+
+    private const string CommercialDistrictNarrative =
+        "Shopfronts and a late-night kiosk glow against the dark.\n" +
+        "Foot traffic is thin, but every window might hide a watcher.\n" +
+        "South of here, the pines begin at the edge of the blocks.";
 
     private const string StoreNarrative =
         "The fluorescent lights are brutal after the dark yard.\n" +
@@ -482,7 +497,31 @@ public sealed class Game : IGame
             case Phase.Town:
                 _day = 0;
                 _timeOfDay = "Night";
-                _location = "Ulan-Ude Streets";
+                _location = "Town";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 26;
+                ApplyEnvironmentOutside();
+                RefreshOutdoorActionChoices();
+                break;
+
+            case Phase.IndustrialDistrict:
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Industrial District";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 24;
+                ApplyEnvironmentOutside();
+                RefreshOutdoorActionChoices();
+                break;
+
+            case Phase.CommercialDistrict:
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Commercial District";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
                 _season = "Early Autumn";
@@ -522,6 +561,8 @@ public sealed class Game : IGame
             Phase.Opening      => _apartmentBackground,
             Phase.Outside      => _outsideBackground,
             Phase.Town         => _townBackground,
+            Phase.IndustrialDistrict => _townBackground,
+            Phase.CommercialDistrict => _townBackground,
             Phase.Store        => _storeBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
@@ -610,14 +651,14 @@ public sealed class Game : IGame
         }
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
-        if (_phase == Phase.Outside || _phase == Phase.Town || GamePhase.IsForestSurvival(_phase))
+        if (_phase == Phase.Outside || GamePhase.IsTownDistrict(_phase) || GamePhase.IsForestSurvival(_phase))
         {
             if (IsNightTimeSlot())
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
             else if (IsMorningTimeSlot())
                 _temperatureF = Math.Min(60, _temperatureF + 1);
 
-            if (_phase is Phase.Outside or Phase.Town)
+            if (_phase is Phase.Outside || GamePhase.IsTownDistrict(_phase))
                 RefreshOutdoorComfortEnvironment();
         }
 
@@ -1646,6 +1687,14 @@ public sealed class Game : IGame
                 HandleTownChoice(index);
                 break;
 
+            case Phase.IndustrialDistrict:
+                HandleIndustrialDistrictChoice(index);
+                break;
+
+            case Phase.CommercialDistrict:
+                HandleCommercialDistrictChoice(index);
+                break;
+
             case Phase.Store:
                 HandleStoreChoice(index);
                 break;
@@ -1705,7 +1754,7 @@ public sealed class Game : IGame
             case ChoiceGoBackToTown:
                 ApplyTravelEnergyCost();
                 AdvanceTime();
-                EnterPhase(Phase.Town);
+                EnterPhase(Phase.CommercialDistrict);
                 break;
 
             case ChoiceEnterTent:
@@ -1840,13 +1889,22 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
-            case ChoiceHeadForForest:
-                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
-                _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
+            case ChoiceIndustrialDistrict:
+                _actionMessage = "You cut west toward the warehouses and loading bays.";
+                _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
                 ApplyEnvironmentOnAction();
-                EnterPhase(Phase.ForestEntry);
+                EnterPhase(Phase.IndustrialDistrict);
+                return;
+
+            case ChoiceCommercialDistrict:
+                _actionMessage = "You slip east toward the lit shopfronts and the late-night kiosk.";
+                _actionMessageTimer = 2.0f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.CommercialDistrict);
                 return;
 
             case ChoiceBackToCourtyard:
@@ -1858,8 +1916,85 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Outside);
                 return;
 
+            case ChoiceEnterTent:
+                EnterTent();
+                return;
+
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleIndustrialDistrictChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceBackToTownCenter:
+                _actionMessage = "You leave the warehouses behind and return to the central streets.";
+                _actionMessageTimer = 2.0f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.Town);
+                return;
+
+            case ChoiceEnterTent:
+                EnterTent();
+                return;
+
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleCommercialDistrictChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceHeadForForest:
+                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
+                _actionMessage = "You slip south from the shopfronts and into the dark pines at the edge of town.";
+                AdvanceTime();
+                ApplyTravelEnergyCost();
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.ForestEntry);
+                return;
+
+            case ChoiceBackToTownCenter:
+                _actionMessage = "You leave the shopfronts behind and return to the central streets.";
+                _actionMessageTimer = 2.0f;
+                AdvanceTime();
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.Town);
+                return;
+
             case ChoiceConvenienceStore:
-                _phaseBeforeStore = Phase.Town;
+                _phaseBeforeStore = Phase.CommercialDistrict;
                 ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
@@ -1940,12 +2075,14 @@ public sealed class Game : IGame
                 return;   // do not advance time or close the store phase yet
 
             case ChoiceLeaveStore:
-                _actionMessage = _phaseBeforeStore == Phase.Town
-                    ? "You push back out onto the empty street."
-                    : "You push back out into the cold dark yard.";
+                _actionMessage = _phaseBeforeStore == Phase.Outside
+                    ? "You push back out into the cold dark yard."
+                    : "You push back out onto the empty street.";
                 AdvanceTime();
                 ApplyTravelEnergyCost();
-                EnterPhase(_phaseBeforeStore is Phase.Outside or Phase.Town ? _phaseBeforeStore : Phase.Town);
+                EnterPhase(_phaseBeforeStore == Phase.Outside || GamePhase.IsTownDistrict(_phaseBeforeStore)
+                    ? _phaseBeforeStore
+                    : Phase.CommercialDistrict);
                 return;
 
             case ChoiceWait:
@@ -1967,6 +2104,14 @@ public sealed class Game : IGame
                 break;
             case Phase.Town:
                 _actionMessage = "You flatten yourself against a wall and watch the street. Nothing moves.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.IndustrialDistrict:
+                _actionMessage = "You press into the shadow of a loading bay and listen. The yards are still.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.CommercialDistrict:
+                _actionMessage = "You linger in an alley between shopfronts. The street stays empty.";
                 ApplyEnvironmentOnAction();
                 break;
             case Phase.Store:
@@ -2387,9 +2532,46 @@ public sealed class Game : IGame
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Town
                 ? new[]
                 {
-                    ChoiceHeadForForest,
+                    ChoiceIndustrialDistrict,
+                    ChoiceCommercialDistrict,
                     ChoiceBackToCourtyard,
+                    ChoiceEnterTent,
+                    ChoiceDisassembleTent,
+                    ChoiceWait
+                }
+                : _hasTrashBagTent
+                ? new[]
+                {
+                    ChoiceIndustrialDistrict,
+                    ChoiceCommercialDistrict,
+                    ChoiceBackToCourtyard,
+                    ChoiceEnterTent,
+                    ChoiceWait
+                }
+                : new[]
+                {
+                    ChoiceIndustrialDistrict,
+                    ChoiceCommercialDistrict,
+                    ChoiceBackToCourtyard,
+                    ChoiceWait
+                };
+        }
+        else if (_phase == Phase.IndustrialDistrict)
+        {
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.IndustrialDistrict
+                ? new[] { ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
+                : _hasTrashBagTent
+                ? new[] { ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceWait }
+                : new[] { ChoiceBackToTownCenter, ChoiceWait };
+        }
+        else if (_phase == Phase.CommercialDistrict)
+        {
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.CommercialDistrict
+                ? new[]
+                {
+                    ChoiceHeadForForest,
                     ChoiceConvenienceStore,
+                    ChoiceBackToTownCenter,
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
                     ChoiceWait
@@ -2398,16 +2580,16 @@ public sealed class Game : IGame
                 ? new[]
                 {
                     ChoiceHeadForForest,
-                    ChoiceBackToCourtyard,
                     ChoiceConvenienceStore,
+                    ChoiceBackToTownCenter,
                     ChoiceEnterTent,
                     ChoiceWait
                 }
                 : new[]
                 {
                     ChoiceHeadForForest,
-                    ChoiceBackToCourtyard,
                     ChoiceConvenienceStore,
+                    ChoiceBackToTownCenter,
                     ChoiceWait
                 };
         }
@@ -3728,6 +3910,8 @@ public sealed class Game : IGame
 
             case Phase.Outside:
             case Phase.Town:
+            case Phase.IndustrialDistrict:
+            case Phase.CommercialDistrict:
             case Phase.Store:
             case Phase.ForestEntry:
             case Phase.Forest:
@@ -4640,7 +4824,9 @@ public sealed class Game : IGame
     private (double lon, double lat) GetMapPlayerGeoPosition() =>
         _phase switch
         {
-            Phase.Town         => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
+            Phase.Town                => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
+            Phase.IndustrialDistrict  => (RegionMapGeo.IndustrialDistrictLon, RegionMapGeo.IndustrialDistrictLat),
+            Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
             Phase.ForestStream => (RegionMapGeo.ForestStreamLon, RegionMapGeo.ForestStreamLat),
@@ -4653,7 +4839,9 @@ public sealed class Game : IGame
         {
             Phase.Opening => OpeningNarrative,
             Phase.Outside => OutsideNarrative,
-            Phase.Town    => TownNarrative,
+            Phase.Town               => TownNarrative,
+            Phase.IndustrialDistrict => IndustrialDistrictNarrative,
+            Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,
             Phase.Forest       => ForestNarrative,

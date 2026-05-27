@@ -22,6 +22,8 @@ internal static class SurvivalEnvironment
         Game.Phase.Opening => 35,
         Game.Phase.Outside => 12,
         Game.Phase.Town => 20,
+        Game.Phase.IndustrialDistrict => 14,
+        Game.Phase.CommercialDistrict => 18,
         Game.Phase.Store => 8,
         Game.Phase.ForestEntry => 42,
         Game.Phase.Forest => 78,
