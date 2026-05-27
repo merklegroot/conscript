@@ -905,9 +905,11 @@ public sealed class Game : IGame
     private void Update()
     {
         float dt = Raylib.GetFrameTime();
-        GameInput.Update();
+        InputManager.BeginFrame();
+        try
+        {
 
-        if (GameInput.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
+        if (InputManager.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
             if (_showItemDialog)
             {
@@ -949,7 +951,7 @@ public sealed class Game : IGame
                 CloseStatsHelp();
                 return;
             }
-            if (GameInput.IsCancelPressed())
+            if (InputManager.IsCancelPressed())
             {
                 OpenQuitConfirm();
                 return;
@@ -967,11 +969,11 @@ public sealed class Game : IGame
 
         if (_showQuitConfirm)
         {
-            if (GameInput.IsHorizontalNavLeftPressed())
+            if (InputManager.IsHorizontalNavLeftPressed())
                 _quitConfirmSelectedButton = 0;
-            if (GameInput.IsHorizontalNavRightPressed())
+            if (InputManager.IsHorizontalNavRightPressed())
                 _quitConfirmSelectedButton = 1;
-            if (GameInput.IsConfirmPressed())
+            if (InputManager.IsConfirmPressed())
             {
                 if (_quitConfirmSelectedButton == 1)
                     _shouldExit = true;
@@ -981,7 +983,7 @@ public sealed class Game : IGame
             }
         }
 
-        if (_showStatsHelp && GameInput.IsConfirmPressed())
+        if (_showStatsHelp && InputManager.IsConfirmPressed())
         {
             CloseStatsHelp();
             return;
@@ -989,12 +991,12 @@ public sealed class Game : IGame
 
         if (_showStoreBuyMenu)
         {
-            if (GameInput.IsVerticalNavUpPressed())
+            if (InputManager.IsVerticalNavUpPressed())
             {
                 _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + StoreCatalog.Entries.Length) % StoreCatalog.Entries.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
-            if (GameInput.IsVerticalNavDownPressed())
+            if (InputManager.IsVerticalNavDownPressed())
             {
                 _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % StoreCatalog.Entries.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
@@ -1003,26 +1005,26 @@ public sealed class Game : IGame
 
         if (_showForageDialog)
         {
-            if (GameInput.IsVerticalNavUpPressed())
+            if (InputManager.IsVerticalNavUpPressed())
                 _forageHighlightedIndex = (_forageHighlightedIndex - 1 + ForageOptionCount) % ForageOptionCount;
-            if (GameInput.IsVerticalNavDownPressed())
+            if (InputManager.IsVerticalNavDownPressed())
                 _forageHighlightedIndex = (_forageHighlightedIndex + 1) % ForageOptionCount;
         }
 
         // Horizontal navigation for bottom action buttons
         if (!BlocksActionBarNavigation())
         {
-            if (GameInput.IsHorizontalNavRightPressed())
+            if (InputManager.IsHorizontalNavRightPressed())
             {
                 _selectedIndex = (_selectedIndex + 1) % _choices.Length;
             }
-            if (GameInput.IsHorizontalNavLeftPressed())
+            if (InputManager.IsHorizontalNavLeftPressed())
             {
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
             }
         }
 
-        if (GameInput.IsConfirmPressed())
+        if (InputManager.IsConfirmPressed())
         {
             if (_showControllerDebug)
             {
@@ -1145,11 +1147,9 @@ public sealed class Game : IGame
             for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
                 _controllerDebugTabHovered[i] = Raylib.CheckCollisionPointRec(mouse, _controllerDebugTabRects[i]);
 
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
-                Raylib.IsKeyPressed(KeyboardKey.KEY_COMMA))
+            if (InputManager.IsHorizontalNavLeftPressed())
                 CycleControllerDebugPad(-1);
-            if (Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
-                Raylib.IsKeyPressed(KeyboardKey.KEY_PERIOD))
+            if (InputManager.IsHorizontalNavRightPressed())
                 CycleControllerDebugPad(1);
 
             if (leftClicked && _controllerDebugCloseHovered)
@@ -1676,6 +1676,11 @@ public sealed class Game : IGame
         Raylib.SetMouseCursor(overClickable
             ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
             : MouseCursor.MOUSE_CURSOR_DEFAULT);
+        }
+        finally
+        {
+            InputManager.EndFrame();
+        }
     }
 
     // --- Choice handlers ---

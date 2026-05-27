@@ -1,3 +1,4 @@
+using System.Text;
 using Raylib_cs;
 
 namespace Conscript;
@@ -14,7 +15,11 @@ internal static class GamepadConnection
 
     private static int _framesWithoutPad;
 
-    public static void Initialize() => ApplyMappings();
+    public static void Initialize()
+    {
+        ApplyMappings();
+        _framesWithoutPad = 0;
+    }
 
     public static void Update()
     {
@@ -34,6 +39,9 @@ internal static class GamepadConnection
 
     public static bool AnyConnected()
     {
+        if (JoystickInput.AnyJoystickPresent())
+            return true;
+
         for (int i = 0; i < MaxSlots; i++)
         {
             if (Raylib.IsGamepadAvailable(i))
@@ -45,7 +53,7 @@ internal static class GamepadConnection
 
     public static int ConnectedCount()
     {
-        int count = 0;
+        int count = JoystickInput.AnyJoystickPresent() ? 1 : 0;
         for (int i = 0; i < MaxSlots; i++)
         {
             if (Raylib.IsGamepadAvailable(i))
@@ -71,15 +79,15 @@ internal static class GamepadConnection
 
     public static void ApplyMappings()
     {
+        var mappings = new StringBuilder();
         string? steamConfig = Environment.GetEnvironmentVariable("SDL_GAMECONTROLLERCONFIG");
         if (!string.IsNullOrWhiteSpace(steamConfig))
         {
-            // Launched via Steam: use only Steam's mapping so we don't clobber it with bundled fallbacks.
-            string normalized = steamConfig.Trim().Replace(';', '\n');
-            Raylib.SetGamepadMappings(normalized);
-            return;
+            mappings.Append(steamConfig.Trim().Replace(';', '\n'));
+            mappings.Append('\n');
         }
 
-        Raylib.SetGamepadMappings(GamepadMappings.SdlMappings);
+        mappings.Append(GamepadMappings.SdlMappings);
+        Raylib.SetGamepadMappings(mappings.ToString());
     }
 }
