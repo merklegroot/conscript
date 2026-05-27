@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Conscript.Registry;
 
 namespace Conscript;
 
@@ -11,7 +12,7 @@ static class Program
         try
         {
             var builder = Host.CreateApplicationBuilder(args);
-            builder.Services.AddSingleton<IGame, Game>();
+            builder.Services.RegisterGame();
 
             using var host = builder.Build();
 
