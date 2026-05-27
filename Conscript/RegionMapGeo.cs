@@ -13,6 +13,8 @@ internal static class RegionMapGeo
 
     public const double UlanUdeLon = 107.584;
     public const double UlanUdeLat = 51.834;
+    public const double ForestEntryLon = 107.48;
+    public const double ForestEntryLat = 51.87;
     public const double ForestCampLon = 107.35;
     public const double ForestCampLat = 51.95;
     public const double ForestStreamLon = 107.32;
