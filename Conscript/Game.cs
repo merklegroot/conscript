@@ -73,6 +73,7 @@ public sealed class Game : IGame
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
+    private const string ChoiceDisassembleTent = "DISASSEMBLE TENT";
     private const string ChoiceSleep = "SLEEP";
     private const string ChoiceHunt = "HUNT";
     private const string ChoiceFollowStream = "FOLLOW THE STREAM";
@@ -387,8 +388,10 @@ public sealed class Game : IGame
 
     // Opening scene narrative (the knock)
     private const string OpeningNarrative =
-        "“Military Commissariat! Open up!”\n\n" +
-        "Your mother grips your hand under the table. Your sister is silent. Your father stands frozen at the window. Nowhere left to hide.";
+        "*KNOCK* *KNOCK*\n\n" +
+        "“Military Commissariat!\nOpen up!”\n\n" +
+        "Your family looks on at you in silence.\n\n" +
+        "There's nowhere left to hide.";
 
     // Forest narrative (existing)
     private const string ForestNarrative =
@@ -528,7 +531,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Tent:
-                _choices = new[] { ChoiceExitTent, ChoiceSleep, "WAIT" };
+                _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, "WAIT" };
                 ApplyEnvironmentTentInterior();
                 _location = "Trash Bag Tent";
                 break;
@@ -1311,18 +1314,26 @@ public sealed class Game : IGame
         {
             _buildCloseHovered = Raylib.CheckCollisionPointRec(mouse, _buildCloseRect);
             bool canBuildTent = CanBuildTrashBagTent(out _);
-            _buildTentButtonHovered = canBuildTent &&
+            bool canDisassembleTent = CanDisassembleTrashBagTent(out _);
+            _buildTentButtonHovered =
+                (_hasTrashBagTent ? canDisassembleTent : canBuildTent) &&
                 Raylib.CheckCollisionPointRec(mouse, _buildTentButtonRect);
 
             if (leftClicked && _buildTentButtonHovered)
             {
-                TryBuildTrashBagTent();
+                if (_hasTrashBagTent)
+                    TryDisassembleTrashBagTent();
+                else
+                    TryBuildTrashBagTent();
                 return;
             }
 
             if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _buildTentRowRect))
             {
-                TryBuildTrashBagTent();
+                if (_hasTrashBagTent)
+                    TryDisassembleTrashBagTent();
+                else if (canBuildTent)
+                    TryBuildTrashBagTent();
                 return;
             }
 
@@ -1764,6 +1775,10 @@ public sealed class Game : IGame
                 EnterTent();
                 break;
 
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
+                break;
+
             case ChoiceHunt:
                 PerformHunt();
                 break;
@@ -1798,6 +1813,10 @@ public sealed class Game : IGame
 
             case ChoiceEnterTent:
                 EnterTent();
+                break;
+
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
                 break;
 
             case ChoiceHunt:
@@ -1850,6 +1869,10 @@ public sealed class Game : IGame
                 EnterTent();
                 return;
 
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
+                return;
+
             case "WAIT":
                 PerformIdle();
                 return;
@@ -1869,6 +1892,10 @@ public sealed class Game : IGame
         {
             case ChoiceExitTent:
                 ExitTent();
+                break;
+
+            case ChoiceDisassembleTent:
+                TryDisassembleTrashBagTent();
                 break;
 
             case ChoiceSleep:
@@ -2290,7 +2317,18 @@ public sealed class Game : IGame
     {
         if (_phase == Phase.Outside)
         {
-            _choices = _hasTrashBagTent
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Outside
+                ? new[]
+                {
+                    "HIDE IN THE GARBAGE",
+                    "HEAD FOR THE FOREST",
+                    "GO TO UNCLE'S HOUSE",
+                    "CONVENIENCE STORE",
+                    ChoiceEnterTent,
+                    ChoiceDisassembleTent,
+                    "WAIT"
+                }
+                : _hasTrashBagTent
                 ? new[]
                 {
                     "HIDE IN THE GARBAGE",
@@ -2311,13 +2349,17 @@ public sealed class Game : IGame
         }
         else if (_phase == Phase.Forest)
         {
-            _choices = _hasTrashBagTent
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Forest
+                ? new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                : _hasTrashBagTent
                 ? new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
                 : new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", "WAIT" };
         }
         else if (_phase == Phase.ForestStream)
         {
-            _choices = _hasTrashBagTent
+            _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.ForestStream
+                ? new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                : _hasTrashBagTent
                 ? new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
                 : new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", "WAIT" };
         }
@@ -2579,6 +2621,124 @@ public sealed class Game : IGame
         _buildFeedbackTimer = BuildFeedbackDuration;
         _actionMessage = "Trash bag tent pitched. A little warmer out here.";
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private int CountEmptyBackpackSlots() =>
+        _backpack.Count(s => string.IsNullOrEmpty(s));
+
+    private int SlotsNeededToRestoreMaterial(string itemName) =>
+        FindBackpackSlotIndex(itemName) >= 0 ? 0 : 1;
+
+    private int SlotsNeededForTentDisassembly() =>
+        SlotsNeededToRestoreMaterial(ItemTrashBags)
+        + SlotsNeededToRestoreMaterial(ItemDuctTape)
+        + CountDroppedItemsInRoom(Phase.Tent);
+
+    private bool CanDisassembleTrashBagTent(out string reason)
+    {
+        if (!_hasTrashBagTent)
+        {
+            reason = "No tent pitched here.";
+            return false;
+        }
+
+        if (_phase != Phase.Tent && _phase != _tentBuiltInPhase)
+        {
+            reason = "Your shelter is pitched somewhere else.";
+            return false;
+        }
+
+        int needed = SlotsNeededForTentDisassembly();
+        int empty = CountEmptyBackpackSlots();
+        if (empty < needed)
+        {
+            reason = needed == 1
+                ? "Backpack is full — make space before taking down the tent."
+                : $"You need {needed} free backpack slots for the shelter, materials, and items inside.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    private bool TryRestoreBackpackMaterial(string itemName)
+    {
+        int max = GetMaxChargesForItem(itemName);
+        int slot = FindBackpackSlotIndex(itemName);
+        if (slot >= 0)
+        {
+            if (max > 0)
+            {
+                int current = GetBackpackSlotCharges(slot, itemName);
+                _backpackItemCharges[slot] = Math.Min(max, current + 1);
+            }
+            return true;
+        }
+
+        return TryAddToBackpack(itemName, max > 0 ? 1 : null);
+    }
+
+    private bool TryDisassembleTrashBagTent()
+    {
+        if (!CanDisassembleTrashBagTent(out string reason))
+        {
+            _actionMessage = reason;
+            _actionMessageTimer = ActionMessageDuration;
+            _buildFeedback = reason;
+            _buildFeedbackTimer = BuildFeedbackDuration;
+            return false;
+        }
+
+        var tentDropped = _droppedItems
+            .Where(d => d.Room == Phase.Tent && d.TurnsRemaining > 0)
+            .ToList();
+
+        foreach (DroppedItem dropped in tentDropped)
+        {
+            if (!TryAddToBackpack(dropped.Name, dropped.Charges))
+            {
+                _actionMessage = "Backpack is full — make space before taking down the tent.";
+                _actionMessageTimer = ActionMessageDuration;
+                return false;
+            }
+        }
+
+        _droppedItems.RemoveAll(d => d.Room == Phase.Tent);
+
+        if (!TryRestoreBackpackMaterial(ItemTrashBags) || !TryRestoreBackpackMaterial(ItemDuctTape))
+        {
+            _actionMessage = "Backpack is full — make space before taking down the tent.";
+            _actionMessageTimer = ActionMessageDuration;
+            return false;
+        }
+
+        bool wasInside = _phase == Phase.Tent;
+        Phase outdoorPhase = wasInside ? _phaseOutdoorBeforeTent : _phase;
+
+        _hasTrashBagTent = false;
+        _tentBuiltInPhase = null;
+
+        if (wasInside)
+            EnterPhase(outdoorPhase);
+        else
+        {
+            RefreshOutdoorComfortEnvironment();
+            RefreshOutdoorActionChoices();
+            RefreshConcealment();
+        }
+
+        _buildFeedback = "";
+        _buildFeedbackTimer = 0f;
+        _actionMessage = tentDropped.Count > 0
+            ? "You take down the shelter and pack up what was left inside."
+            : "You fold up the trash-bag shelter and stow the bags and tape.";
+        _actionMessageTimer = ActionMessageDuration;
+
+        if (_selectedIndex >= _choices.Length)
+            _selectedIndex = Math.Max(0, _choices.Length - 1);
+
+        return true;
     }
 
     private enum DialogItemAction
@@ -3504,6 +3664,7 @@ public sealed class Game : IGame
         _buildTentRowRect = new Rectangle(rowX, rowY, rowW, rowH);
 
         bool canBuild = CanBuildTrashBagTent(out string blockReason);
+        bool canDisassemble = CanDisassembleTrashBagTent(out string disassembleBlockReason);
         bool built = _hasTrashBagTent;
         bool outdoors = IsOutdoorsPhase(_phase);
         bool hasBags = HasUsableBackpackItem(ItemTrashBags);
@@ -3530,7 +3691,9 @@ public sealed class Game : IGame
             built ? Palette.TextDim : Palette.TextPrimary);
 
         string reqLine = built
-            ? "Shelter pitched — +comfort outdoors"
+            ? (CountDroppedItemsInRoom(Phase.Tent) > 0
+                ? "Shelter pitched — items still inside"
+                : "Shelter pitched — +comfort outdoors")
             : "Uses some bags & tape · Outdoors only";
         Raylib.DrawTextEx(font, reqLine,
             new Vector2(textX, rowY + 30), 14, 0.5f, Palette.TextDim);
@@ -3556,10 +3719,25 @@ public sealed class Game : IGame
 
         if (built)
         {
-            string done = "BUILT";
-            int doneW = (int)Raylib.MeasureTextEx(font, done, 15, 0.5f).X;
-            Raylib.DrawTextEx(font, done,
-                new Vector2(btnX + (btnW - doneW) / 2f, btnY + 8), 15, 0.5f, Palette.Positive);
+            if (canDisassemble)
+                DrawDialogButton(_buildTentButtonRect, "TAKE DOWN", _buildTentButtonHovered, font);
+            else
+            {
+                Raylib.DrawRectangleRec(_buildTentButtonRect, new Color(24, 26, 30, 255));
+                Raylib.DrawRectangleLinesEx(_buildTentButtonRect, 1f, Palette.SubtleBorder);
+                string label = "TAKE DOWN";
+                int labelSize = 15;
+                int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.5f).X;
+                Raylib.DrawTextEx(font, label,
+                    new Vector2(btnX + (btnW - labelW) / 2f, btnY + 8),
+                    labelSize, 0.5f, Palette.TextDim);
+            }
+
+            if (!canDisassemble && !string.IsNullOrEmpty(disassembleBlockReason))
+            {
+                Raylib.DrawTextEx(font, disassembleBlockReason,
+                    new Vector2(textX, rowY + 42), 12, 0.45f, new Color(180, 120, 100, 255));
+            }
         }
         else
         {
@@ -5086,17 +5264,34 @@ public sealed class Game : IGame
     /// pixel height required when drawn with the given font/size/spacing.
     /// This is what makes the narrative card size itself correctly.
     /// </summary>
-    private (List<string> lines, int height) WrapTextForBox(string text, Font font, float fontSize, float spacing, int maxWidth, int lineHeight)
+    private (List<string> lines, int height) WrapTextForBox(
+        string text,
+        Font font,
+        float fontSize,
+        float spacing,
+        int maxWidth,
+        int lineHeight)
     {
-        if (string.IsNullOrWhiteSpace(text))
+        if (text == null)
             return (new List<string>(), 0);
 
-        // Normalize the provided multi-line string into words (respecting existing line breaks as strong breaks)
-        var paragraphs = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        int blankLineHeight = lineHeight / 2;
+
+        // Normalize newlines and preserve explicit blank lines (e.g. "\n\n" => an empty rendered line)
+        text = text.Replace("\r\n", "\n");
+        var paragraphs = text.Split('\n', StringSplitOptions.None);
         var lines = new List<string>();
+        int totalHeight = 0;
 
         foreach (string paragraph in paragraphs)
         {
+            if (string.IsNullOrWhiteSpace(paragraph))
+            {
+                lines.Add("");
+                totalHeight += blankLineHeight;
+                continue;
+            }
+
             string[] words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
             string current = "";
 
@@ -5108,6 +5303,7 @@ public sealed class Game : IGame
                 if (size.X > maxWidth && current.Length > 0)
                 {
                     lines.Add(current.Trim());
+                    totalHeight += lineHeight;
                     current = word;
                 }
                 else
@@ -5117,10 +5313,12 @@ public sealed class Game : IGame
             }
 
             if (current.Length > 0)
+            {
                 lines.Add(current.Trim());
+                totalHeight += lineHeight;
+            }
         }
 
-        int totalHeight = lines.Count * lineHeight;
         return (lines, totalHeight);
     }
 
@@ -5134,6 +5332,7 @@ public sealed class Game : IGame
         float fontSize = LayoutConstants.NarrativeLongSize;
         float spacing = 0.9f;
         int lineHeight = (int)(fontSize * 1.42f);
+        int blankLineHeight = lineHeight / 2;
 
         int maxCardWidth = 320;
         int horizontalPadding = 18;
@@ -5165,15 +5364,18 @@ public sealed class Game : IGame
         int textLeft = cardX + horizontalPadding;
         int textTop = cardY + verticalPadding;
 
+        int y = textTop;
         for (int i = 0; i < wrappedLines.Count; i++)
         {
             Raylib.DrawTextEx(
                 font,
                 wrappedLines[i],
-                new Vector2(textLeft, textTop + i * lineHeight),
+                new Vector2(textLeft, y),
                 fontSize,
                 spacing,
                 Palette.TextPrimary);
+
+            y += string.IsNullOrEmpty(wrappedLines[i]) ? blankLineHeight : lineHeight;
         }
     }
 
