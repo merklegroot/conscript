@@ -833,7 +833,7 @@ public sealed class Game : IGame
         Raylib.SetTargetFPS(60);
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
-        GamepadConnection.Initialize();
+        InputManager.Initialize();
 
         _uiFont = UiFontLoader.Load();
         _uiFontItalic = UiFontLoader.LoadItalic();
@@ -905,9 +905,7 @@ public sealed class Game : IGame
     private void Update()
     {
         float dt = Raylib.GetFrameTime();
-        InputManager.BeginFrame();
-        try
-        {
+        InputManager.RefreshGamepad();
 
         if (InputManager.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
@@ -1676,11 +1674,6 @@ public sealed class Game : IGame
         Raylib.SetMouseCursor(overClickable
             ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
             : MouseCursor.MOUSE_CURSOR_DEFAULT);
-        }
-        finally
-        {
-            InputManager.EndFrame();
-        }
     }
 
     // --- Choice handlers ---
@@ -2470,8 +2463,7 @@ public sealed class Game : IGame
         _controllerDebugNextHovered = false;
         Array.Clear(_controllerDebugTabHovered);
 
-        _controllerDebugPadIndex = Math.Max(0, GamepadConnection.FirstConnectedIndex());
-        GamepadConnection.ApplyMappings();
+        _controllerDebugPadIndex = Math.Max(0, InputManager.ActiveGamepad);
     }
 
     private void CloseControllerDebug()

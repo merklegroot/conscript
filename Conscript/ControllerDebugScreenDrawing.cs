@@ -50,21 +50,13 @@ internal static class ControllerDebugScreenDrawing
             new Vector2(panelX + 22, panelY + 76),
             GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
 
-        Raylib.DrawTextEx(font, JoystickInput.GetDebugStatusLine(),
+        int active = InputManager.ActiveGamepad;
+        string padLine = InputManager.IsGamepadConnected
+            ? $"Gamepad {active}: {Raylib.GetGamepadName_(active)}"
+            : "No gamepad — check Steam Input / replug controller";
+        Raylib.DrawTextEx(font, padLine,
             new Vector2(panelX + 22, panelY + 96),
             GamepadDebugLayout.MetaSize, 0.45f, Palette.TextSecondary);
-
-        string steamLine = GamepadConnection.HasSteamControllerConfig
-            ? "Steam SDL_GAMECONTROLLERCONFIG: present"
-            : "Steam SDL_GAMECONTROLLERCONFIG: not set — launch through Steam for Deck controls";
-        Raylib.DrawTextEx(font, steamLine,
-            new Vector2(panelX + 22, panelY + 116),
-            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextMuted);
-
-        string countLine = $"Connected (mapped + raw): {GamepadConnection.ConnectedCount()}";
-        Raylib.DrawTextEx(font, countLine,
-            new Vector2(panelX + 22, panelY + 136),
-            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextMuted);
 
         int selectorY = panelY + 164;
         const int navBtnW = 100;
@@ -168,11 +160,8 @@ internal static class ControllerDebugScreenDrawing
             GamepadDebugDrawing.DrawTruncatedLine(font, maybeName, x + pad, ref cy, innerW, GamepadDebugLayout.BodySize, Palette.TextSecondary);
             cy += 6;
 
-            Raylib.DrawTextEx(font, "No device on this slot. Mappings re-apply every ~0.5s while disconnected.",
+            Raylib.DrawTextEx(font, "No device on this slot. Launch via Steam or use keyboard.",
                 new Vector2(x + pad, cy), GamepadDebugLayout.BodySize, 0.55f, Palette.TextSecondary);
-            cy += 22;
-
-            DrawRawJoystickButtons(font, x + pad, ref cy, innerW);
             return;
         }
 
@@ -262,33 +251,4 @@ internal static class ControllerDebugScreenDrawing
         }
     }
 
-    private static void DrawRawJoystickButtons(Font font, int x, ref int y, int innerW)
-    {
-        int joy = JoystickInput.ActiveJoystickIndex;
-        if (joy < 0)
-        {
-            Raylib.DrawTextEx(font, "No GLFW raw joystick — try replugging or launch via Steam.",
-                new Vector2(x, y), GamepadDebugLayout.BodySize, 0.55f, Palette.TextMuted);
-            return;
-        }
-
-        string name = NativeGlfwJoystick.GetName(joy) ?? "(unnamed)";
-        GamepadDebugDrawing.DrawTruncatedLine(font, $"Raw device: {name}", x, ref y, innerW, GamepadDebugLayout.BodySize, Palette.TextSecondary);
-        y += 8;
-
-        int count = NativeGlfwJoystick.GetButtonCount(joy);
-        Raylib.DrawTextEx(font, $"Raw buttons (0–{Math.Max(0, count - 1)}):",
-            new Vector2(x, y), GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
-        y += 22;
-
-        for (int b = 0; b < count && b < 24; b++)
-        {
-            bool down = NativeGlfwJoystick.IsButtonDown(joy, b);
-            Color dot = down ? Palette.Positive : Palette.SubtleBorder;
-            Raylib.DrawCircle(x + 8, y + 10, 5f, dot);
-            Raylib.DrawTextEx(font, $"btn {b}", new Vector2(x + 20, y + 2),
-                GamepadDebugLayout.BodySize, 0.45f, down ? Palette.TextPrimary : Palette.TextDim);
-            y += 22;
-        }
-    }
 }

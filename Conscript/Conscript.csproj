@@ -20,7 +20,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Facepunch.Steamworks" Version="2.3.3" />
     <PackageReference Include="Raylib-cs" Version="5.0.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
   </ItemGroup>
@@ -33,11 +32,6 @@
   <!-- Fonts remain loose files in output (easy to hot-swap during development) -->
   <ItemGroup>
     <None Include="Fonts\**\*" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <!-- Dev only: Steam looks for this next to the exe when not launched via Steam -->
-  <ItemGroup>
-    <None Include="steam_appid.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

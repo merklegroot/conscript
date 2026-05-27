@@ -8,20 +8,14 @@ static class Program
 {
     static void Main(string[] args)
     {
-        SteamBootstrap.TryInit();
-        try
-        {
-            var builder = Host.CreateApplicationBuilder(args);
-            builder.Services.RegisterGame();
+        GamepadEnvironment.ConfigureForRaylib();
 
-            using var host = builder.Build();
+        var builder = Host.CreateApplicationBuilder(args);
+        builder.Services.RegisterGame();
 
-            var game = host.Services.GetRequiredService<IGame>();
-            game.Run();
-        }
-        finally
-        {
-            SteamBootstrap.Shutdown();
-        }
+        using var host = builder.Build();
+
+        var game = host.Services.GetRequiredService<IGame>();
+        game.Run();
     }
 }
