@@ -1843,10 +1843,6 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Outside);
                 return;
 
-            case "GO TO UNCLE'S HOUSE":
-                EnterDeath("You went to your uncle.", "He called them before you could even sit down.");
-                return;
-
             case "CONVENIENCE STORE":
                 _phaseBeforeStore = Phase.Town;
                 ApplyEnvironmentOnAction();
@@ -2375,7 +2371,6 @@ public sealed class Game : IGame
                 {
                     "HEAD FOR THE FOREST",
                     ChoiceBackToCourtyard,
-                    "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
@@ -2386,7 +2381,6 @@ public sealed class Game : IGame
                 {
                     "HEAD FOR THE FOREST",
                     ChoiceBackToCourtyard,
-                    "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     ChoiceEnterTent,
                     "WAIT"
@@ -2395,7 +2389,6 @@ public sealed class Game : IGame
                 {
                     "HEAD FOR THE FOREST",
                     ChoiceBackToCourtyard,
-                    "GO TO UNCLE'S HOUSE",
                     "CONVENIENCE STORE",
                     "WAIT"
                 };
