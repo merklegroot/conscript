@@ -60,6 +60,18 @@ public sealed class Game : IGame
     private const string ChoiceBackToForestEntry = "BACK TO FOREST ENTRY";
     private const string ChoiceGoIntoTown = "GO INTO TOWN";
     private const string ChoiceBackToCourtyard = "BACK TO THE COURTYARD";
+    private const string ChoiceGoBackToTown = "GO BACK TO TOWN";
+    private const string ChoiceHeadForForest = "HEAD FOR THE FOREST";
+    private const string ChoiceHideInGarbage = "HIDE IN THE GARBAGE";
+    private const string ChoiceGoToUnclesHouse = "GO TO UNCLE'S HOUSE";
+    private const string ChoiceConvenienceStore = "CONVENIENCE STORE";
+    private const string ChoiceBrowseShelves = "BROWSE SHELVES";
+    private const string ChoiceLeaveStore = "LEAVE THE WAY YOU CAME";
+    private const string ChoiceWait = "WAIT";
+    private const string ChoiceTryAgain = "Try again";
+    private const string ChoiceOpenDoor = "Open the door";
+    private const string ChoiceFleeOutWindow = "Flee out the window";
+    private const string ChoiceBarDoorAndFight = "Bar the door and fight";
 
     private const int EnergyCostHunt = 6; // in addition to time passing drain
     private const int EnergyCostForage = 4;
@@ -382,9 +394,9 @@ public sealed class Game : IGame
             case Phase.Opening:
                 _choices = new[]
                 {
-                    "Open the door",
-                    "Flee out the window",
-                    "Bar the door and fight"
+                    ChoiceOpenDoor,
+                    ChoiceFleeOutWindow,
+                    ChoiceBarDoorAndFight
                 };
                 // Starting values for the very first moment
                 _day = 0;
@@ -451,7 +463,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Death:
-                _choices = new[] { "Try again" };
+                _choices = new[] { ChoiceTryAgain };
                 break;
 
             case Phase.Outside:
@@ -481,9 +493,9 @@ public sealed class Game : IGame
             case Phase.Store:
                 _choices = new[]
                 {
-                    "BROWSE SHELVES",
-                    "LEAVE THE WAY YOU CAME",
-                    "WAIT"
+                    ChoiceBrowseShelves,
+                    ChoiceLeaveStore,
+                    ChoiceWait
                 };
                 ApplyEnvironmentHeatedBuilding();
                 _day = 0;
@@ -497,7 +509,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Tent:
-                _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, "WAIT" };
+                _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, ChoiceWait };
                 ApplyEnvironmentTentInterior();
                 _location = "Trash Bag Tent";
                 break;
@@ -1641,23 +1653,24 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Death:
-                if (index == 0)
-                {
+                if (index >= 0 && index < _choices.Length && _choices[index] == ChoiceTryAgain)
                     EnterPhase(Phase.Opening);
-                }
                 break;
         }
     }
 
     private void HandleOpeningChoice(int index)
     {
-        switch (index)
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
         {
-            case 0: // Open the door — conscripted and dies in the war shortly after
+            case ChoiceOpenDoor:
                 EnterDeath("You opened the door.", "Conscripted. Dead on the front three weeks later.");
                 return;
 
-            case 1: // Flee
+            case ChoiceFleeOutWindow:
                 _actionMessage = "You climb out the window and drop into the yard behind the block.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();   // the climb and landing take a moment
@@ -1665,7 +1678,7 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Outside);
                 break;
 
-            case 2: // Fight — immediate death
+            case ChoiceBarDoorAndFight:
                 EnterDeath(DefaultDeathLine1, DefaultDeathLine2);
                 break;
         }
@@ -1687,7 +1700,7 @@ public sealed class Game : IGame
                 EnterForestArea(Phase.ForestStream);
                 break;
 
-            case "GO BACK TO TOWN":
+            case ChoiceGoBackToTown:
                 ApplyTravelEnergyCost();
                 AdvanceTime();
                 EnterPhase(Phase.Town);
@@ -1701,7 +1714,7 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 break;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 break;
         }
@@ -1731,7 +1744,7 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 break;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 break;
         }
@@ -1770,7 +1783,7 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 break;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 break;
         }
@@ -1783,7 +1796,7 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
-            case "HIDE IN THE GARBAGE":
+            case ChoiceHideInGarbage:
                 EnterDeath("They found you.", "Dragged from the garbage like an animal.");
                 return;
 
@@ -1796,7 +1809,7 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Town);
                 return;
 
-            case "GO TO UNCLE'S HOUSE":
+            case ChoiceGoToUnclesHouse:
                 EnterDeath("You went to your uncle.", "He called them before you could even sit down.");
                 return;
 
@@ -1808,7 +1821,7 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 return;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 return;
         }
@@ -1825,7 +1838,7 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
-            case "HEAD FOR THE FOREST":
+            case ChoiceHeadForForest:
                 ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
                 _actionMessage = "You slip away from the blocks and into the dark pines at the edge of town.";
                 AdvanceTime();
@@ -1843,7 +1856,7 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Outside);
                 return;
 
-            case "CONVENIENCE STORE":
+            case ChoiceConvenienceStore:
                 _phaseBeforeStore = Phase.Town;
                 ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
@@ -1860,7 +1873,7 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 return;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 return;
         }
@@ -1889,7 +1902,7 @@ public sealed class Game : IGame
                 SleepInTent();
                 break;
 
-            case "WAIT":
+            case ChoiceWait:
                 PerformIdle();
                 break;
         }
@@ -1915,13 +1928,16 @@ public sealed class Game : IGame
 
     private void HandleStoreChoice(int index)
     {
-        switch (index)
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
         {
-            case 0: // Browse shelves → open the buy menu
+            case ChoiceBrowseShelves:
                 OpenStoreBuyMenu();
                 return;   // do not advance time or close the store phase yet
 
-            case 1: // Leave the way you came
+            case ChoiceLeaveStore:
                 _actionMessage = _phaseBeforeStore == Phase.Town
                     ? "You push back out onto the empty street."
                     : "You push back out into the cold dark yard.";
@@ -1930,7 +1946,7 @@ public sealed class Game : IGame
                 EnterPhase(_phaseBeforeStore is Phase.Outside or Phase.Town ? _phaseBeforeStore : Phase.Town);
                 return;
 
-            case 2: // Wait inside the kiosk
+            case ChoiceWait:
                 PerformIdle();
                 return;
         }
@@ -2340,28 +2356,28 @@ public sealed class Game : IGame
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Outside
                 ? new[]
                 {
-                    "HIDE IN THE GARBAGE",
+                    ChoiceHideInGarbage,
                     ChoiceGoIntoTown,
-                    "GO TO UNCLE'S HOUSE",
+                    ChoiceGoToUnclesHouse,
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
-                    "WAIT"
+                    ChoiceWait
                 }
                 : _hasTrashBagTent
                 ? new[]
                 {
-                    "HIDE IN THE GARBAGE",
+                    ChoiceHideInGarbage,
                     ChoiceGoIntoTown,
-                    "GO TO UNCLE'S HOUSE",
+                    ChoiceGoToUnclesHouse,
                     ChoiceEnterTent,
-                    "WAIT"
+                    ChoiceWait
                 }
                 : new[]
                 {
-                    "HIDE IN THE GARBAGE",
+                    ChoiceHideInGarbage,
                     ChoiceGoIntoTown,
-                    "GO TO UNCLE'S HOUSE",
-                    "WAIT"
+                    ChoiceGoToUnclesHouse,
+                    ChoiceWait
                 };
         }
         else if (_phase == Phase.Town)
@@ -2369,53 +2385,53 @@ public sealed class Game : IGame
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Town
                 ? new[]
                 {
-                    "HEAD FOR THE FOREST",
+                    ChoiceHeadForForest,
                     ChoiceBackToCourtyard,
-                    "CONVENIENCE STORE",
+                    ChoiceConvenienceStore,
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
-                    "WAIT"
+                    ChoiceWait
                 }
                 : _hasTrashBagTent
                 ? new[]
                 {
-                    "HEAD FOR THE FOREST",
+                    ChoiceHeadForForest,
                     ChoiceBackToCourtyard,
-                    "CONVENIENCE STORE",
+                    ChoiceConvenienceStore,
                     ChoiceEnterTent,
-                    "WAIT"
+                    ChoiceWait
                 }
                 : new[]
                 {
-                    "HEAD FOR THE FOREST",
+                    ChoiceHeadForForest,
                     ChoiceBackToCourtyard,
-                    "CONVENIENCE STORE",
-                    "WAIT"
+                    ChoiceConvenienceStore,
+                    ChoiceWait
                 };
         }
         else if (_phase == Phase.ForestEntry)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.ForestEntry
-                ? new[] { ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                ? new[] { ChoiceFollowStream, ChoiceGoBackToTown, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
                 : _hasTrashBagTent
-                ? new[] { ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceFollowStream, "GO BACK TO TOWN", "WAIT" };
+                ? new[] { ChoiceFollowStream, ChoiceGoBackToTown, ChoiceEnterTent, ChoiceWait }
+                : new[] { ChoiceFollowStream, ChoiceGoBackToTown, ChoiceWait };
         }
         else if (_phase == Phase.Forest)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Forest
-                ? new[] { ChoiceFollowStream, ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                ? new[] { ChoiceFollowStream, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
                 : _hasTrashBagTent
-                ? new[] { ChoiceFollowStream, ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceFollowStream, "WAIT" };
+                ? new[] { ChoiceFollowStream, ChoiceEnterTent, ChoiceWait }
+                : new[] { ChoiceFollowStream, ChoiceWait };
         }
         else if (_phase == Phase.ForestStream)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.ForestStream
-                ? new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                ? new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
                 : _hasTrashBagTent
-                ? new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, "WAIT" };
+                ? new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, ChoiceEnterTent, ChoiceWait }
+                : new[] { ChoiceEnterDeepForest, ChoiceBackToForestEntry, ChoiceWait };
         }
         else
         {
@@ -4855,7 +4871,7 @@ public sealed class Game : IGame
             new Vector2((_screenWidth - w2) / 2, _screenHeight / 2 - 10),
             30, 0.85f, Palette.TextSecondary);
 
-        // The single "Try again" button is drawn by DrawActionBar (we set _choices to ["Try again"])
+        // The single try-again button is drawn by DrawActionBar (we set _choices to ChoiceTryAgain)
         DrawActionBar();
 
         DrawTopRightButtons();
