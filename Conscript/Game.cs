@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Numerics;
 using Conscript.Constants;
 using Raylib_cs;
@@ -38,19 +37,6 @@ public sealed class Game : IGame
     private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
     private Texture2D _titleLogoTexture;
-
-    // --- Region map geography (sync with img/region-map.bounds.json) ---
-    // (regenerate via: python3 scripts/generate_region_map.py)
-    private const double RegionMapMinLon = 22.0;
-    private const double RegionMapMaxLon = 175.0;
-    private const double RegionMapMinLat = 26.0;
-    private const double RegionMapMaxLat = 82.0;
-    private const double UlanUdeLon = 107.584;
-    private const double UlanUdeLat = 51.834;
-    private const double ForestCampLon = 107.35;
-    private const double ForestCampLat = 51.95;
-    private const double ForestStreamLon = 107.32;
-    private const double ForestStreamLat = 51.97;
 
     // --- Item names & consumable tuning ---
     private const string ItemBottledWater = "Bottled Water";
@@ -146,48 +132,6 @@ public sealed class Game : IGame
     private readonly Rectangle[] _controllerDebugTabRects = new Rectangle[4];
     private readonly bool[] _controllerDebugTabHovered = new bool[4];
 
-    private const int MaxGamepadsToShow = 4;
-
-    // Typography for controller debug (larger for readability)
-    private const int ControllerDebugTitleSize = 28;
-    private const int ControllerDebugSubtitleSize = 17;
-    private const int ControllerDebugMetaSize = 16;
-    private const int ControllerDebugSectionSize = 18;
-    private const int ControllerDebugBodySize = 15;
-    private const int ControllerDebugButtonRowSize = 20;
-    private const int ControllerDebugButtonRowStep = 28;
-
-    private static readonly (GamepadButton Button, string Label)[] GamepadButtonsToShow =
-    {
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_UP, "D-pad Up"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT, "D-pad Right"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_DOWN, "D-pad Down"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT, "D-pad Left"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_UP, "Face Up (Y/Triangle)"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT, "Face Right (B/Circle)"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_DOWN, "Face Down (A/Cross)"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_LEFT, "Face Left (X/Square)"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_TRIGGER_1, "LB / L1"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_TRIGGER_2, "LT / L2"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_TRIGGER_1, "RB / R1"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_TRIGGER_2, "RT / R2"),
-        (GamepadButton.GAMEPAD_BUTTON_MIDDLE_LEFT, "Select / Back"),
-        (GamepadButton.GAMEPAD_BUTTON_MIDDLE, "Guide / Home"),
-        (GamepadButton.GAMEPAD_BUTTON_MIDDLE_RIGHT, "Start"),
-        (GamepadButton.GAMEPAD_BUTTON_LEFT_THUMB, "L3 (left stick click)"),
-        (GamepadButton.GAMEPAD_BUTTON_RIGHT_THUMB, "R3 (right stick click)"),
-    };
-
-    private static readonly (GamepadAxis Axis, string Label)[] GamepadAxesToShow =
-    {
-        (GamepadAxis.GAMEPAD_AXIS_LEFT_X, "Left stick X"),
-        (GamepadAxis.GAMEPAD_AXIS_LEFT_Y, "Left stick Y"),
-        (GamepadAxis.GAMEPAD_AXIS_RIGHT_X, "Right stick X"),
-        (GamepadAxis.GAMEPAD_AXIS_RIGHT_Y, "Right stick Y"),
-        (GamepadAxis.GAMEPAD_AXIS_LEFT_TRIGGER, "Left trigger axis"),
-        (GamepadAxis.GAMEPAD_AXIS_RIGHT_TRIGGER, "Right trigger axis"),
-    };
-
     // === Game flow ===
     internal enum Phase
     {
@@ -253,6 +197,7 @@ public sealed class Game : IGame
     private int _comfort = 62;   // protection from the elements (higher = better)
     private int _concealment = 35;   // how hard you are to find (higher = better); location-driven for now
 
+    // --- Stat deltas (environment vs. last action) ---
     // Environment-driven stat changes (persistent while in that location)
     private int _envHealthDelta;
     private int _envEnergyDelta;
@@ -270,6 +215,7 @@ public sealed class Game : IGame
     private const float ActionDeltaDisplayDuration = 2f;
     // Sergei fled wearing his winter jacket (on his body, not in the backpack grid).
 
+    // --- Backpack & ground items ---
     // Backpack inventory grid (prototype: 8 slots = 2×4)
     private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
     // Remaining uses per slot (null = full/default for that item type)
@@ -281,6 +227,7 @@ public sealed class Game : IGame
     private readonly List<int> _droppedItemVisibleIndices = new(); // parallel to click rects → _droppedItems index
     private int _hoveredDroppedItemListIndex = -1; // index into visible/click lists
 
+    // --- Modal overlays (dialogs & menus) ---
     // Item interaction dialog (simple modal for now)
     private bool _showItemDialog;
     private int _dialogItemIndex = -1;
@@ -384,7 +331,7 @@ public sealed class Game : IGame
 
     private static readonly float[] MapZoomLevels = { 0.25f, 0.5f, 0.75f, 1f, 2f, 3f, 4f, 6f, 8f, 12f, 18f };
 
-    // Detail dialog viewport (width / height). Sidebar uses MapGeoAspect (~3.9) instead.
+    // Detail dialog viewport (width / height). Sidebar uses RegionMapGeo.LonLatAspect (~3.9) instead.
     private const float ExpandedMapAspect = 0.78f;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
@@ -675,54 +622,6 @@ public sealed class Game : IGame
         return idx < TimeOfDayDisplay.Length ? TimeOfDayDisplay[idx] : _timeOfDay;
     }
 
-    /// <summary>
-    /// Loads a high-quality TTF font for crisp, readable UI text.
-    /// Falls back to Raylib's default bitmap font if no TTF is present.
-    /// 
-    /// Recommended: copy OpenSans.ttf from ~/repo/starflt/StarGame/Fonts/
-    /// into Conscript/Fonts/ (the .csproj will copy it to the output directory).
-    /// </summary>
-    private Font LoadUiFont()
-    {
-        string baseDir = AppContext.BaseDirectory;
-        string[] candidates =
-        {
-            Path.Combine(baseDir, "Fonts", "OpenSans.ttf"),
-            Path.Combine(baseDir, "Fonts", "OpenSans-Regular.ttf"),
-            Path.Combine(baseDir, "Fonts", "Inter.ttf"),
-            Path.Combine(baseDir, "Fonts", "Roboto-Regular.ttf"),
-        };
-
-        // Comprehensive character set for full UI support:
-        // - Basic Latin + common punctuation (including ' " ° … – — etc.)
-        // - Rouble symbol ₽
-        // - Full Cyrillic (Russian alphabet, including Ё/ё)
-        // - Common symbols used in the game (stat trend arrows, etc.)
-        // We must use LoadFontEx with an explicit glyph list; passing null/0 only loads
-        // a tiny default set (ASCII ~95 chars), which is why ' , ₽ and Cyrillic were missing.
-        const string chars =
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789" +
-            " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~°©®™…–—•·‘’“”«»₽" +
-            "абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ" +
-            "\u25B2\u25BC"; // ▲▼ (stat trend arrows)
-
-        int[] codepoints = new int[chars.Length];
-        for (int i = 0; i < chars.Length; i++)
-            codepoints[i] = chars[i];
-
-        foreach (string path in candidates)
-        {
-            if (File.Exists(path))
-            {
-                // 40 is the base pixel size; we control actual size via DrawTextEx fontSize param
-                return Raylib.LoadFontEx(path, 40, codepoints, codepoints.Length);
-            }
-        }
-
-        // No custom font found — the UI will still work, just using the default (less pretty) font.
-        return Raylib.GetFontDefault();
-    }
-
     // --- Embedded textures & item icons ---
     private void LoadItemIcons()
     {
@@ -787,42 +686,6 @@ public sealed class Game : IGame
                 : $"{remaining} servings left. Each serving restores some stats.";
     }
 
-    /// <summary>
-    /// Partial-use items: dim the drained portion, show the remaining slice at full strength,
-    /// then tint used (red) and remaining (green) on top of the icon.
-    /// </summary>
-    private static void DrawPartialChargeIcon(Texture2D tex, Rectangle dest, Color tint, int remaining, int maxCharges)
-    {
-        float remainFrac = remaining / (float)maxCharges;
-        float usedFrac = 1f - remainFrac;
-
-        Rectangle fullSrc = new(0, 0, tex.Width, tex.Height);
-        var dimmed = new Color(
-            (byte)(tint.R * 0.45f),
-            (byte)(tint.G * 0.45f),
-            (byte)(tint.B * 0.45f),
-            (byte)(tint.A * 0.85f));
-        Raylib.DrawTexturePro(tex, fullSrc, dest, Vector2.Zero, 0f, dimmed);
-
-        if (remainFrac > 0.001f)
-        {
-            float srcH = tex.Height * remainFrac;
-            var srcRemain = new Rectangle(0, tex.Height - srcH, tex.Width, srcH);
-            float destH = dest.Height * remainFrac;
-            var destRemain = new Rectangle(dest.X, dest.Y + dest.Height - destH, dest.Width, destH);
-            Raylib.DrawTexturePro(tex, srcRemain, destRemain, Vector2.Zero, 0f, tint);
-            Raylib.DrawRectangle((int)destRemain.X, (int)destRemain.Y, (int)destRemain.Width, (int)destRemain.Height,
-                new Color(48, 108, 58, 72));
-        }
-
-        if (usedFrac > 0.001f)
-        {
-            int usedH = (int)(dest.Height * usedFrac);
-            Raylib.DrawRectangle((int)dest.X, (int)dest.Y, (int)dest.Width, usedH,
-                new Color(128, 52, 52, 95));
-        }
-    }
-
     private int GetItemChargesForDisplay(string itemName, int slotIndex, int? chargesOverride)
     {
         if (chargesOverride is int c)
@@ -843,7 +706,7 @@ public sealed class Game : IGame
             int remaining = GetItemChargesForDisplay(itemName, slotIndex, chargesOverride);
             if (remaining > 0 && remaining < maxCharges)
             {
-                DrawPartialChargeIcon(tex, dest, tint, remaining, maxCharges);
+                ItemIconDrawing.DrawPartialCharge(tex, dest, tint, remaining, maxCharges);
                 return;
             }
         }
@@ -925,7 +788,7 @@ public sealed class Game : IGame
         Raylib.SetTargetFPS(60);
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
-        _uiFont = LoadUiFont();
+        _uiFont = UiFontLoader.Load();
         _apartmentBackground = EmbeddedTextureLoader.Load("apartment-inside.png");
         _outsideBackground   = EmbeddedTextureLoader.Load("apartment-outside.png");
         _forestBackground       = EmbeddedTextureLoader.Load("trees.png");
@@ -1078,7 +941,7 @@ public sealed class Game : IGame
         }
 
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showForageDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
+        if (!BlocksActionBarNavigation())
         {
             if (GameInput.IsHorizontalNavRightPressed())
             {
@@ -1210,7 +1073,7 @@ public sealed class Game : IGame
             _controllerDebugCloseHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect);
             _controllerDebugPrevHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugPrevRect);
             _controllerDebugNextHovered = Raylib.CheckCollisionPointRec(mouse, _controllerDebugNextRect);
-            for (int i = 0; i < MaxGamepadsToShow; i++)
+            for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
                 _controllerDebugTabHovered[i] = Raylib.CheckCollisionPointRec(mouse, _controllerDebugTabRects[i]);
 
             if (Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
@@ -1235,7 +1098,7 @@ public sealed class Game : IGame
                 CycleControllerDebugPad(1);
                 return;
             }
-            for (int i = 0; i < MaxGamepadsToShow; i++)
+            for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
             {
                 if (leftClicked && _controllerDebugTabHovered[i])
                 {
@@ -1464,7 +1327,7 @@ public sealed class Game : IGame
             _storeBuyPurchaseHovered = false;
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp)
+        if (AllowsSidebarAndSceneInput())
         {
             _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _statsHelpIconRect);
@@ -1624,10 +1487,10 @@ public sealed class Game : IGame
         }
 
         if (_showStoreBuyMenu)
-            TickTimedMessage(ref _storeBuyFeedbackTimer, ref _storeBuyFeedback, dt);
+            GameStatMath.TickTimedMessage(ref _storeBuyFeedbackTimer, ref _storeBuyFeedback, dt);
 
         if (_showBuildDialog)
-            TickTimedMessage(ref _buildFeedbackTimer, ref _buildFeedback, dt);
+            GameStatMath.TickTimedMessage(ref _buildFeedbackTimer, ref _buildFeedback, dt);
 
         // === Update mouse cursor to indicate clickable elements ===
         bool overClickable = false;
@@ -1643,7 +1506,7 @@ public sealed class Game : IGame
                 _controllerDebugTabHovered.Any(h => h))))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp)
+        if (AllowsSidebarAndSceneInput())
         {
             if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered ||
                 _huntSidebarButtonHovered || _forageSidebarButtonHovered || _quitSidebarButtonHovered)
@@ -2056,10 +1919,19 @@ public sealed class Game : IGame
         CloseStoreBuyMenu();
         CloseRegionMap();
         CloseBuildDialog();
+        CloseForageDialog();
         CloseControllerDebug();
         CloseQuitConfirm();
         CloseStatsHelp();
     }
+
+    private bool BlocksActionBarNavigation() =>
+        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showBuildDialog || _showForageDialog
+        || _showControllerDebug || _showQuitConfirm || _showStatsHelp;
+
+    private bool AllowsSidebarAndSceneInput() =>
+        !_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog
+        && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp;
 
     private void RestartGame()
     {
@@ -2323,7 +2195,7 @@ public sealed class Game : IGame
         Array.Clear(_controllerDebugTabHovered);
 
         _controllerDebugPadIndex = 0;
-        for (int i = 0; i < MaxGamepadsToShow; i++)
+        for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
         {
             if (Raylib.IsGamepadAvailable(i))
             {
@@ -2344,7 +2216,7 @@ public sealed class Game : IGame
 
     private void CycleControllerDebugPad(int delta)
     {
-        _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + MaxGamepadsToShow) % MaxGamepadsToShow;
+        _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + GamepadDebugLayout.MaxGamepadsToShow) % GamepadDebugLayout.MaxGamepadsToShow;
     }
 
     private void OpenQuitConfirm()
@@ -3019,112 +2891,17 @@ public sealed class Game : IGame
         _storeBuyFeedbackTimer = 1.2f;
     }
 
-    private void DrawRestartButton()
-    {
-        if (_restartButtonRect.Width <= 0) return;
+    private void DrawRestartButton() =>
+        GameDialogUi.DrawToolbarIconButton(_restartButtonRect, _restartHovered, GameToolbarIcons.DrawRestart);
 
-        Color bg = _restartHovered
-            ? new Color(58, 63, 74, 255)
-            : new Color(32, 35, 42, 255);
-        Color border = _restartHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
+    private void DrawDebugStartButton() =>
+        GameDialogUi.DrawToolbarTextButton(_debugStartButtonRect, _debugStartHovered, _uiFont, "DBG", 10f);
 
-        Raylib.DrawRectangleRec(_restartButtonRect, bg);
-        Raylib.DrawRectangleLinesEx(_restartButtonRect, 1.0f, border);
-
-        Color iconColor = _restartHovered ? Palette.TextPrimary : Palette.TextSecondary;
-        float cx = _restartButtonRect.X + _restartButtonRect.Width / 2f;
-        float cy = _restartButtonRect.Y + _restartButtonRect.Height / 2f;
-        float iconSize = _restartButtonRect.Width * 0.72f;
-        DrawRestartIcon(cx, cy, iconSize, iconColor);
-    }
-
-    /// <summary>
-    /// Minimal clockwise refresh arrow (vector icon, matches season/thermometer style).
-    /// </summary>
-    private static void DrawRestartIcon(float cx, float cy, float size, Color color)
-    {
-        float r = size * 0.38f;
-        float thick = Math.Max(1.6f, size * 0.13f);
-
-        // Nearly full ring with a gap at the bottom-right; Raylib angles are degrees, CCW from +X.
-        const float arcStart = 38f;
-        const float arcEnd = 302f;
-        const int segments = 28;
-        float span = arcEnd - arcStart;
-
-        for (int i = 0; i < segments; i++)
-        {
-            float t0 = (arcStart + span * i / segments) * MathF.PI / 180f;
-            float t1 = (arcStart + span * (i + 1) / segments) * MathF.PI / 180f;
-            Raylib.DrawLineEx(
-                new Vector2(cx + MathF.Cos(t0) * r, cy + MathF.Sin(t0) * r),
-                new Vector2(cx + MathF.Cos(t1) * r, cy + MathF.Sin(t1) * r),
-                thick, color);
-        }
-
-        // Arrowhead at the arc start, tangent points along CCW motion (into the arc).
-        float headAngle = arcStart * MathF.PI / 180f;
-        float hx = cx + MathF.Cos(headAngle) * r;
-        float hy = cy + MathF.Sin(headAngle) * r;
-        float tangent = headAngle + MathF.PI / 2f;
-        float ah = size * 0.24f;
-
-        float tx = hx + MathF.Cos(tangent) * ah;
-        float ty = hy + MathF.Sin(tangent) * ah;
-        Raylib.DrawLineEx(new Vector2(hx, hy), new Vector2(tx, ty), thick, color);
-
-        float wing = tangent - 2.35f;
-        Raylib.DrawLineEx(
-            new Vector2(tx, ty),
-            new Vector2(tx + MathF.Cos(wing) * ah * 0.55f, ty + MathF.Sin(wing) * ah * 0.55f),
-            thick, color);
-
-        wing = tangent + 2.35f;
-        Raylib.DrawLineEx(
-            new Vector2(tx, ty),
-            new Vector2(tx + MathF.Cos(wing) * ah * 0.55f, ty + MathF.Sin(wing) * ah * 0.55f),
-            thick, color);
-    }
-
-    private void DrawDebugStartButton()
-    {
-        if (_debugStartButtonRect.Width <= 0) return;
-
-        Color bg = _debugStartHovered
-            ? new Color(58, 63, 74, 255)
-            : new Color(32, 35, 42, 255);
-        Color border = _debugStartHovered ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
-
-        Raylib.DrawRectangleRec(_debugStartButtonRect, bg);
-        Raylib.DrawRectangleLinesEx(_debugStartButtonRect, 1.0f, border);
-
-        const string label = "DBG";
-        float labelSize = 10f;
-        Vector2 m = Raylib.MeasureTextEx(_uiFont, label, labelSize, 0.5f);
-        float lx = _debugStartButtonRect.X + (_debugStartButtonRect.Width - m.X) / 2f;
-        float ly = _debugStartButtonRect.Y + (_debugStartButtonRect.Height - labelSize) / 2f - 0.5f;
-        Raylib.DrawTextEx(_uiFont, label, new Vector2(lx, ly), labelSize, 0.5f, Palette.TextSecondary);
-    }
-
-    private void DrawControllerButton()
-    {
-        if (_controllerButtonRect.Width <= 0) return;
-
-        bool active = _showControllerDebug || _controllerHovered;
-        Color bg = active
-            ? new Color(58, 63, 74, 255)
-            : new Color(32, 35, 42, 255);
-        Color border = active ? new Color(125, 130, 140, 255) : Palette.SubtleBorder;
-
-        Raylib.DrawRectangleRec(_controllerButtonRect, bg);
-        Raylib.DrawRectangleLinesEx(_controllerButtonRect, 1.0f, border);
-
-        Color iconColor = active ? Palette.TextPrimary : Palette.TextSecondary;
-        float cx = _controllerButtonRect.X + _controllerButtonRect.Width / 2f;
-        float cy = _controllerButtonRect.Y + _controllerButtonRect.Height / 2f;
-        float iconSize = _controllerButtonRect.Width * 0.72f;
-        DrawControllerIcon(cx, cy, iconSize, iconColor);
-    }
+    private void DrawControllerButton() =>
+        GameDialogUi.DrawToolbarIconButton(
+            _controllerButtonRect,
+            _showControllerDebug || _controllerHovered,
+            GameToolbarIcons.DrawController);
 
     // =====================================================================
     // CONTROLLER DEBUG — live gamepad buttons, axes, and sticks
@@ -3144,11 +2921,11 @@ public sealed class Game : IGame
 
         Raylib.DrawTextEx(font, "CONTROLLER DEBUG",
             new Vector2(panelX + 22, panelY + 16),
-            ControllerDebugTitleSize, 0.75f, Palette.TextPrimary);
+            GamepadDebugLayout.TitleSize, 0.75f, Palette.TextPrimary);
 
         Raylib.DrawTextEx(font, "Live input from Raylib / SDL — one gamepad at a time.",
             new Vector2(panelX + 22, panelY + 50),
-            ControllerDebugSubtitleSize, 0.55f, Palette.TextSecondary);
+            GamepadDebugLayout.SubtitleSize, 0.55f, Palette.TextSecondary);
 
         int lastPressed = Raylib.GetGamepadButtonPressed();
         string lastLine = lastPressed >= 0
@@ -3156,7 +2933,7 @@ public sealed class Game : IGame
             : "Last button pressed (any pad): —";
         Raylib.DrawTextEx(font, lastLine,
             new Vector2(panelX + 22, panelY + 76),
-            ControllerDebugMetaSize, 0.5f, Palette.TextMuted);
+            GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
 
         // Pad selector: Prev / tabs / Next
         int selectorY = panelY + 104;
@@ -3165,15 +2942,15 @@ public sealed class Game : IGame
         int tabW = 52;
         int tabH = 34;
         int tabGap = 8;
-        int tabsTotalW = MaxGamepadsToShow * tabW + (MaxGamepadsToShow - 1) * tabGap;
+        int tabsTotalW = GamepadDebugLayout.MaxGamepadsToShow * tabW + (GamepadDebugLayout.MaxGamepadsToShow - 1) * tabGap;
         int tabsX = panelX + (panelW - tabsTotalW) / 2;
 
         _controllerDebugPrevRect = new Rectangle(panelX + 22, selectorY, navBtnW, navBtnH);
         _controllerDebugNextRect = new Rectangle(panelX + panelW - 22 - navBtnW, selectorY, navBtnW, navBtnH);
-        DrawDialogButton(_controllerDebugPrevRect, "PREV", _controllerDebugPrevHovered, font);
-        DrawDialogButton(_controllerDebugNextRect, "NEXT", _controllerDebugNextHovered, font);
+        GameDialogUi.DrawDialogButton(_controllerDebugPrevRect, "PREV", _controllerDebugPrevHovered, font);
+        GameDialogUi.DrawDialogButton(_controllerDebugNextRect, "NEXT", _controllerDebugNextHovered, font);
 
-        for (int i = 0; i < MaxGamepadsToShow; i++)
+        for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
         {
             int tabX = tabsX + i * (tabW + tabGap);
             _controllerDebugTabRects[i] = new Rectangle(tabX, selectorY, tabW, tabH);
@@ -3216,11 +2993,11 @@ public sealed class Game : IGame
         int btnX = panelX + (panelW - btnW) / 2;
         int btnY = panelY + panelH - btnH - 16;
         _controllerDebugCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        DrawDialogButton(_controllerDebugCloseRect, "CLOSE", _controllerDebugCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_controllerDebugCloseRect, "CLOSE", _controllerDebugCloseHovered, font);
 
         Raylib.DrawTextEx(font, "Esc · Close  ·  ← → or , . to switch gamepad",
             new Vector2(panelX + 22, panelY + panelH - 28),
-            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
+            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
     }
 
     private void DrawGamepadDebugDetail(Font font, int gamepad, int x, int y, int width, int height)
@@ -3238,28 +3015,28 @@ public sealed class Game : IGame
 
         string header = $"Gamepad {gamepad}";
         Raylib.DrawTextEx(font, header, new Vector2(x + pad, cy), 22, 0.7f, Palette.TextPrimary);
-        int statusW = (int)Raylib.MeasureTextEx(font, status, ControllerDebugBodySize, 0.55f).X;
+        int statusW = (int)Raylib.MeasureTextEx(font, status, GamepadDebugLayout.BodySize, 0.55f).X;
         Raylib.DrawTextEx(font, status,
             new Vector2(x + width - pad - statusW, cy + 2),
-            ControllerDebugBodySize, 0.55f, statusColor);
+            GamepadDebugLayout.BodySize, 0.55f, statusColor);
         cy += 30;
 
         if (!connected)
         {
             Raylib.DrawTextEx(font, "No device on this slot. Use PREV/NEXT or tabs 0–3 to check other slots.",
-                new Vector2(x + pad, cy), ControllerDebugBodySize, 0.55f, Palette.TextSecondary);
+                new Vector2(x + pad, cy), GamepadDebugLayout.BodySize, 0.55f, Palette.TextSecondary);
             return;
         }
 
         string name = Raylib.GetGamepadName_(gamepad);
         if (string.IsNullOrWhiteSpace(name))
             name = "(unnamed device)";
-        DrawTruncatedDebugLine(font, name, x + pad, ref cy, innerW, ControllerDebugBodySize, Palette.TextSecondary);
+        GamepadDebugDrawing.DrawTruncatedLine(font, name, x + pad, ref cy, innerW, GamepadDebugLayout.BodySize, Palette.TextSecondary);
         cy += 6;
 
         int axisCount = Raylib.GetGamepadAxisCount(gamepad);
         Raylib.DrawTextEx(font, $"Axis count: {axisCount}",
-            new Vector2(x + pad, cy), ControllerDebugMetaSize, 0.5f, Palette.TextMuted);
+            new Vector2(x + pad, cy), GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
         cy += 28;
 
         int leftColW = innerW / 2 - 12;
@@ -3276,49 +3053,49 @@ public sealed class Game : IGame
         int stickSize = 56;
         int stickRowY = leftY;
         Raylib.DrawTextEx(font, "Sticks", new Vector2(x + pad, stickRowY),
-            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
         stickRowY += 24;
 
         int stickCenterY = stickRowY + stickSize + 8;
-        DrawStickDebugVisual(x + pad + stickSize, stickCenterY, stickSize, lx, ly, Palette.Hydration);
-        DrawStickDebugVisual(x + pad + stickSize * 2 + 36, stickCenterY, stickSize, rx, ry, Palette.Energy);
+        GamepadDebugDrawing.DrawStick(x + pad + stickSize, stickCenterY, stickSize, lx, ly, Palette.Hydration);
+        GamepadDebugDrawing.DrawStick(x + pad + stickSize * 2 + 36, stickCenterY, stickSize, rx, ry, Palette.Energy);
         Raylib.DrawTextEx(font, "Left", new Vector2(x + pad + stickSize - 18, stickRowY + 4),
-            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
+            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
         Raylib.DrawTextEx(font, "Right", new Vector2(x + pad + stickSize * 2 + 18, stickRowY + 4),
-            ControllerDebugMetaSize, 0.45f, Palette.TextDim);
+            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
 
         int axisY = stickCenterY + stickSize + 22;
         Raylib.DrawTextEx(font, "Axes", new Vector2(x + pad, axisY),
-            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
         axisY += 24;
 
-        foreach (var (axis, label) in GamepadAxesToShow)
+        foreach (var (axis, label) in GamepadDebugLayout.AxesToShow)
         {
             float value = Raylib.GetGamepadAxisMovement(gamepad, axis);
             Raylib.DrawTextEx(font, label, new Vector2(x + pad, axisY),
-                ControllerDebugBodySize, 0.45f, Palette.TextDim);
-            DrawAxisDebugBar(x + pad, axisY + 20, leftColW, 10, value);
+                GamepadDebugLayout.BodySize, 0.45f, Palette.TextDim);
+            GamepadDebugDrawing.DrawAxisBar(x + pad, axisY + 20, leftColW, 10, value);
             Raylib.DrawTextEx(font, $"{value:F3}",
                 new Vector2(x + pad + leftColW - 52, axisY + 2),
-                ControllerDebugBodySize, 0.45f, Palette.TextSecondary);
+                GamepadDebugLayout.BodySize, 0.45f, Palette.TextSecondary);
             axisY += 38;
         }
 
         // Right column: buttons (two sub-columns)
         Raylib.DrawTextEx(font, "Buttons", new Vector2(rightColX, leftY),
-            ControllerDebugSectionSize, 0.55f, Palette.TextMuted);
+            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
         int btnY = leftY + 24;
         int btnColW = (rightColW - 12) / 2;
-        int btnCount = GamepadButtonsToShow.Length;
+        int btnCount = GamepadDebugLayout.ButtonsToShow.Length;
         int rowsPerCol = (btnCount + 1) / 2;
 
         for (int i = 0; i < btnCount; i++)
         {
-            var (button, label) = GamepadButtonsToShow[i];
+            var (button, label) = GamepadDebugLayout.ButtonsToShow[i];
             int col = i / rowsPerCol;
             int row = i % rowsPerCol;
             int bx = rightColX + col * (btnColW + 12);
-            int by = btnY + row * ControllerDebugButtonRowStep;
+            int by = btnY + row * GamepadDebugLayout.ButtonRowStep;
 
             bool down = Raylib.IsGamepadButtonDown(gamepad, button);
             bool pressed = Raylib.IsGamepadButtonPressed(gamepad, button);
@@ -3335,88 +3112,8 @@ public sealed class Game : IGame
             string suffix = pressed ? "  pressed" : released ? "  released" : down ? "  down" : "";
             Color textColor = down || pressed ? Palette.TextPrimary : Palette.TextDim;
             Raylib.DrawTextEx(font, label + suffix, new Vector2(bx + 18, by + 2),
-                ControllerDebugButtonRowSize, 0.45f, textColor);
+                GamepadDebugLayout.ButtonRowSize, 0.45f, textColor);
         }
-    }
-
-    private static void DrawStickDebugVisual(int cx, int cy, int radius, float axisX, float axisY, Color color)
-    {
-        Raylib.DrawCircleLines(cx, cy, radius, Palette.SubtleBorder);
-        Raylib.DrawLine(cx - radius, cy, cx + radius, cy, Palette.SubtleBorder);
-        Raylib.DrawLine(cx, cy - radius, cx, cy + radius, Palette.SubtleBorder);
-
-        float px = cx + axisX * (radius - 4);
-        float py = cy + axisY * (radius - 4);
-        Raylib.DrawCircleV(new Vector2(px, py), 7f, color);
-    }
-
-    private static void DrawAxisDebugBar(int x, int y, int width, int height, float value)
-    {
-        value = Math.Clamp(value, -1f, 1f);
-        Raylib.DrawRectangle(x, y, width, height, new Color(18, 20, 24, 255));
-        int mid = x + width / 2;
-        int half = width / 2 - 2;
-        int fill = (int)(Math.Abs(value) * half);
-        if (fill < 1 && Math.Abs(value) > 0.02f)
-            fill = 1;
-
-        Color fillColor = value >= 0
-            ? new Color(90, 130, 150, 255)
-            : new Color(150, 110, 90, 255);
-
-        if (value >= 0)
-            Raylib.DrawRectangle(mid, y + 1, fill, height - 2, fillColor);
-        else
-            Raylib.DrawRectangle(mid - fill, y + 1, fill, height - 2, fillColor);
-
-        Raylib.DrawRectangle(mid, y, 1, height, Palette.TextDim);
-    }
-
-    private static void DrawTruncatedDebugLine(Font font, string text, int x, ref int y, int maxWidth, int fontSize, Color color)
-    {
-        if (string.IsNullOrEmpty(text))
-            return;
-
-        string line = text;
-        while (line.Length > 1 && Raylib.MeasureTextEx(font, line, fontSize, 0.4f).X > maxWidth)
-            line = line[..^1];
-
-        Raylib.DrawTextEx(font, line, new Vector2(x, y), fontSize, 0.4f, color);
-        y += fontSize + 4;
-    }
-
-    /// <summary>
-    /// Minimal gamepad silhouette (vector icon, matches other top-bar utility buttons).
-    /// </summary>
-    private static void DrawControllerIcon(float cx, float cy, float size, Color color)
-    {
-        float bodyW = size * 0.82f;
-        float bodyH = size * 0.46f;
-        float thick = Math.Max(1.4f, size * 0.11f);
-        var body = new Rectangle(cx - bodyW / 2f, cy - bodyH / 2f, bodyW, bodyH);
-
-        Raylib.DrawRectangleRoundedLines(body, 0.4f, 8, thick, color);
-
-        // D-pad (left)
-        float padCx = cx - bodyW * 0.22f;
-        float arm = size * 0.11f;
-        Raylib.DrawRectangle(
-            (int)(padCx - arm / 2f), (int)(cy - arm * 1.1f),
-            (int)arm, (int)(arm * 2.2f), color);
-        Raylib.DrawRectangle(
-            (int)(padCx - arm * 1.1f), (int)(cy - arm / 2f),
-            (int)(arm * 2.2f), (int)arm, color);
-
-        // Face buttons (right)
-        float btnCx = cx + bodyW * 0.2f;
-        float btnR = Math.Max(1.5f, size * 0.07f);
-        Raylib.DrawCircleV(new Vector2(btnCx - btnR * 1.6f, cy - btnR * 1.1f), btnR, color);
-        Raylib.DrawCircleV(new Vector2(btnCx + btnR * 1.4f, cy + btnR * 1.2f), btnR, color);
-
-        // Grip hints (bottom bumps)
-        float bumpR = Math.Max(1.2f, size * 0.06f);
-        Raylib.DrawCircleV(new Vector2(cx - bodyW * 0.32f, cy + bodyH * 0.42f), bumpR, color);
-        Raylib.DrawCircleV(new Vector2(cx + bodyW * 0.32f, cy + bodyH * 0.42f), bumpR, color);
     }
 
     private void DrawTopRightButtons()
@@ -3549,8 +3246,8 @@ public sealed class Game : IGame
             int startX = panelX + (panelW - totalW) / 2;
             _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
             _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
-            DrawDialogButton(_dialogActionRect, "PICK UP", _dialogActionHovered, font);
-            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogActionRect, "PICK UP", _dialogActionHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else if (canDrink && canFill)
         {
@@ -3561,10 +3258,10 @@ public sealed class Game : IGame
             _dialogSecondaryActionRect = new Rectangle(startX + (btnW + gap), btnY, btnW, btnH);
             _dialogDropRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
             _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 3, btnY, btnW, btnH);
-            DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
-            DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
-            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else if (canAct)
         {
@@ -3579,9 +3276,9 @@ public sealed class Game : IGame
                 : canFill
                     ? "FILL"
                     : GetDialogItemActionLabel(eatAction);
-            DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
-            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
         {
@@ -3591,44 +3288,9 @@ public sealed class Game : IGame
             _dialogActionRect = new Rectangle(0, 0, 0, 0);
             _dialogDropRect = new Rectangle(startX, btnY, btnW, btnH);
             _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
-            DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
+            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
-    }
-
-    private void DrawDialogButton(Rectangle rect, string label, bool hovered, Font font)
-    {
-        Color btnBg = hovered ? Palette.ButtonSelectedBg : Palette.ButtonBg;
-        Color btnBorder = hovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
-
-        Raylib.DrawRectangleRec(rect, btnBg);
-        Raylib.DrawRectangleLinesEx(rect, 1.5f, btnBorder);
-        Raylib.DrawRectangle((int)rect.X + 2, (int)rect.Y + 2, (int)rect.Width - 4, 2, Palette.ButtonTopAccent);
-
-        float labelSize = LayoutConstants.DialogButtonFontSize;
-        Vector2 labelSizeVec = Raylib.MeasureTextEx(font, label, labelSize, 0.7f);
-        float tx = rect.X + (rect.Width - labelSizeVec.X) / 2f;
-        float ty = rect.Y + (rect.Height - labelSizeVec.Y) / 2f - 1f;
-        Raylib.DrawTextEx(font, label, new Vector2(tx, ty),
-            labelSize, 0.7f, Palette.TextPrimary);
-    }
-
-    private static void DrawInfoIcon(Font font, Rectangle rect, bool hovered)
-    {
-        float cx = rect.X + rect.Width / 2f;
-        float cy = rect.Y + rect.Height / 2f;
-        float radius = rect.Width / 2f;
-        Color fill = hovered ? Palette.ButtonSelectedBg : new Color(28, 30, 36, 255);
-        Color border = hovered ? Palette.ButtonSelectedBorder : Palette.TextDim;
-        Raylib.DrawCircleV(new Vector2(cx, cy), radius, fill);
-        Raylib.DrawCircleLines((int)cx, (int)cy, radius, border);
-        const float labelSize = 11f;
-        const string label = "i";
-        Vector2 size = Raylib.MeasureTextEx(font, label, labelSize, 0.5f);
-        Color textColor = hovered ? Palette.TextPrimary : Palette.TextSecondary;
-        Raylib.DrawTextEx(font, label,
-            new Vector2(cx - size.X / 2f, cy - size.Y / 2f - 1f),
-            labelSize, 0.5f, textColor);
     }
 
     // =====================================================================
@@ -3705,7 +3367,7 @@ public sealed class Game : IGame
         int btnX = panelX + (panelW - btnW) / 2;
         int btnY = panelY + panelH - 52;
         _statsHelpCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        DrawDialogButton(_statsHelpCloseRect, "CLOSE", _statsHelpCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_statsHelpCloseRect, "CLOSE", _statsHelpCloseHovered, font);
     }
 
     private void DrawStatsHelpEntry(ref int y, int x, int maxWidth, Font font, float bodySize, float spacing,
@@ -3819,7 +3481,7 @@ public sealed class Game : IGame
         if (built)
         {
             if (canDisassemble)
-                DrawDialogButton(_buildTentButtonRect, "TAKE DOWN", _buildTentButtonHovered, font);
+                GameDialogUi.DrawDialogButton(_buildTentButtonRect, "TAKE DOWN", _buildTentButtonHovered, font);
             else
             {
                 Raylib.DrawRectangleRec(_buildTentButtonRect, new Color(24, 26, 30, 255));
@@ -3841,7 +3503,7 @@ public sealed class Game : IGame
         else
         {
             if (canBuild)
-                DrawDialogButton(_buildTentButtonRect, "BUILD", _buildTentButtonHovered, font);
+                GameDialogUi.DrawDialogButton(_buildTentButtonRect, "BUILD", _buildTentButtonHovered, font);
             else
             {
                 Raylib.DrawRectangleRec(_buildTentButtonRect, new Color(24, 26, 30, 255));
@@ -3880,7 +3542,7 @@ public sealed class Game : IGame
         int closeX = panelX + (panelW - closeW) / 2;
         int closeY = panelY + panelH - closeH - 16;
         _buildCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
-        DrawDialogButton(_buildCloseRect, "CLOSE", _buildCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_buildCloseRect, "CLOSE", _buildCloseHovered, font);
     }
 
     // =====================================================================
@@ -3949,7 +3611,7 @@ public sealed class Game : IGame
         int closeX = panelX + (panelW - closeW) / 2;
         int closeY = panelY + panelH - closeH - 16;
         _forageCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
-        DrawDialogButton(_forageCloseRect, "CLOSE", _forageCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_forageCloseRect, "CLOSE", _forageCloseHovered, font);
     }
 
     // =====================================================================
@@ -4052,7 +3714,7 @@ public sealed class Game : IGame
         }
 
         _storeBuyCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
-        DrawDialogButton(_storeBuyCloseRect, "CLOSE", _storeBuyCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_storeBuyCloseRect, "CLOSE", _storeBuyCloseHovered, font);
     }
 
     private void DrawStoreBuyDetailPanel(Font font, int x, int y, int w, int h)
@@ -4123,7 +3785,7 @@ public sealed class Game : IGame
         _storeBuyPurchaseRect = new Rectangle(btnX, btnY, btnW, btnH);
 
         if (canBuy)
-            DrawDialogButton(_storeBuyPurchaseRect, "BUY", _storeBuyPurchaseHovered, font);
+            GameDialogUi.DrawDialogButton(_storeBuyPurchaseRect, "BUY", _storeBuyPurchaseHovered, font);
         else
         {
             Raylib.DrawRectangleRec(_storeBuyPurchaseRect, new Color(24, 26, 30, 255));
@@ -4136,6 +3798,7 @@ public sealed class Game : IGame
         }
     }
 
+    // --- Render ---
     private void Draw()
     {
         Raylib.BeginDrawing();
@@ -4437,7 +4100,7 @@ public sealed class Game : IGame
             new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
         int statusLabelW = (int)Raylib.MeasureTextEx(font, "STATUS", LayoutConstants.SidebarHeaderSize, 0.7f).X;
         _statsHelpIconRect = new Rectangle(tx + statusLabelW + 8, cy + 1, statsInfoIconSize, statsInfoIconSize);
-        DrawInfoIcon(font, _statsHelpIconRect, _statsHelpIconHovered);
+        GameDialogUi.DrawInfoIcon(font, _statsHelpIconRect, _statsHelpIconHovered);
         cy += 20;
 
         // Subtle underline
@@ -4508,7 +4171,7 @@ public sealed class Game : IGame
         int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
         const int btnH = 36;
         _quitSidebarButtonRect = new Rectangle(x, y, available, btnH);
-        DrawDialogButton(_quitSidebarButtonRect, "QUIT", _quitSidebarButtonHovered, font);
+        GameDialogUi.DrawDialogButton(_quitSidebarButtonRect, "QUIT", _quitSidebarButtonHovered, font);
     }
 
     private void DrawQuitConfirmDialog()
@@ -4552,8 +4215,8 @@ public sealed class Game : IGame
         _quitConfirmNoRect = new Rectangle(startX, btnY, btnW, btnH);
         _quitConfirmYesRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
 
-        DrawDialogButton(_quitConfirmNoRect, "CANCEL", _quitConfirmNoHovered, font);
-        DrawDialogButton(_quitConfirmYesRect, "QUIT", _quitConfirmYesHovered, font);
+        GameDialogUi.DrawDialogButton(_quitConfirmNoRect, "CANCEL", _quitConfirmNoHovered, font);
+        GameDialogUi.DrawDialogButton(_quitConfirmYesRect, "QUIT", _quitConfirmYesHovered, font);
     }
 
     private void DrawBuildSidebarButton(int y, int x)
@@ -4562,7 +4225,7 @@ public sealed class Game : IGame
         int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
         const int btnH = 36;
         _buildSidebarButtonRect = new Rectangle(x, y, available, btnH);
-        DrawDialogButton(_buildSidebarButtonRect, "BUILD", _buildSidebarButtonHovered, font);
+        GameDialogUi.DrawDialogButton(_buildSidebarButtonRect, "BUILD", _buildSidebarButtonHovered, font);
     }
 
     private void DrawHuntSidebarButton(int y, int x)
@@ -4571,7 +4234,7 @@ public sealed class Game : IGame
         int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
         const int btnH = 36;
         _huntSidebarButtonRect = new Rectangle(x, y, available, btnH);
-        DrawDialogButton(_huntSidebarButtonRect, ChoiceHunt, _huntSidebarButtonHovered, font);
+        GameDialogUi.DrawDialogButton(_huntSidebarButtonRect, ChoiceHunt, _huntSidebarButtonHovered, font);
     }
 
     private void DrawForageSidebarButton(int y, int x)
@@ -4580,7 +4243,7 @@ public sealed class Game : IGame
         int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
         const int btnH = 36;
         _forageSidebarButtonRect = new Rectangle(x, y, available, btnH);
-        DrawDialogButton(_forageSidebarButtonRect, ChoiceForage, _forageSidebarButtonHovered, font);
+        GameDialogUi.DrawDialogButton(_forageSidebarButtonRect, ChoiceForage, _forageSidebarButtonHovered, font);
     }
 
     // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
@@ -4655,7 +4318,7 @@ public sealed class Game : IGame
 
         if (leftTotal < 0)
         {
-            int count = StatArrowCount(leftTotal);
+            int count = GameStatMath.StatArrowCount(leftTotal);
             int slotRight = x + StatLeftArrowSlotW - 4;
             int startX = slotRight - (count - 1) * StatArrowSpacing;
             for (int i = 0; i < count; i++)
@@ -4664,7 +4327,7 @@ public sealed class Game : IGame
 
         if (rightTotal > 0)
         {
-            int count = StatArrowCount(rightTotal);
+            int count = GameStatMath.StatArrowCount(rightTotal);
             int startX = rightSlotX + 6;
             for (int i = 0; i < count; i++)
                 DrawChevronRight(startX + i * StatArrowSpacing, arrowY, positive);
@@ -4877,17 +4540,14 @@ public sealed class Game : IGame
         _expandedMapViewAspect = mapRect.Width / mapRect.Height;
     }
 
-    private float MapGeoAspect =>
-        (float)((RegionMapMaxLon - RegionMapMinLon) / (RegionMapMaxLat - RegionMapMinLat));
-
     private Rectangle GetSidebarMapDrawRect(Rectangle mapArea)
     {
         float drawW = mapArea.Width;
-        float drawH = drawW / MapGeoAspect;
+        float drawH = drawW / RegionMapGeo.LonLatAspect;
         if (drawH > mapArea.Height)
         {
             drawH = mapArea.Height;
-            drawW = drawH * MapGeoAspect;
+            drawW = drawH * RegionMapGeo.LonLatAspect;
         }
 
         return new Rectangle(
@@ -4899,7 +4559,7 @@ public sealed class Game : IGame
 
     private void GetMapViewBounds(out double minLon, out double maxLon, out double minLat, out double maxLat)
     {
-        double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
+        double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
         double viewLatSpan = fullLatSpan / CurrentMapZoom;
         double viewLonSpan = viewLatSpan * _expandedMapViewAspect;
 
@@ -4911,18 +4571,18 @@ public sealed class Game : IGame
 
     private void ClampMapViewCenter()
     {
-        double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
-        double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
+        double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
+        double fullLonSpan = RegionMapGeo.MaxLon - RegionMapGeo.MinLon;
         double halfLat = fullLatSpan / CurrentMapZoom / 2;
         double halfLon = halfLat * _expandedMapViewAspect;
 
-        double latMin = RegionMapMinLat + Math.Min(halfLat, fullLatSpan / 2);
-        double latMax = RegionMapMaxLat - Math.Min(halfLat, fullLatSpan / 2);
-        _mapViewCenterLat = SafeClamp(_mapViewCenterLat, latMin, latMax);
+        double latMin = RegionMapGeo.MinLat + Math.Min(halfLat, fullLatSpan / 2);
+        double latMax = RegionMapGeo.MaxLat - Math.Min(halfLat, fullLatSpan / 2);
+        _mapViewCenterLat = RegionMapGeo.SafeClamp(_mapViewCenterLat, latMin, latMax);
 
-        double lonMin = RegionMapMinLon + Math.Min(halfLon, fullLonSpan / 2);
-        double lonMax = RegionMapMaxLon - Math.Min(halfLon, fullLonSpan / 2);
-        _mapViewCenterLon = SafeClamp(_mapViewCenterLon, lonMin, lonMax);
+        double lonMin = RegionMapGeo.MinLon + Math.Min(halfLon, fullLonSpan / 2);
+        double lonMax = RegionMapGeo.MaxLon - Math.Min(halfLon, fullLonSpan / 2);
+        _mapViewCenterLon = RegionMapGeo.SafeClamp(_mapViewCenterLon, lonMin, lonMax);
     }
 
     private void ChangeMapZoom(int direction, Rectangle mapRect)
@@ -4940,7 +4600,7 @@ public sealed class Game : IGame
 
         _mapZoomLevelIndex = next;
 
-        double newLatSpan = (RegionMapMaxLat - RegionMapMinLat) / CurrentMapZoom;
+        double newLatSpan = (RegionMapGeo.MaxLat - RegionMapGeo.MinLat) / CurrentMapZoom;
         double newLonSpan = newLatSpan * _expandedMapViewAspect;
         _mapViewCenterLon = focusLon + (0.5 - nx) * newLonSpan;
         _mapViewCenterLat = focusLat + (ny - 0.5) * newLatSpan;
@@ -5046,7 +4706,7 @@ public sealed class Game : IGame
         int btnX = panelX + (panelW - btnW) / 2;
         int btnY = panelY + panelH - btnH - 10;
         _regionMapCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        DrawDialogButton(_regionMapCloseRect, "CLOSE", _regionMapCloseHovered, font);
+        GameDialogUi.DrawDialogButton(_regionMapCloseRect, "CLOSE", _regionMapCloseHovered, font);
     }
 
     private void DrawMapZoomButton(Rectangle rect, string label, bool hovered, bool enabled)
@@ -5074,10 +4734,10 @@ public sealed class Game : IGame
         Rectangle mapRect,
         float markerRadius,
         float labelFontSize,
-        double viewMinLon = RegionMapMinLon,
-        double viewMaxLon = RegionMapMaxLon,
-        double viewMinLat = RegionMapMinLat,
-        double viewMaxLat = RegionMapMaxLat)
+        double viewMinLon = RegionMapGeo.MinLon,
+        double viewMaxLon = RegionMapGeo.MaxLon,
+        double viewMinLat = RegionMapGeo.MinLat,
+        double viewMaxLat = RegionMapGeo.MaxLat)
     {
         Font font = _uiFont;
 
@@ -5085,8 +4745,8 @@ public sealed class Game : IGame
 
         if (_regionMapTexture.Id != 0)
         {
-            double fullLonSpan = RegionMapMaxLon - RegionMapMinLon;
-            double fullLatSpan = RegionMapMaxLat - RegionMapMinLat;
+            double fullLonSpan = RegionMapGeo.MaxLon - RegionMapGeo.MinLon;
+            double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
             float texW = _regionMapTexture.Width;
             float texH = _regionMapTexture.Height;
 
@@ -5097,10 +4757,10 @@ public sealed class Game : IGame
 
             if (viewLonSpan > 1e-9 && viewLatSpan > 1e-9)
             {
-                double geoMinLon = Math.Max(viewMinLon, RegionMapMinLon);
-                double geoMaxLon = Math.Min(viewMaxLon, RegionMapMaxLon);
-                double geoMinLat = Math.Max(viewMinLat, RegionMapMinLat);
-                double geoMaxLat = Math.Min(viewMaxLat, RegionMapMaxLat);
+                double geoMinLon = Math.Max(viewMinLon, RegionMapGeo.MinLon);
+                double geoMaxLon = Math.Min(viewMaxLon, RegionMapGeo.MaxLon);
+                double geoMinLat = Math.Max(viewMinLat, RegionMapGeo.MinLat);
+                double geoMaxLat = Math.Min(viewMaxLat, RegionMapGeo.MaxLat);
 
                 if (geoMinLon < geoMaxLon && geoMinLat < geoMaxLat)
                 {
@@ -5111,8 +4771,8 @@ public sealed class Game : IGame
                     Rectangle dest = new Rectangle(destX, destY, destW, destH);
 
                     Rectangle src = new Rectangle(
-                        (float)((geoMinLon - RegionMapMinLon) / fullLonSpan * texW),
-                        (float)((RegionMapMaxLat - geoMaxLat) / fullLatSpan * texH),
+                        (float)((geoMinLon - RegionMapGeo.MinLon) / fullLonSpan * texW),
+                        (float)((RegionMapGeo.MaxLat - geoMaxLat) / fullLatSpan * texH),
                         (float)((geoMaxLon - geoMinLon) / fullLonSpan * texW),
                         (float)((geoMaxLat - geoMinLat) / fullLatSpan * texH));
 
@@ -5126,7 +4786,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangleLinesEx(mapRect, 1f, Palette.SubtleBorder);
 
         (double lon, double lat) = GetMapPlayerGeoPosition();
-        Vector2 player = GeoToMapPixel(mapRect, lon, lat, viewMinLon, viewMaxLon, viewMinLat, viewMaxLat);
+        Vector2 player = RegionMapGeo.LonLatToPixel(mapRect, lon, lat, viewMinLon, viewMaxLon, viewMinLat, viewMaxLat);
 
         int px = (int)player.X;
         int py = (int)player.Y;
@@ -5145,26 +4805,10 @@ public sealed class Game : IGame
     private (double lon, double lat) GetMapPlayerGeoPosition() =>
         _phase switch
         {
-            Phase.Forest       => (ForestCampLon, ForestCampLat),
-            Phase.ForestStream => (ForestStreamLon, ForestStreamLat),
-            _                  => (UlanUdeLon, UlanUdeLat)
+            Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
+            Phase.ForestStream => (RegionMapGeo.ForestStreamLon, RegionMapGeo.ForestStreamLat),
+            _                  => (RegionMapGeo.UlanUdeLon, RegionMapGeo.UlanUdeLat)
         };
-
-    private Vector2 GeoToMapPixel(
-        Rectangle mapRect,
-        double lon,
-        double lat,
-        double viewMinLon = RegionMapMinLon,
-        double viewMaxLon = RegionMapMaxLon,
-        double viewMinLat = RegionMapMinLat,
-        double viewMaxLat = RegionMapMaxLat)
-    {
-        double nx = (lon - viewMinLon) / (viewMaxLon - viewMinLon);
-        double ny = (viewMaxLat - lat) / (viewMaxLat - viewMinLat);
-        nx = Math.Clamp(nx, 0, 1);
-        ny = Math.Clamp(ny, 0, 1);
-        return new Vector2(mapRect.X + (float)(nx * mapRect.Width), mapRect.Y + (float)(ny * mapRect.Height));
-    }
 
     private string GetSceneNarrative()
     {
@@ -5658,13 +5302,7 @@ public sealed class Game : IGame
         }
     }
 
-    // --- Player stats (0–100 clamp, environment, concealment) ---
-    private static int ClampStat(int v) => Math.Max(0, Math.Min(100, v));
-
-    /// <summary>Math.Clamp throws when min &gt; max due to floating-point error at full zoom.</summary>
-    private static double SafeClamp(double value, double min, double max) =>
-        min >= max ? (min + max) / 2 : Math.Clamp(value, min, max);
-
+    // --- Player stats (environment, concealment) ---
     private void ClearEnvDeltas()
     {
         _envHealthDelta = 0;
@@ -5701,13 +5339,13 @@ public sealed class Game : IGame
     {
         if (amount == 0) return;
         actionDelta += amount;
-        stat = ClampStat(stat + amount);
+        stat = GameStatMath.ClampStat(stat + amount);
         MarkActionChanged();
     }
 
     private void SetStatFromAction(ref int stat, ref int actionDelta, int value)
     {
-        int clamped = ClampStat(value);
+        int clamped = GameStatMath.ClampStat(value);
         int change = clamped - stat;
         if (change == 0) return;
         actionDelta += change;
@@ -5746,7 +5384,7 @@ public sealed class Game : IGame
         int diff = targetDelta - _envComfortDelta;
         if (diff == 0) return;
         _envComfortDelta = targetDelta;
-        _comfort = ClampStat(_comfort + diff);
+        _comfort = GameStatMath.ClampStat(_comfort + diff);
     }
 
     /// <summary>
@@ -5813,27 +5451,8 @@ public sealed class Game : IGame
         _hasTrashBagTent && _tentBuiltInPhase == _phase ? ConcealmentPenaltyForTent : 0;
 
     private void RefreshConcealment() =>
-        _concealment = ClampStat(
+        _concealment = GameStatMath.ClampStat(
             ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
             - ConcealmentDroppedItemsPenalty() - ConcealmentTentPenalty());
-
-    private static void TickTimedMessage(ref float timer, ref string message, float deltaSeconds)
-    {
-        if (timer <= 0f)
-            return;
-
-        timer -= deltaSeconds;
-        if (timer <= 0f)
-            message = "";
-    }
-
-    private static int StatArrowCount(int delta)
-    {
-        int abs = Math.Abs(delta);
-        if (abs == 0) return 0;
-        if (abs <= 4) return 1;
-        if (abs <= 10) return 2;
-        return 3;
-    }
 
 }
