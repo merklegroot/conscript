@@ -116,8 +116,8 @@ public sealed class Game : IGame
     private Rectangle _controllerDebugNextRect;
     private bool _controllerDebugPrevHovered;
     private bool _controllerDebugNextHovered;
-    private readonly Rectangle[] _controllerDebugTabRects = new Rectangle[4];
-    private readonly bool[] _controllerDebugTabHovered = new bool[4];
+    private readonly Rectangle[] _controllerDebugTabRects = new Rectangle[GamepadDebugLayout.MaxGamepadsToShow];
+    private readonly bool[] _controllerDebugTabHovered = new bool[GamepadDebugLayout.MaxGamepadsToShow];
 
     // === Game flow ===
     internal enum Phase
@@ -833,10 +833,7 @@ public sealed class Game : IGame
         Raylib.SetTargetFPS(60);
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
-        // Ensure Steam Input devices (Steam Deck / Steam Controller) are recognized as SDL "gamepads".
-        // Without explicit mappings, they can sometimes appear only as generic joysticks and won't be
-        // visible through Raylib's gamepad APIs.
-        Raylib.SetGamepadMappings(GamepadMappings.SdlMappings);
+        GamepadConnection.Initialize();
 
         _uiFont = UiFontLoader.Load();
         _uiFontItalic = UiFontLoader.LoadItalic();
@@ -908,6 +905,7 @@ public sealed class Game : IGame
     private void Update()
     {
         float dt = Raylib.GetFrameTime();
+        GameInput.Update();
 
         if (GameInput.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
@@ -2467,15 +2465,8 @@ public sealed class Game : IGame
         _controllerDebugNextHovered = false;
         Array.Clear(_controllerDebugTabHovered);
 
-        _controllerDebugPadIndex = 0;
-        for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
-        {
-            if (Raylib.IsGamepadAvailable(i))
-            {
-                _controllerDebugPadIndex = i;
-                break;
-            }
-        }
+        _controllerDebugPadIndex = Math.Max(0, GamepadConnection.FirstConnectedIndex());
+        GamepadConnection.ApplyMappings();
     }
 
     private void CloseControllerDebug()

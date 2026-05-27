@@ -4,7 +4,7 @@ namespace Conscript;
 
 internal static class GamepadDebugLayout
 {
-    public const int MaxGamepadsToShow = 4;
+    public const int MaxGamepadsToShow = GamepadConnection.MaxSlots;
 
     public const int TitleSize = 28;
     public const int SubtitleSize = 17;

@@ -50,12 +50,26 @@ internal static class ControllerDebugScreenDrawing
             new Vector2(panelX + 22, panelY + 76),
             GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
 
-        int selectorY = panelY + 104;
+        string steamLine = GamepadConnection.HasSteamControllerConfig
+            ? "Steam SDL_GAMECONTROLLERCONFIG: present (used when remapping)"
+            : "Steam SDL_GAMECONTROLLERCONFIG: not set — launch through Steam for Deck controls";
+        Raylib.DrawTextEx(font, steamLine,
+            new Vector2(panelX + 22, panelY + 96),
+            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextMuted);
+
+        string countLine = $"Connected gamepads: {GamepadConnection.ConnectedCount()} / {GamepadConnection.MaxSlots}";
+        Raylib.DrawTextEx(font, countLine,
+            new Vector2(panelX + 22, panelY + 116),
+            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextMuted);
+
+        int selectorY = panelY + 144;
         const int navBtnW = 100;
         const int navBtnH = 34;
         int tabW = 52;
         int tabH = 34;
         int tabGap = 8;
+        int availableTabW = panelW - 44;
+        tabW = Math.Clamp((availableTabW - (GamepadDebugLayout.MaxGamepadsToShow - 1) * tabGap) / GamepadDebugLayout.MaxGamepadsToShow, 28, tabW);
         int tabsTotalW = GamepadDebugLayout.MaxGamepadsToShow * tabW + (GamepadDebugLayout.MaxGamepadsToShow - 1) * tabGap;
         int tabsX = panelX + (panelW - tabsTotalW) / 2;
 
@@ -84,7 +98,7 @@ internal static class ControllerDebugScreenDrawing
             Raylib.DrawRectangleLinesEx(tabRects[i], 1.5f, tabBorder);
 
             string tabLabel = $"{i}";
-            int labelSize = 18;
+            int labelSize = tabW >= 44 ? 18 : 16;
             int lw = (int)Raylib.MeasureTextEx(font, tabLabel, labelSize, 0.6f).X;
             Raylib.DrawTextEx(font, tabLabel,
                 new Vector2(tabX + (tabW - lw) / 2f, selectorY + 7),
@@ -144,8 +158,18 @@ internal static class ControllerDebugScreenDrawing
 
         if (!connected)
         {
-            Raylib.DrawTextEx(font, "No device on this slot. Use PREV/NEXT or tabs 0–3 to check other slots.",
+            string maybeName = Raylib.GetGamepadName_(gamepad);
+            if (string.IsNullOrWhiteSpace(maybeName))
+                maybeName = "(no SDL gamepad name)";
+            GamepadDebugDrawing.DrawTruncatedLine(font, maybeName, x + pad, ref cy, innerW, GamepadDebugLayout.BodySize, Palette.TextSecondary);
+            cy += 6;
+
+            Raylib.DrawTextEx(font, "No device on this slot. Mappings re-apply every ~0.5s while disconnected.",
                 new Vector2(x + pad, cy), GamepadDebugLayout.BodySize, 0.55f, Palette.TextSecondary);
+            cy += 22;
+
+            Raylib.DrawTextEx(font, "Try PREV/NEXT or tabs 0–15. Press any face button — if \"Last button pressed\" updates, input works without \"Connected\".",
+                new Vector2(x + pad, cy), GamepadDebugLayout.BodySize, 0.55f, Palette.TextMuted);
             return;
         }
 

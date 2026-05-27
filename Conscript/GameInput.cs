@@ -5,7 +5,7 @@ namespace Conscript;
 /// <summary>Keyboard + gamepad bindings shared across menus and the main loop.</summary>
 internal static class GameInput
 {
-    private const int MaxGamepadsToProbe = 4;
+    public static void Update() => GamepadConnection.Update();
 
     public static bool IsCancelPressed() =>
         Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) ||
@@ -33,9 +33,9 @@ internal static class GameInput
 
     public static bool IsAnyGamepadButtonPressed(GamepadButton button)
     {
-        for (int i = 0; i < MaxGamepadsToProbe; i++)
+        for (int i = 0; i < GamepadConnection.MaxSlots; i++)
         {
-            if (Raylib.IsGamepadAvailable(i) && Raylib.IsGamepadButtonPressed(i, button))
+            if (Raylib.IsGamepadButtonPressed(i, button))
                 return true;
         }
 
