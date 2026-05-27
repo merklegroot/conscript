@@ -408,7 +408,7 @@ public sealed class Game : IGame
     private int _selectedIndex;
 
     // Current choices (change per phase)
-    private string[] _choices = Array.Empty<string>();
+    private string[] _choices = [];
 
     // Opening scene narrative (the knock)
     private const string OpeningNarrative =
@@ -3989,6 +3989,7 @@ public sealed class Game : IGame
         int rowH = 56;
         int rowX = panelX + 22;
         int rowW = panelW - 44;
+        const int iconSize = 28;
 
         for (int i = 0; i < ForageOptionCount; i++)
         {
@@ -4001,11 +4002,15 @@ public sealed class Game : IGame
             Raylib.DrawRectangleRec(_forageOptionRowRects[i], rowBg);
             Raylib.DrawRectangleLinesEx(_forageOptionRowRects[i], 1f, Palette.SubtleBorder);
 
+            int iconY = rowY + (rowH - iconSize) / 2;
+            DrawItemIcon(ForageOptionItems[i], new Rectangle(rowX + 10, iconY, iconSize, iconSize), Color.WHITE);
+
+            int textX = rowX + 10 + iconSize + 14;
             string label = ForageOptionItems[i].ToUpperInvariant();
             Raylib.DrawTextEx(font, label,
-                new Vector2(rowX + 14, rowY + 10), 20, 0.65f, Palette.TextPrimary);
+                new Vector2(textX, rowY + 10), 20, 0.65f, Palette.TextPrimary);
             Raylib.DrawTextEx(font, ForageOptionDescriptions[i],
-                new Vector2(rowX + 14, rowY + 30), 14, 0.5f, Palette.TextDim);
+                new Vector2(textX, rowY + 30), 14, 0.5f, Palette.TextDim);
 
             rowY += rowH + 8;
         }
