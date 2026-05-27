@@ -38,6 +38,7 @@ public sealed class Game : IGame
     private Texture2D _forestBackground;
     private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
+    private Texture2D _cafeBackground;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
@@ -73,6 +74,8 @@ public sealed class Game : IGame
     private const string ChoiceConvenienceStore = "CONVENIENCE STORE";
     private const string ChoiceBrowseShelves = "BROWSE SHELVES";
     private const string ChoiceLeaveStore = "LEAVE THE WAY YOU CAME";
+    private const string ChoiceCafe = "КАФЕ";
+    private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
     private const string ChoiceOpenDoor = "Open the door";
@@ -128,6 +131,7 @@ public sealed class Game : IGame
         IndustrialDistrict,  // Warehouses and yards on the west side of town
         CommercialDistrict,  // Shops on the east side; forest access is south from here
         Store,     // Inside a late-night convenience store / kiosk
+        Cafe,      // Workers' café off an industrial side street (Кафе)
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -138,6 +142,7 @@ public sealed class Game : IGame
     private Phase _phase = Phase.Opening;
     private Phase _phaseOutdoorBeforeTent = Phase.ForestEntry;
     private Phase _phaseBeforeStore = Phase.Town;
+    private Phase _phaseBeforeCafe = Phase.IndustrialDistrict;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -376,7 +381,13 @@ public sealed class Game : IGame
     private const string IndustrialDistrictNarrative =
         "Warehouses and fenced lots line the side streets.\n" +
         "A distant rail yard clanks in the cold.\n" +
-        "Few windows are lit — this is the edge of town.";
+        "A workers' café still has light in the window — you could duck inside.\n" +
+        "Few other windows are lit — this is the edge of town.";
+
+    private const string CafeNarrative =
+        "Steam and the smell of cheap tea fill the narrow room.\n" +
+        "Night-shift workers stare into their cups and don't look up.\n" +
+        "The heat feels guilty after the yards outside.";
 
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
@@ -551,6 +562,22 @@ public sealed class Game : IGame
                 // other stats carry over
                 break;
 
+            case Phase.Cafe:
+                _choices = new[]
+                {
+                    ChoiceLeaveCafe,
+                    ChoiceWait
+                };
+                ApplyEnvironmentHeatedBuilding();
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Кафе";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 28;
+                break;
+
             case Phase.Tent:
                 _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, ChoiceWait };
                 ApplyEnvironmentTentInterior();
@@ -567,6 +594,7 @@ public sealed class Game : IGame
             Phase.IndustrialDistrict => _industrialDistrictBackground,
             Phase.CommercialDistrict => _commercialDistrictBackground,
             Phase.Store        => _storeBackground,
+            Phase.Cafe         => _cafeBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -847,6 +875,7 @@ public sealed class Game : IGame
         _forestBackground       = EmbeddedTextureLoader.Load("trees.png");
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
@@ -896,6 +925,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _forestBackground);
         UnloadTextureIfLoaded(ref _forestStreamBackground);
         UnloadTextureIfLoaded(ref _storeBackground);
+        UnloadTextureIfLoaded(ref _cafeBackground);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
@@ -1719,6 +1749,10 @@ public sealed class Game : IGame
                 HandleStoreChoice(index);
                 break;
 
+            case Phase.Cafe:
+                HandleCafeChoice(index);
+                break;
+
             case Phase.Tent:
                 HandleTentChoice(index);
                 break;
@@ -1970,6 +2004,15 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceCafe:
+                _phaseBeforeCafe = Phase.IndustrialDistrict;
+                ApplyEnvironmentOnAction();
+                _actionMessage = "You push through the frosted glass door into the warmth.";
+                _actionMessageTimer = 1.8f;
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                EnterPhase(Phase.Cafe);
+                return;
+
             case ChoiceBackToTownCenter:
                 _actionMessage = "You leave the warehouses behind and return to the central streets.";
                 _actionMessageTimer = 2.0f;
@@ -2114,6 +2157,31 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void HandleCafeChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceLeaveCafe:
+                _actionMessage = "You step back out into the cold industrial dark.";
+                AdvanceTime();
+                ApplyTravelEnergyCost();
+                EnterPhase(_phaseBeforeCafe == Phase.IndustrialDistrict
+                    ? _phaseBeforeCafe
+                    : Phase.IndustrialDistrict);
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private void PerformIdle()
     {
         switch (_phase)
@@ -2136,6 +2204,9 @@ public sealed class Game : IGame
                 break;
             case Phase.Store:
                 _actionMessage = "You linger by the shelves, pretending to read labels.";
+                break;
+            case Phase.Cafe:
+                _actionMessage = "You cradle an untouched cup and watch the steam rise.";
                 break;
             case Phase.ForestEntry:
                 _actionMessage = "You hold still among the young pines. The city is still too close.";
@@ -2574,10 +2645,10 @@ public sealed class Game : IGame
         else if (_phase == Phase.IndustrialDistrict)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.IndustrialDistrict
-                ? new[] { ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
+                ? new[] { ChoiceCafe, ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceDisassembleTent, ChoiceWait }
                 : _hasTrashBagTent
-                ? new[] { ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceWait }
-                : new[] { ChoiceBackToTownCenter, ChoiceWait };
+                ? new[] { ChoiceCafe, ChoiceBackToTownCenter, ChoiceEnterTent, ChoiceWait }
+                : new[] { ChoiceCafe, ChoiceBackToTownCenter, ChoiceWait };
         }
         else if (_phase == Phase.CommercialDistrict)
         {
@@ -3925,6 +3996,7 @@ public sealed class Game : IGame
             case Phase.IndustrialDistrict:
             case Phase.CommercialDistrict:
             case Phase.Store:
+            case Phase.Cafe:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -4838,6 +4910,7 @@ public sealed class Game : IGame
         {
             Phase.Town                => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
             Phase.IndustrialDistrict  => (RegionMapGeo.IndustrialDistrictLon, RegionMapGeo.IndustrialDistrictLat),
+            Phase.Cafe                => (RegionMapGeo.CafeLon, RegionMapGeo.CafeLat),
             Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
@@ -4853,6 +4926,7 @@ public sealed class Game : IGame
             Phase.Outside => OutsideNarrative,
             Phase.Town               => TownNarrative,
             Phase.IndustrialDistrict => IndustrialDistrictNarrative,
+            Phase.Cafe               => CafeNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,
@@ -5386,6 +5460,7 @@ public sealed class Game : IGame
         return _phase switch
         {
             Phase.Store => bonus / 4,    // lit interior — night barely helps
+            Phase.Cafe => bonus / 4,
             Phase.Tent => bonus / 3,     // already hidden
             Phase.Opening => bonus / 2,  // indoors with lights on
             _ => bonus

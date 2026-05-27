@@ -8,6 +8,7 @@
 | `apartment-outside.png` | Outside (courtyard) | `OutsideNarrative` |
 | `town.png` | Town | `TownNarrative` |
 | `industrial.png` | Industrial District | `IndustrialDistrictNarrative` |
+| `cafe.png` | Кафе (from industrial) | `CafeNarrative` |
 | `commercial.png` | Commercial District | `CommercialDistrictNarrative` |
 | `store.png` | Convenience store | `StoreNarrative` |
 | `forest-entry.png` | Forest entry | `ForestEntryNarrative` |
