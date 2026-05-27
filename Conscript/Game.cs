@@ -68,6 +68,8 @@ public sealed class Game : IGame
     private const string ItemDuctTape = "Duct Tape";
     private const string ItemRaccoon = "Raccoon";
     private const string ItemRabbit = "Rabbit";
+    private const string ItemFirewood = "Firewood";
+    private const string ItemRocks = "Rocks";
     private const int TrashBagsMaxUses = 3;
     private const int DuctTapeMaxUses = 3;
     private const string BuildTrashBagTent = "Trash Bag Tent";
@@ -77,10 +79,18 @@ public sealed class Game : IGame
     private const string ChoiceSleep = "SLEEP";
     private const string ChoiceHunt = "HUNT";
     private const string ChoiceForage = "FORAGE";
+    private const int ForageOptionCount = 2;
+    private static readonly string[] ForageOptionItems = [ItemFirewood, ItemRocks];
+    private static readonly string[] ForageOptionDescriptions =
+    [
+        "Fallen branches and dry wood in the undergrowth.",
+        "Loose stone from the forest floor and stream bed."
+    ];
     private const string ChoiceFollowStream = "FOLLOW THE STREAM";
     private const string ChoiceBackToDeepForest = "BACK TO DEEP FOREST";
 
     private const int EnergyCostHunt = 6; // in addition to time passing drain
+    private const int EnergyCostForage = 4;
     private const int EnergyCostFillBottle = 2;
 
     // Resting: sleeping should be a meaningful time-skip with a strong energy restore.
@@ -337,6 +347,13 @@ public sealed class Game : IGame
     private string _buildFeedback = "";
     private float _buildFeedbackTimer;
     private const float BuildFeedbackDuration = 2.2f;
+    private bool _showForageDialog;
+    private Rectangle _foragePanelRect;
+    private Rectangle _forageCloseRect;
+    private bool _forageCloseHovered;
+    private readonly Rectangle[] _forageOptionRowRects = new Rectangle[ForageOptionCount];
+    private readonly bool[] _forageOptionHovered = new bool[ForageOptionCount];
+    private int _forageHighlightedIndex;
     private const int TrashBagTentComfortBonus = 8;
     private const int TentInteriorComfortBonus = 14;
     private Rectangle _trashBagTentClickRect;
@@ -1009,6 +1026,11 @@ public sealed class Game : IGame
                 CloseBuildDialog();
                 return;
             }
+            if (_showForageDialog)
+            {
+                CloseForageDialog();
+                return;
+            }
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
@@ -1076,8 +1098,16 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showForageDialog)
+        {
+            if (IsVerticalNavUpPressed())
+                _forageHighlightedIndex = (_forageHighlightedIndex - 1 + ForageOptionCount) % ForageOptionCount;
+            if (IsVerticalNavDownPressed())
+                _forageHighlightedIndex = (_forageHighlightedIndex + 1) % ForageOptionCount;
+        }
+
         // Horizontal navigation for bottom action buttons
-        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
+        if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showForageDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
         {
             if (IsHorizontalNavRightPressed())
             {
@@ -1106,6 +1136,10 @@ public sealed class Game : IGame
             else if (_showBuildDialog)
             {
                 CloseBuildDialog();
+            }
+            else if (_showForageDialog)
+            {
+                TryPerformForage(_forageHighlightedIndex);
             }
             else if (_showStoreBuyMenu)
             {
@@ -1355,6 +1389,42 @@ public sealed class Game : IGame
             }
         }
 
+        // === Forage dialog (modal) ===
+        if (_showForageDialog)
+        {
+            _forageCloseHovered = Raylib.CheckCollisionPointRec(mouse, _forageCloseRect);
+            for (int i = 0; i < ForageOptionCount; i++)
+            {
+                _forageOptionHovered[i] = Raylib.CheckCollisionPointRec(mouse, _forageOptionRowRects[i]);
+                if (_forageOptionHovered[i])
+                    _forageHighlightedIndex = i;
+            }
+
+            if (leftClicked)
+            {
+                for (int i = 0; i < ForageOptionCount; i++)
+                {
+                    if (_forageOptionHovered[i])
+                    {
+                        TryPerformForage(i);
+                        return;
+                    }
+                }
+
+                if (_forageCloseHovered)
+                {
+                    CloseForageDialog();
+                    return;
+                }
+
+                if (!Raylib.CheckCollisionPointRec(mouse, _foragePanelRect))
+                {
+                    CloseForageDialog();
+                    return;
+                }
+            }
+        }
+
         // === Item dialog (highest priority when visible) ===
         if (_showItemDialog)
         {
@@ -1423,7 +1493,7 @@ public sealed class Game : IGame
             _storeBuyPurchaseHovered = false;
         }
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp)
         {
             _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _statsHelpIconRect);
@@ -1458,7 +1528,10 @@ public sealed class Game : IGame
             }
 
             if (leftClicked && _forageSidebarButtonHovered)
+            {
+                OpenForageDialog();
                 return;
+            }
 
             if (leftClicked && _quitSidebarButtonHovered)
             {
@@ -1610,7 +1683,7 @@ public sealed class Game : IGame
                 _controllerDebugTabHovered.Any(h => h))))
             overClickable = true;
 
-        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
+        if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp)
         {
             if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered ||
                 _huntSidebarButtonHovered || _forageSidebarButtonHovered || _quitSidebarButtonHovered)
@@ -1690,6 +1763,13 @@ public sealed class Game : IGame
             if (_buildCloseHovered || _buildTentButtonHovered ||
                 Raylib.CheckCollisionPointRec(mouse, _buildTentRowRect) ||
                 !Raylib.CheckCollisionPointRec(mouse, _buildPanelRect))
+                overClickable = true;
+        }
+
+        if (_showForageDialog)
+        {
+            if (_forageCloseHovered || _forageOptionHovered.Any(h => h) ||
+                !Raylib.CheckCollisionPointRec(mouse, _foragePanelRect))
                 overClickable = true;
         }
 
@@ -2226,6 +2306,47 @@ public sealed class Game : IGame
         _showBuildDialog = false;
         _buildCloseHovered = false;
         _buildTentButtonHovered = false;
+    }
+
+    private void OpenForageDialog()
+    {
+        if (!IsForestSurvivalPhase(_phase))
+            return;
+
+        _showForageDialog = true;
+        _forageHighlightedIndex = 0;
+        _forageCloseHovered = false;
+        Array.Clear(_forageOptionHovered);
+    }
+
+    private void CloseForageDialog()
+    {
+        _showForageDialog = false;
+        _forageCloseHovered = false;
+        Array.Clear(_forageOptionHovered);
+    }
+
+    private void TryPerformForage(int optionIndex)
+    {
+        if (!IsForestSurvivalPhase(_phase))
+            return;
+        if (optionIndex < 0 || optionIndex >= ForageOptionCount)
+            return;
+
+        CloseForageDialog();
+        ClearActionDeltas();
+
+        string item = ForageOptionItems[optionIndex];
+        ApplyEnvironmentOnAction();
+        AdvanceTime();
+        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostForage);
+
+        bool stored = TryAddToBackpack(item);
+        string target = item.ToLowerInvariant();
+        _actionMessage = stored
+            ? $"You gather {target} and stow it in your pack."
+            : $"You gather {target}, but your pack is full.";
+        _actionMessageTimer = ActionMessageDuration;
     }
 
     private void OpenControllerDebug()
@@ -3832,6 +3953,70 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
+    // FORAGE DIALOG (modal) — choose what to gather
+    // =====================================================================
+    private void DrawForageDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
+
+        int panelW = 420;
+        int panelH = 280;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _foragePanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, "FORAGE",
+            new Vector2(panelX + 22, panelY + 18), 25, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
+
+        string subtitle = "Choose what to search for in the forest.";
+        Raylib.DrawTextEx(font, subtitle,
+            new Vector2(panelX + 22, panelY + 58), 18, 0.6f, Palette.TextSecondary);
+
+        int rowY = panelY + 88;
+        int rowH = 56;
+        int rowX = panelX + 22;
+        int rowW = panelW - 44;
+
+        for (int i = 0; i < ForageOptionCount; i++)
+        {
+            _forageOptionRowRects[i] = new Rectangle(rowX, rowY, rowW, rowH);
+
+            bool highlighted = _forageHighlightedIndex == i || _forageOptionHovered[i];
+            Color rowBg = highlighted
+                ? Palette.ButtonSelectedBg
+                : new Color(16, 18, 22, 255);
+            Raylib.DrawRectangleRec(_forageOptionRowRects[i], rowBg);
+            Raylib.DrawRectangleLinesEx(_forageOptionRowRects[i], 1f, Palette.SubtleBorder);
+
+            string label = ForageOptionItems[i].ToUpperInvariant();
+            Raylib.DrawTextEx(font, label,
+                new Vector2(rowX + 14, rowY + 10), 20, 0.65f, Palette.TextPrimary);
+            Raylib.DrawTextEx(font, ForageOptionDescriptions[i],
+                new Vector2(rowX + 14, rowY + 30), 14, 0.5f, Palette.TextDim);
+
+            rowY += rowH + 8;
+        }
+
+        int closeW = 120;
+        int closeH = 36;
+        int closeX = panelX + (panelW - closeW) / 2;
+        int closeY = panelY + panelH - closeH - 16;
+        _forageCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
+        DrawDialogButton(_forageCloseRect, "CLOSE", _forageCloseHovered, font);
+    }
+
+    // =====================================================================
     // STORE BUY MENU (modal shopping interface)
     // =====================================================================
     private void DrawStoreBuyMenu()
@@ -4061,6 +4246,11 @@ public sealed class Game : IGame
         if (_showBuildDialog)
         {
             DrawBuildDialog();
+        }
+
+        if (_showForageDialog)
+        {
+            DrawForageDialog();
         }
 
         if (_showQuitConfirm)
