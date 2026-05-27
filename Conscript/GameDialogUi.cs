@@ -6,6 +6,12 @@ namespace Conscript;
 
 internal static class GameDialogUi
 {
+    public static void DrawModalBackdrop(int screenWidth, int screenHeight, byte alpha = 170)
+    {
+        var dim = new Color((byte)0, (byte)0, (byte)0, alpha);
+        Raylib.DrawRectangle(0, 0, screenWidth, screenHeight, dim);
+    }
+
     private static readonly Color ToolbarBgActive = new(58, 63, 74, 255);
     private static readonly Color ToolbarBgIdle = new(32, 35, 42, 255);
     private static readonly Color ToolbarBorderActive = new(125, 130, 140, 255);

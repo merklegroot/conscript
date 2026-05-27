@@ -38,25 +38,7 @@ public sealed class Game : IGame
     private Texture2D _trashBagTentTexture;
     private Texture2D _titleLogoTexture;
 
-    // --- Item names & consumable tuning ---
-    private const string ItemBottledWater = "Bottled Water";
-    private const string ItemEmptyBottle = "Empty Bottle of Water";
-    private const int BottledWaterMaxSips = 4;
-    private const int BottledWaterHydrationPerSip = 25;
-    private const string ItemCannedSoup = "Canned Soup";
-    private const string ItemEmptyCan = "Empty Can";
-    private const int CannedSoupMaxServings = 3;
-    private const int CannedSoupSatiationPerServing = 12;
-    private const int CannedSoupHydrationPerServing = 3;
-    private const int CannedSoupHealthPerServing = 2;
-    private const string ItemTrashBags = "Trash Bags";
-    private const string ItemDuctTape = "Duct Tape";
-    private const string ItemRaccoon = "Raccoon";
-    private const string ItemRabbit = "Rabbit";
-    private const string ItemFirewood = "Firewood";
-    private const string ItemRocks = "Rocks";
-    private const int TrashBagsMaxUses = 3;
-    private const int DuctTapeMaxUses = 3;
+    // --- Survival tuning (choices, energy, dropped items) ---
     private const string BuildTrashBagTent = "Trash Bag Tent";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
@@ -65,7 +47,7 @@ public sealed class Game : IGame
     private const string ChoiceHunt = "HUNT";
     private const string ChoiceForage = "FORAGE";
     private const int ForageOptionCount = 2;
-    private static readonly string[] ForageOptionItems = [ItemFirewood, ItemRocks];
+    private static readonly string[] ForageOptionItems = [GameItems.Firewood, GameItems.Rocks];
     private static readonly string[] ForageOptionDescriptions =
     [
         "Fallen branches and dry wood in the undergrowth.",
@@ -92,25 +74,7 @@ public sealed class Game : IGame
     private const int DroppedItemSceneIconSize = 54;
     private const int DroppedItemScenePlatePad = 5;
 
-    // Store item icons (embedded PNGs keyed by catalog / backpack item name)
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, string> ItemIconFiles = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["Knife"]                  = "items.knife.png",
-        ["Lighter"]                = "items.lighter.png",
-        ["Phone"]                  = "items.phone.png",
-        [ItemBottledWater]         = "items.bottled-water.png",
-        [ItemEmptyBottle]          = "items.empty-bottle.png",
-        ["Loaf of Bread"]          = "items.loaf-of-bread.png",
-        [ItemCannedSoup]           = "items.canned-soup.png",
-        [ItemEmptyCan]             = "items.empty-can.png",
-        [ItemTrashBags]            = "items.trash-bags.png",
-        [ItemDuctTape]             = "items.duct-tape.png",
-        [ItemRaccoon]              = "items.raccoon.png",
-        [ItemRabbit]               = "items.rabbit.png",
-        [ItemFirewood]             = "items.firewood.png",
-        [ItemRocks]                = "items.rocks.png",
-    };
 
     // --- Top-right utility buttons (restart, debug start, controller) ---
     private Rectangle _restartButtonRect;
@@ -336,16 +300,6 @@ public sealed class Game : IGame
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
-
-    // Items available in the convenience store kiosk
-    private readonly (string name, int price, int satiationDelta, int hydrationDelta, int healthDelta)[] _storeCatalog = new[]
-    {
-        ("Bottled Water",  65,   0, +18, +2),
-        ("Loaf of Bread", 140, +22,  +2, +3),
-        ("Canned Soup",  195, +28,  +8, +5),
-        ("Trash Bags",    85,   0,   0,  0),
-        ("Duct Tape",    120,   0,   0,  0),
-    };
 
     private const string DefaultDeathLine1 = "You died.";
     private const string DefaultDeathLine2 = "The war took you on the first day.";
@@ -589,7 +543,7 @@ public sealed class Game : IGame
         }
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
-        if (_phase == Phase.Outside || IsForestSurvivalPhase(_phase))
+        if (_phase == Phase.Outside || GamePhase.IsForestSurvival(_phase))
         {
             if (IsNightTimeSlot())
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
@@ -625,7 +579,7 @@ public sealed class Game : IGame
     // --- Embedded textures & item icons ---
     private void LoadItemIcons()
     {
-        foreach (var (itemName, fileName) in ItemIconFiles)
+        foreach (var (itemName, fileName) in GameItems.IconFiles)
             _itemIcons[itemName] = EmbeddedTextureLoader.Load(fileName);
     }
 
@@ -639,37 +593,24 @@ public sealed class Game : IGame
         _itemIcons.Clear();
     }
 
-    private static int GetMaxChargesForItem(string itemName)
-    {
-        if (string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase))
-            return BottledWaterMaxSips;
-        if (string.Equals(itemName, ItemCannedSoup, StringComparison.OrdinalIgnoreCase))
-            return CannedSoupMaxServings;
-        if (string.Equals(itemName, ItemTrashBags, StringComparison.OrdinalIgnoreCase))
-            return TrashBagsMaxUses;
-        if (string.Equals(itemName, ItemDuctTape, StringComparison.OrdinalIgnoreCase))
-            return DuctTapeMaxUses;
-        return 0;
-    }
-
     private int GetBackpackSlotCharges(int slotIndex, string itemName)
     {
         if (slotIndex >= 0 && slotIndex < _backpackItemCharges.Length && _backpackItemCharges[slotIndex] is int stored)
             return stored;
-        return GetMaxChargesForItem(itemName);
+        return GameItems.GetMaxCharges(itemName);
     }
 
     private string GetBottledWaterDialogText(int slotIndex)
     {
         int remaining = slotIndex >= 0
-            ? GetBackpackSlotCharges(slotIndex, ItemBottledWater)
-            : BottledWaterMaxSips;
-        string baseText = remaining >= BottledWaterMaxSips
-            ? $"A full bottle — {BottledWaterMaxSips} sips. Each sip restores hydration."
+            ? GetBackpackSlotCharges(slotIndex, GameItems.BottledWater)
+            : GameItems.BottledWaterMaxSips;
+        string baseText = remaining >= GameItems.BottledWaterMaxSips
+            ? $"A full bottle — {GameItems.BottledWaterMaxSips} sips. Each sip restores hydration."
             : remaining == 1
                 ? "One sip left. Drink it before the bottle is empty."
                 : $"{remaining} sips left. Each sip restores some hydration.";
-        if (_phase == Phase.ForestStream && remaining < BottledWaterMaxSips)
+        if (_phase == Phase.ForestStream && remaining < GameItems.BottledWaterMaxSips)
             baseText += " You can top it off at the stream.";
         return baseText;
     }
@@ -677,10 +618,10 @@ public sealed class Game : IGame
     private string GetCannedSoupDialogText(int slotIndex)
     {
         int remaining = slotIndex >= 0
-            ? GetBackpackSlotCharges(slotIndex, ItemCannedSoup)
-            : CannedSoupMaxServings;
-        return remaining >= CannedSoupMaxServings
-            ? $"A sealed can — {CannedSoupMaxServings} servings. Each serving restores some stats."
+            ? GetBackpackSlotCharges(slotIndex, GameItems.CannedSoup)
+            : GameItems.CannedSoupMaxServings;
+        return remaining >= GameItems.CannedSoupMaxServings
+            ? $"A sealed can — {GameItems.CannedSoupMaxServings} servings. Each serving restores some stats."
             : remaining == 1
                 ? "One serving left. Eat it before you toss the can."
                 : $"{remaining} servings left. Each serving restores some stats.";
@@ -692,7 +633,7 @@ public sealed class Game : IGame
             return c;
         if (slotIndex >= 0)
             return GetBackpackSlotCharges(slotIndex, itemName);
-        return GetMaxChargesForItem(itemName);
+        return GameItems.GetMaxCharges(itemName);
     }
 
     private void DrawItemIcon(string itemName, Rectangle dest, Color tint, int slotIndex = -1, int? chargesOverride = null)
@@ -700,7 +641,7 @@ public sealed class Game : IGame
         if (!_itemIcons.TryGetValue(itemName, out Texture2D tex) || tex.Id == 0)
             return;
 
-        int maxCharges = GetMaxChargesForItem(itemName);
+        int maxCharges = GameItems.GetMaxCharges(itemName);
         if (maxCharges > 0)
         {
             int remaining = GetItemChargesForDisplay(itemName, slotIndex, chargesOverride);
@@ -715,15 +656,9 @@ public sealed class Game : IGame
         Raylib.DrawTexturePro(tex, src, dest, Vector2.Zero, 0f, tint);
     }
 
-    private static bool IsForestSurvivalPhase(Phase phase) =>
-        phase is Phase.Forest or Phase.ForestStream;
-
-    private bool IsOutdoorPhase() =>
-        _phase is Phase.Outside or Phase.Forest or Phase.ForestStream;
-
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
-        IsOutdoorPhase() || _phase == Phase.Tent;
+        GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -922,12 +857,12 @@ public sealed class Game : IGame
         {
             if (GameInput.IsVerticalNavUpPressed())
             {
-                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + _storeCatalog.Length) % _storeCatalog.Length;
+                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + StoreCatalog.Entries.Length) % StoreCatalog.Entries.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
             if (GameInput.IsVerticalNavDownPressed())
             {
-                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % _storeCatalog.Length;
+                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % StoreCatalog.Entries.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
         }
@@ -1379,7 +1314,7 @@ public sealed class Game : IGame
                 return;
             }
 
-            if (_hasTrashBagTent && IsOutdoorsPhase(_phase) && _trashBagTentClickRect.Width > 0)
+            if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase) && _trashBagTentClickRect.Width > 0)
             {
                 _trashBagTentHovered = Raylib.CheckCollisionPointRec(mouse, _trashBagTentClickRect);
                 if (leftClicked && _trashBagTentHovered)
@@ -1440,7 +1375,7 @@ public sealed class Game : IGame
         // === Store buy menu input (when open) ===
         if (_showStoreBuyMenu)
         {
-            for (int i = 0; i < _storeCatalog.Length; i++)
+            for (int i = 0; i < StoreCatalog.Entries.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
                 {
@@ -1965,7 +1900,7 @@ public sealed class Game : IGame
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { ItemTrashBags, ItemDuctTape, "Knife", "Lighter", "Phone", ItemEmptyBottle, null, null };
+        _backpack = new string?[] { GameItems.TrashBags, GameItems.DuctTape, "Knife", "Lighter", "Phone", GameItems.EmptyBottle, null, null };
         _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
@@ -2147,7 +2082,7 @@ public sealed class Game : IGame
 
     private void OpenForageDialog()
     {
-        if (!IsForestSurvivalPhase(_phase))
+        if (!GamePhase.IsForestSurvival(_phase))
             return;
 
         _showForageDialog = true;
@@ -2165,7 +2100,7 @@ public sealed class Game : IGame
 
     private void TryPerformForage(int optionIndex)
     {
-        if (!IsForestSurvivalPhase(_phase))
+        if (!GamePhase.IsForestSurvival(_phase))
             return;
         if (optionIndex < 0 || optionIndex >= ForageOptionCount)
             return;
@@ -2246,9 +2181,6 @@ public sealed class Game : IGame
         _statsHelpCloseHovered = false;
     }
 
-    private static bool IsOutdoorsPhase(Phase phase) =>
-        phase is Phase.Outside or Phase.Forest or Phase.ForestStream;
-
     private void RefreshOutdoorActionChoices()
     {
         if (_phase == Phase.Outside)
@@ -2311,8 +2243,8 @@ public sealed class Game : IGame
     private bool CanDrinkFromDialogSlot(int slotIndex) =>
         slotIndex >= 0 &&
         slotIndex < _backpack.Length &&
-        string.Equals(_backpack[slotIndex], ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
-        GetBackpackSlotCharges(slotIndex, ItemBottledWater) > 0;
+        string.Equals(_backpack[slotIndex], GameItems.BottledWater, StringComparison.OrdinalIgnoreCase) &&
+        GetBackpackSlotCharges(slotIndex, GameItems.BottledWater) > 0;
 
     private bool CanFillBottleAtStream(int slotIndex)
     {
@@ -2320,11 +2252,11 @@ public sealed class Game : IGame
             return false;
 
         string? item = _backpack[slotIndex];
-        if (string.Equals(item, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(item, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase))
             return true;
 
-        return string.Equals(item, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
-               GetBackpackSlotCharges(slotIndex, ItemBottledWater) < BottledWaterMaxSips;
+        return string.Equals(item, GameItems.BottledWater, StringComparison.OrdinalIgnoreCase) &&
+               GetBackpackSlotCharges(slotIndex, GameItems.BottledWater) < GameItems.BottledWaterMaxSips;
     }
 
     private void PerformFillBottleFromStream()
@@ -2337,15 +2269,15 @@ public sealed class Game : IGame
         }
 
         int slot = _dialogItemIndex;
-        bool wasEmpty = string.Equals(_backpack[slot], ItemEmptyBottle, StringComparison.OrdinalIgnoreCase);
+        bool wasEmpty = string.Equals(_backpack[slot], GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase);
 
         ClearActionDeltas();
         AdvanceTime();
         ApplyEnvironmentOnAction();
         ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostFillBottle);
 
-        _backpack[slot] = ItemBottledWater;
-        _backpackItemCharges[slot] = BottledWaterMaxSips;
+        _backpack[slot] = GameItems.BottledWater;
+        _backpackItemCharges[slot] = GameItems.BottledWaterMaxSips;
 
         _actionMessage = wasEmpty
             ? "You kneel in the icy water and fill the bottle. It is painfully cold, but drinkable."
@@ -2356,7 +2288,7 @@ public sealed class Game : IGame
 
     private void PerformHunt()
     {
-        if (!IsForestSurvivalPhase(_phase))
+        if (!GamePhase.IsForestSurvival(_phase))
             return;
 
         ApplyEnvironmentOnAction();
@@ -2365,7 +2297,7 @@ public sealed class Game : IGame
 
         // Weighted outcomes: raccoon most likely, rabbit next, otherwise nothing.
         double roll = _rng.NextDouble();
-        string? catchItem = roll < 0.55 ? ItemRaccoon : roll < 0.80 ? ItemRabbit : null;
+        string? catchItem = roll < 0.55 ? GameItems.Raccoon : roll < 0.80 ? GameItems.Rabbit : null;
 
         if (catchItem is null)
         {
@@ -2375,7 +2307,7 @@ public sealed class Game : IGame
         }
 
         bool stored = TryAddToBackpack(catchItem);
-        if (string.Equals(catchItem, ItemRaccoon, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(catchItem, GameItems.Raccoon, StringComparison.OrdinalIgnoreCase))
         {
             ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, 12);
             _actionMessage = stored
@@ -2401,7 +2333,7 @@ public sealed class Game : IGame
 
     private void EnterTent()
     {
-        if (!_hasTrashBagTent || !IsOutdoorsPhase(_phase))
+        if (!_hasTrashBagTent || !GamePhase.IsOutdoorsSurvival(_phase))
             return;
 
         _phaseOutdoorBeforeTent = _phase;
@@ -2440,7 +2372,7 @@ public sealed class Game : IGame
         int slot = FindBackpackSlotIndex(itemName);
         if (slot < 0)
             return false;
-        int max = GetMaxChargesForItem(itemName);
+        int max = GameItems.GetMaxCharges(itemName);
         return max <= 0 || GetBackpackSlotCharges(slot, itemName) > 0;
     }
 
@@ -2474,7 +2406,7 @@ public sealed class Game : IGame
         if (slot < 0)
             return false;
 
-        int max = GetMaxChargesForItem(itemName);
+        int max = GameItems.GetMaxCharges(itemName);
         if (max <= 0)
         {
             _backpack[slot] = null;
@@ -2506,19 +2438,19 @@ public sealed class Game : IGame
             return false;
         }
 
-        if (!IsOutdoorsPhase(_phase))
+        if (!GamePhase.IsOutdoorsSurvival(_phase))
         {
             reason = "Must be outdoors.";
             return false;
         }
 
-        if (!HasUsableBackpackItem(ItemTrashBags))
+        if (!HasUsableBackpackItem(GameItems.TrashBags))
         {
             reason = "Need trash bags.";
             return false;
         }
 
-        if (!HasUsableBackpackItem(ItemDuctTape))
+        if (!HasUsableBackpackItem(GameItems.DuctTape))
         {
             reason = "Need duct tape.";
             return false;
@@ -2537,7 +2469,7 @@ public sealed class Game : IGame
             return;
         }
 
-        if (!TryUseBackpackItemCharge(ItemTrashBags) || !TryUseBackpackItemCharge(ItemDuctTape))
+        if (!TryUseBackpackItemCharge(GameItems.TrashBags) || !TryUseBackpackItemCharge(GameItems.DuctTape))
             return;
 
         _hasTrashBagTent = true;
@@ -2546,10 +2478,10 @@ public sealed class Game : IGame
         RefreshOutdoorActionChoices();
         RefreshConcealment();
 
-        int bagsSlot = FindBackpackSlotIndex(ItemTrashBags);
-        int tapeSlot = FindBackpackSlotIndex(ItemDuctTape);
-        bool materialsRemain = (bagsSlot >= 0 && GetBackpackSlotCharges(bagsSlot, ItemTrashBags) > 0) ||
-                               (tapeSlot >= 0 && GetBackpackSlotCharges(tapeSlot, ItemDuctTape) > 0);
+        int bagsSlot = FindBackpackSlotIndex(GameItems.TrashBags);
+        int tapeSlot = FindBackpackSlotIndex(GameItems.DuctTape);
+        bool materialsRemain = (bagsSlot >= 0 && GetBackpackSlotCharges(bagsSlot, GameItems.TrashBags) > 0) ||
+                               (tapeSlot >= 0 && GetBackpackSlotCharges(tapeSlot, GameItems.DuctTape) > 0);
 
         _buildFeedback = materialsRemain
             ? "Shelter pitched — bags and tape only partly used."
@@ -2566,8 +2498,8 @@ public sealed class Game : IGame
         FindBackpackSlotIndex(itemName) >= 0 ? 0 : 1;
 
     private int SlotsNeededForTentDisassembly() =>
-        SlotsNeededToRestoreMaterial(ItemTrashBags)
-        + SlotsNeededToRestoreMaterial(ItemDuctTape)
+        SlotsNeededToRestoreMaterial(GameItems.TrashBags)
+        + SlotsNeededToRestoreMaterial(GameItems.DuctTape)
         + CountDroppedItemsInRoom(Phase.Tent);
 
     private bool CanDisassembleTrashBagTent(out string reason)
@@ -2600,7 +2532,7 @@ public sealed class Game : IGame
 
     private bool TryRestoreBackpackMaterial(string itemName)
     {
-        int max = GetMaxChargesForItem(itemName);
+        int max = GameItems.GetMaxCharges(itemName);
         int slot = FindBackpackSlotIndex(itemName);
         if (slot >= 0)
         {
@@ -2642,7 +2574,7 @@ public sealed class Game : IGame
 
         _droppedItems.RemoveAll(d => d.Room == Phase.Tent);
 
-        if (!TryRestoreBackpackMaterial(ItemTrashBags) || !TryRestoreBackpackMaterial(ItemDuctTape))
+        if (!TryRestoreBackpackMaterial(GameItems.TrashBags) || !TryRestoreBackpackMaterial(GameItems.DuctTape))
         {
             _actionMessage = "Backpack is full — make space before taking down the tent.";
             _actionMessageTimer = ActionMessageDuration;
@@ -2687,15 +2619,15 @@ public sealed class Game : IGame
 
     private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
     {
-        if (string.Equals(itemName, ItemBottledWater, StringComparison.OrdinalIgnoreCase) &&
-            GetBackpackSlotCharges(slotIndex, ItemBottledWater) > 0)
+        if (string.Equals(itemName, GameItems.BottledWater, StringComparison.OrdinalIgnoreCase) &&
+            GetBackpackSlotCharges(slotIndex, GameItems.BottledWater) > 0)
             return DialogItemAction.DrinkWater;
 
-        if (string.Equals(itemName, ItemCannedSoup, StringComparison.OrdinalIgnoreCase) &&
-            GetBackpackSlotCharges(slotIndex, ItemCannedSoup) > 0)
+        if (string.Equals(itemName, GameItems.CannedSoup, StringComparison.OrdinalIgnoreCase) &&
+            GetBackpackSlotCharges(slotIndex, GameItems.CannedSoup) > 0)
             return DialogItemAction.EatSoup;
 
-        if (string.Equals(itemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) &&
+        if (string.Equals(itemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase) &&
             _phase == Phase.ForestStream)
             return DialogItemAction.FillBottle;
 
@@ -2738,13 +2670,13 @@ public sealed class Game : IGame
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
         if (!CanDrinkFromDialogSlot(_dialogItemIndex)) return;
 
-        int remaining = GetBackpackSlotCharges(_dialogItemIndex, ItemBottledWater) - 1;
+        int remaining = GetBackpackSlotCharges(_dialogItemIndex, GameItems.BottledWater) - 1;
         ClearActionDeltas();
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, BottledWaterHydrationPerSip);
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, GameItems.BottledWaterHydrationPerSip);
 
         if (remaining <= 0)
         {
-            _backpack[_dialogItemIndex] = ItemEmptyBottle;
+            _backpack[_dialogItemIndex] = GameItems.EmptyBottle;
             _backpackItemCharges[_dialogItemIndex] = null;
             _actionMessage = "You finish the last of the water. The bottle is empty.";
             _actionMessageTimer = ActionMessageDuration;
@@ -2767,13 +2699,13 @@ public sealed class Game : IGame
 
         int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
         ClearActionDeltas();
-        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, CannedSoupSatiationPerServing);
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, CannedSoupHydrationPerServing);
-        ModifyStatFromAction(ref _health, ref _actionHealthDelta, CannedSoupHealthPerServing);
+        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, GameItems.CannedSoupSatiationPerServing);
+        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, GameItems.CannedSoupHydrationPerServing);
+        ModifyStatFromAction(ref _health, ref _actionHealthDelta, GameItems.CannedSoupHealthPerServing);
 
         if (remaining <= 0)
         {
-            _backpack[_dialogItemIndex] = ItemEmptyCan;
+            _backpack[_dialogItemIndex] = GameItems.EmptyCan;
             _backpackItemCharges[_dialogItemIndex] = null;
             _actionMessage = "You scrape the last of the soup. The can is empty.";
             _actionMessageTimer = ActionMessageDuration;
@@ -2825,47 +2757,18 @@ public sealed class Game : IGame
 
     private bool CanBuyStoreItem(int index)
     {
-        if (index < 0 || index >= _storeCatalog.Length)
+        if (index < 0 || index >= StoreCatalog.Entries.Length)
             return false;
 
-        var (_, price, _, _, _) = _storeCatalog[index];
+        var (_, price, _, _, _) = StoreCatalog.Entries[index];
         return _money >= price && _backpack.Any(s => string.IsNullOrEmpty(s));
-    }
-
-    private static string GetStoreItemFlavorText(string name) => name switch
-    {
-        ItemBottledWater => "A plastic bottle of still water from the cooler.",
-        "Loaf of Bread" => "A dense loaf, still soft enough to tear by hand.",
-        "Canned Soup" => "Tinned soup — heat is optional when you are desperate.",
-        ItemTrashBags => "Heavy-duty plastic bags. Building material for improvised shelter.",
-        ItemDuctTape => "Strong adhesive tape. Building material — pairs with trash bags for a crude tent.",
-        _ => "Standard kiosk stock."
-    };
-
-    private static bool IsBuildingMaterial(string name) =>
-        string.Equals(name, ItemTrashBags, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, ItemDuctTape, StringComparison.OrdinalIgnoreCase);
-
-    private static string FormatStoreItemEffects(string name, int satiation, int hydration, int health)
-    {
-        if (IsBuildingMaterial(name))
-            return "Building material.";
-
-        var parts = new List<string>();
-        if (satiation > 0)
-            parts.Add($"Food +{satiation}");
-        if (hydration > 0)
-            parts.Add($"Hydration +{hydration}");
-        if (health > 0)
-            parts.Add($"Health +{health}");
-        return parts.Count > 0 ? string.Join("  ·  ", parts) : "No immediate stat effect.";
     }
 
     private void TryBuyStoreItem(int index)
     {
-        if (index < 0 || index >= _storeCatalog.Length) return;
+        if (index < 0 || index >= StoreCatalog.Entries.Length) return;
 
-        var (name, price, satiationDelta, hydrationDelta, healthDelta) = _storeCatalog[index];
+        var (name, price, satiationDelta, hydrationDelta, healthDelta) = StoreCatalog.Entries[index];
 
         if (_money < price)
         {
@@ -2908,212 +2811,21 @@ public sealed class Game : IGame
     // =====================================================================
     private void DrawControllerDebugScreen()
     {
-        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 200));
+        ControllerDebugScreenDrawing.ScreenLayout layout = ControllerDebugScreenDrawing.DrawScreen(
+            _screenWidth,
+            _screenHeight,
+            _uiFont,
+            _controllerDebugPadIndex,
+            _controllerDebugPrevHovered,
+            _controllerDebugNextHovered,
+            _controllerDebugCloseHovered,
+            _controllerDebugTabHovered);
 
-        Font font = _uiFont;
-        int panelX = 36;
-        int panelY = 28;
-        int panelW = _screenWidth - 72;
-        int panelH = _screenHeight - 56;
-
-        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
-        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
-
-        Raylib.DrawTextEx(font, "CONTROLLER DEBUG",
-            new Vector2(panelX + 22, panelY + 16),
-            GamepadDebugLayout.TitleSize, 0.75f, Palette.TextPrimary);
-
-        Raylib.DrawTextEx(font, "Live input from Raylib / SDL — one gamepad at a time.",
-            new Vector2(panelX + 22, panelY + 50),
-            GamepadDebugLayout.SubtitleSize, 0.55f, Palette.TextSecondary);
-
-        int lastPressed = Raylib.GetGamepadButtonPressed();
-        string lastLine = lastPressed >= 0
-            ? $"Last button pressed (any pad): {(GamepadButton)lastPressed}"
-            : "Last button pressed (any pad): —";
-        Raylib.DrawTextEx(font, lastLine,
-            new Vector2(panelX + 22, panelY + 76),
-            GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
-
-        // Pad selector: Prev / tabs / Next
-        int selectorY = panelY + 104;
-        const int navBtnW = 100;
-        const int navBtnH = 34;
-        int tabW = 52;
-        int tabH = 34;
-        int tabGap = 8;
-        int tabsTotalW = GamepadDebugLayout.MaxGamepadsToShow * tabW + (GamepadDebugLayout.MaxGamepadsToShow - 1) * tabGap;
-        int tabsX = panelX + (panelW - tabsTotalW) / 2;
-
-        _controllerDebugPrevRect = new Rectangle(panelX + 22, selectorY, navBtnW, navBtnH);
-        _controllerDebugNextRect = new Rectangle(panelX + panelW - 22 - navBtnW, selectorY, navBtnW, navBtnH);
-        GameDialogUi.DrawDialogButton(_controllerDebugPrevRect, "PREV", _controllerDebugPrevHovered, font);
-        GameDialogUi.DrawDialogButton(_controllerDebugNextRect, "NEXT", _controllerDebugNextHovered, font);
-
-        for (int i = 0; i < GamepadDebugLayout.MaxGamepadsToShow; i++)
-        {
-            int tabX = tabsX + i * (tabW + tabGap);
-            _controllerDebugTabRects[i] = new Rectangle(tabX, selectorY, tabW, tabH);
-            bool selected = i == _controllerDebugPadIndex;
-            bool connected = Raylib.IsGamepadAvailable(i);
-            bool hovered = _controllerDebugTabHovered[i];
-
-            Color tabBg = selected
-                ? Palette.ButtonSelectedBg
-                : hovered ? new Color(48, 52, 60, 255) : new Color(24, 26, 32, 255);
-            Color tabBorder = selected
-                ? Palette.ButtonSelectedBorder
-                : connected ? new Color(90, 120, 95, 255) : Palette.SubtleBorder;
-
-            Raylib.DrawRectangleRec(_controllerDebugTabRects[i], tabBg);
-            Raylib.DrawRectangleLinesEx(_controllerDebugTabRects[i], 1.5f, tabBorder);
-
-            string tabLabel = $"{i}";
-            int labelSize = 18;
-            int lw = (int)Raylib.MeasureTextEx(font, tabLabel, labelSize, 0.6f).X;
-            Raylib.DrawTextEx(font, tabLabel,
-                new Vector2(tabX + (tabW - lw) / 2f, selectorY + 7),
-                labelSize, 0.6f, selected ? Palette.TextPrimary : Palette.TextSecondary);
-
-            if (connected)
-            {
-                Raylib.DrawCircle(tabX + tabW - 10, selectorY + 10, 4f,
-                    selected ? Palette.Positive : new Color(70, 100, 78, 255));
-            }
-        }
-
-        int contentTop = selectorY + navBtnH + 18;
-        int contentH = panelH - (contentTop - panelY) - 72;
-        int contentX = panelX + 22;
-        int contentW = panelW - 44;
-        DrawGamepadDebugDetail(font, _controllerDebugPadIndex, contentX, contentTop, contentW, contentH);
-
-        int btnW = 140;
-        int btnH = 36;
-        int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - btnH - 16;
-        _controllerDebugCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        GameDialogUi.DrawDialogButton(_controllerDebugCloseRect, "CLOSE", _controllerDebugCloseHovered, font);
-
-        Raylib.DrawTextEx(font, "Esc · Close  ·  ← → or , . to switch gamepad",
-            new Vector2(panelX + 22, panelY + panelH - 28),
-            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
-    }
-
-    private void DrawGamepadDebugDetail(Font font, int gamepad, int x, int y, int width, int height)
-    {
-        Raylib.DrawRectangle(x, y, width, height, new Color(12, 14, 18, 255));
-        Raylib.DrawRectangleLines(x, y, width, height, Palette.SubtleBorder);
-
-        int pad = 18;
-        int cy = y + pad;
-        int innerW = width - pad * 2;
-
-        bool connected = Raylib.IsGamepadAvailable(gamepad);
-        string status = connected ? "Connected" : "Not connected";
-        Color statusColor = connected ? Palette.Positive : Palette.TextDim;
-
-        string header = $"Gamepad {gamepad}";
-        Raylib.DrawTextEx(font, header, new Vector2(x + pad, cy), 22, 0.7f, Palette.TextPrimary);
-        int statusW = (int)Raylib.MeasureTextEx(font, status, GamepadDebugLayout.BodySize, 0.55f).X;
-        Raylib.DrawTextEx(font, status,
-            new Vector2(x + width - pad - statusW, cy + 2),
-            GamepadDebugLayout.BodySize, 0.55f, statusColor);
-        cy += 30;
-
-        if (!connected)
-        {
-            Raylib.DrawTextEx(font, "No device on this slot. Use PREV/NEXT or tabs 0–3 to check other slots.",
-                new Vector2(x + pad, cy), GamepadDebugLayout.BodySize, 0.55f, Palette.TextSecondary);
-            return;
-        }
-
-        string name = Raylib.GetGamepadName_(gamepad);
-        if (string.IsNullOrWhiteSpace(name))
-            name = "(unnamed device)";
-        GamepadDebugDrawing.DrawTruncatedLine(font, name, x + pad, ref cy, innerW, GamepadDebugLayout.BodySize, Palette.TextSecondary);
-        cy += 6;
-
-        int axisCount = Raylib.GetGamepadAxisCount(gamepad);
-        Raylib.DrawTextEx(font, $"Axis count: {axisCount}",
-            new Vector2(x + pad, cy), GamepadDebugLayout.MetaSize, 0.5f, Palette.TextMuted);
-        cy += 28;
-
-        int leftColW = innerW / 2 - 12;
-        int rightColX = x + pad + leftColW + 24;
-        int rightColW = innerW - leftColW - 24;
-        int leftY = cy;
-
-        // Left column: sticks + axes
-        float lx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_X);
-        float ly = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_LEFT_Y);
-        float rx = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_X);
-        float ry = Raylib.GetGamepadAxisMovement(gamepad, GamepadAxis.GAMEPAD_AXIS_RIGHT_Y);
-
-        int stickSize = 56;
-        int stickRowY = leftY;
-        Raylib.DrawTextEx(font, "Sticks", new Vector2(x + pad, stickRowY),
-            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
-        stickRowY += 24;
-
-        int stickCenterY = stickRowY + stickSize + 8;
-        GamepadDebugDrawing.DrawStick(x + pad + stickSize, stickCenterY, stickSize, lx, ly, Palette.Hydration);
-        GamepadDebugDrawing.DrawStick(x + pad + stickSize * 2 + 36, stickCenterY, stickSize, rx, ry, Palette.Energy);
-        Raylib.DrawTextEx(font, "Left", new Vector2(x + pad + stickSize - 18, stickRowY + 4),
-            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
-        Raylib.DrawTextEx(font, "Right", new Vector2(x + pad + stickSize * 2 + 18, stickRowY + 4),
-            GamepadDebugLayout.MetaSize, 0.45f, Palette.TextDim);
-
-        int axisY = stickCenterY + stickSize + 22;
-        Raylib.DrawTextEx(font, "Axes", new Vector2(x + pad, axisY),
-            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
-        axisY += 24;
-
-        foreach (var (axis, label) in GamepadDebugLayout.AxesToShow)
-        {
-            float value = Raylib.GetGamepadAxisMovement(gamepad, axis);
-            Raylib.DrawTextEx(font, label, new Vector2(x + pad, axisY),
-                GamepadDebugLayout.BodySize, 0.45f, Palette.TextDim);
-            GamepadDebugDrawing.DrawAxisBar(x + pad, axisY + 20, leftColW, 10, value);
-            Raylib.DrawTextEx(font, $"{value:F3}",
-                new Vector2(x + pad + leftColW - 52, axisY + 2),
-                GamepadDebugLayout.BodySize, 0.45f, Palette.TextSecondary);
-            axisY += 38;
-        }
-
-        // Right column: buttons (two sub-columns)
-        Raylib.DrawTextEx(font, "Buttons", new Vector2(rightColX, leftY),
-            GamepadDebugLayout.SectionSize, 0.55f, Palette.TextMuted);
-        int btnY = leftY + 24;
-        int btnColW = (rightColW - 12) / 2;
-        int btnCount = GamepadDebugLayout.ButtonsToShow.Length;
-        int rowsPerCol = (btnCount + 1) / 2;
-
-        for (int i = 0; i < btnCount; i++)
-        {
-            var (button, label) = GamepadDebugLayout.ButtonsToShow[i];
-            int col = i / rowsPerCol;
-            int row = i % rowsPerCol;
-            int bx = rightColX + col * (btnColW + 12);
-            int by = btnY + row * GamepadDebugLayout.ButtonRowStep;
-
-            bool down = Raylib.IsGamepadButtonDown(gamepad, button);
-            bool pressed = Raylib.IsGamepadButtonPressed(gamepad, button);
-            bool released = Raylib.IsGamepadButtonReleased(gamepad, button);
-
-            Color dot = down ? Palette.Positive : Palette.SubtleBorder;
-            if (pressed)
-                dot = Palette.ActionFlash;
-            else if (released)
-                dot = Palette.Satiation;
-
-            Raylib.DrawCircle(bx + 7, by + 11, 6f, dot);
-
-            string suffix = pressed ? "  pressed" : released ? "  released" : down ? "  down" : "";
-            Color textColor = down || pressed ? Palette.TextPrimary : Palette.TextDim;
-            Raylib.DrawTextEx(font, label + suffix, new Vector2(bx + 18, by + 2),
-                GamepadDebugLayout.ButtonRowSize, 0.45f, textColor);
-        }
+        _controllerDebugPrevRect = layout.PrevRect;
+        _controllerDebugNextRect = layout.NextRect;
+        _controllerDebugCloseRect = layout.CloseRect;
+        for (int i = 0; i < layout.TabRects.Length; i++)
+            _controllerDebugTabRects[i] = layout.TabRects[i];
     }
 
     private void DrawTopRightButtons()
@@ -3134,24 +2846,24 @@ public sealed class Game : IGame
             string groundLine = turns == 1
                 ? "On the ground here. About one turn left before you lose track of it."
                 : $"On the ground here. About {turns} turns left before you lose track of it.";
-            if (IsBuildingMaterial(_dialogItemName))
-                return groundLine + "\n\n" + GetStoreItemFlavorText(_dialogItemName);
+            if (GameItems.IsBuildingMaterial(_dialogItemName))
+                return groundLine + "\n\n" + StoreCatalog.GetFlavorText(_dialogItemName);
             return groundLine;
         }
 
-        if (IsBuildingMaterial(_dialogItemName))
-            return GetStoreItemFlavorText(_dialogItemName);
+        if (GameItems.IsBuildingMaterial(_dialogItemName))
+            return StoreCatalog.GetFlavorText(_dialogItemName);
 
         int slot = _dialogItemIndex;
         return eatAction switch
         {
             DialogItemAction.EatSoup => GetCannedSoupDialogText(slot),
             _ when canDrink => GetBottledWaterDialogText(slot),
-            _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
+            _ when canFill && string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase) =>
                 "An empty plastic bottle. The stream is right here — you could fill it.",
-            _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
+            _ => string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
-                : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
+                : string.Equals(_dialogItemName, GameItems.EmptyCan, StringComparison.OrdinalIgnoreCase)
                     ? "An empty can. Nothing left to eat."
                     : "Set it down here to lighten your pack, or keep carrying it."
         };
@@ -3180,10 +2892,10 @@ public sealed class Game : IGame
         int bodyLineHeight = 22;
         int textMaxW = panelW - 48;
         string body = GetItemDialogBody(isGround, eatAction, canDrink, canFill);
-        var (bodyLines, bodyHeight) = WrapTextForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
-        bool showBuildingTag = IsBuildingMaterial(_dialogItemName);
+        var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
+        bool showBuildingTag = GameItems.IsBuildingMaterial(_dialogItemName);
         string? buildingTag = showBuildingTag
-            ? FormatStoreItemEffects(_dialogItemName, 0, 0, 0)
+            ? StoreCatalog.FormatEffects(_dialogItemName, 0, 0, 0)
             : null;
         int tagHeight = buildingTag != null ? 20 : 0;
         int tagGap = buildingTag != null ? 4 : 0;
@@ -3298,7 +3010,7 @@ public sealed class Game : IGame
     // =====================================================================
     private void DrawStatsHelpDialog()
     {
-        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 170));
+        GameDialogUi.DrawModalBackdrop(_screenWidth, _screenHeight);
 
         Font font = _uiFont;
         int panelW = 500;
@@ -3353,7 +3065,7 @@ public sealed class Game : IGame
             "Your current situation — where you are and how close the authorities are.");
 
         y += 4;
-        var (arrowLines, _) = WrapTextForBox(
+        var (arrowLines, _) = GameTextLayout.WrapForBox(
             "Arrows beside a stat show change: your recent choices (briefly), plus ongoing outdoor effects such as cold.",
             font, bodySize, bodySpacing, textMaxW, lineHeight);
         foreach (string line in arrowLines)
@@ -3377,7 +3089,7 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, heading, new Vector2(x, y), bodySize + 1f, spacing, nameColor);
         y += lineHeight;
 
-        var (lines, _) = WrapTextForBox(description, font, bodySize, spacing, maxWidth, lineHeight);
+        var (lines, _) = GameTextLayout.WrapForBox(description, font, bodySize, spacing, maxWidth, lineHeight);
         foreach (string line in lines)
         {
             Raylib.DrawTextEx(font, line, new Vector2(x + 8, y), bodySize, spacing, Palette.TextSecondary);
@@ -3427,11 +3139,11 @@ public sealed class Game : IGame
         bool canBuild = CanBuildTrashBagTent(out string blockReason);
         bool canDisassemble = CanDisassembleTrashBagTent(out string disassembleBlockReason);
         bool built = _hasTrashBagTent;
-        bool outdoors = IsOutdoorsPhase(_phase);
-        bool hasBags = HasUsableBackpackItem(ItemTrashBags);
-        bool hasTape = HasUsableBackpackItem(ItemDuctTape);
-        int bagsSlot = FindBackpackSlotIndex(ItemTrashBags);
-        int tapeSlot = FindBackpackSlotIndex(ItemDuctTape);
+        bool outdoors = GamePhase.IsOutdoorsSurvival(_phase);
+        bool hasBags = HasUsableBackpackItem(GameItems.TrashBags);
+        bool hasTape = HasUsableBackpackItem(GameItems.DuctTape);
+        int bagsSlot = FindBackpackSlotIndex(GameItems.TrashBags);
+        int tapeSlot = FindBackpackSlotIndex(GameItems.DuctTape);
 
         Color rowBg = _buildTentButtonHovered
             ? Palette.ButtonSelectedBg
@@ -3441,9 +3153,9 @@ public sealed class Game : IGame
 
         const int iconSize = 28;
         int iconY = rowY + (rowH - iconSize) / 2;
-        DrawItemIcon(ItemTrashBags, new Rectangle(rowX + 10, iconY, iconSize, iconSize),
+        DrawItemIcon(GameItems.TrashBags, new Rectangle(rowX + 10, iconY, iconSize, iconSize),
             hasBags || built ? Color.WHITE : new Color(255, 255, 255, 90), bagsSlot);
-        DrawItemIcon(ItemDuctTape, new Rectangle(rowX + 10 + iconSize + 4, iconY, iconSize, iconSize),
+        DrawItemIcon(GameItems.DuctTape, new Rectangle(rowX + 10 + iconSize + 4, iconY, iconSize, iconSize),
             hasTape || built ? Color.WHITE : new Color(255, 255, 255, 90), tapeSlot);
 
         int textX = rowX + 10 + iconSize * 2 + 14;
@@ -3670,9 +3382,9 @@ public sealed class Game : IGame
         int rowHeight = 44;
         const int iconSize = 28;
 
-        for (int i = 0; i < _storeCatalog.Length; i++)
+        for (int i = 0; i < StoreCatalog.Entries.Length; i++)
         {
-            var (name, price, _, _, _) = _storeCatalog[i];
+            var (name, price, _, _, _) = StoreCatalog.Entries[i];
 
             int rowY = contentTop + i * rowHeight;
             bool canAfford = _money >= price;
@@ -3731,7 +3443,7 @@ public sealed class Game : IGame
             return;
         }
 
-        var (name, price, satiation, hydration, health) = _storeCatalog[_storeBuyDetailIndex];
+        var (name, price, satiation, hydration, health) = StoreCatalog.Entries[_storeBuyDetailIndex];
         bool canBuy = CanBuyStoreItem(_storeBuyDetailIndex);
 
         const int iconSize = 64;
@@ -3756,11 +3468,11 @@ public sealed class Game : IGame
             20, 0.6f, priceColor);
 
         int textY = iconY + iconSize + 62;
-        string flavor = GetStoreItemFlavorText(name);
+        string flavor = StoreCatalog.GetFlavorText(name);
         int flavorSize = 16;
         float flavorSpacing = 0.55f;
         int flavorLineHeight = 22;
-        var (flavorLines, _) = WrapTextForBox(flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
+        var (flavorLines, _) = GameTextLayout.WrapForBox(flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
         foreach (string line in flavorLines)
         {
             Raylib.DrawTextEx(font, line, new Vector2(x + 4, textY), flavorSize, flavorSpacing, Palette.TextSecondary);
@@ -3768,7 +3480,7 @@ public sealed class Game : IGame
         }
 
         textY += 4;
-        string effects = FormatStoreItemEffects(name, satiation, hydration, health);
+        string effects = StoreCatalog.FormatEffects(name, satiation, hydration, health);
         Raylib.DrawTextEx(font, effects, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
         textY += 22;
 
@@ -3945,7 +3657,7 @@ public sealed class Game : IGame
         float iconCenterX = rightEdge - totalWidth + iconSize / 2f;
         float iconCenterY = row1Y + 8f;   // vertically centered with the text
 
-        DrawSeasonIcon(iconCenterX, iconCenterY, _season, iconSize);
+        SeasonIconDrawing.Draw(iconCenterX, iconCenterY, _season, iconSize);
 
         float textX = iconCenterX + iconSize / 2f + iconTextGap;
         Raylib.DrawTextEx(font, seasonLine,
@@ -3972,109 +3684,6 @@ public sealed class Game : IGame
             LayoutConstants.TopInfoFontSize, 0.8f, Palette.TextSecondary);
 
         DrawTopRightButtons();
-    }
-
-    /// <summary>
-    /// Draws a small, minimalist seasonal icon at the given center.
-    /// Keeps everything vector-based so it matches the rest of the UI style.
-    /// </summary>
-    private void DrawSeasonIcon(float cx, float cy, string season, float size)
-    {
-        float s = size;
-
-        if (season.Contains("Autumn", StringComparison.OrdinalIgnoreCase))
-        {
-            // Stylized autumn leaf (warm ochre)
-            Color leafColor = new Color(165, 115, 65, 255);
-            Color stemColor = new Color(90, 70, 45, 255);
-
-            // Leaf body (pointed oval made from two triangles)
-            Raylib.DrawTriangle(
-                new Vector2(cx, cy - s * 0.55f),           // tip
-                new Vector2(cx - s * 0.38f, cy + s * 0.35f),
-                new Vector2(cx + s * 0.38f, cy + s * 0.35f),
-                leafColor);
-
-            // Side lobes
-            Raylib.DrawTriangle(
-                new Vector2(cx - s * 0.12f, cy - s * 0.1f),
-                new Vector2(cx - s * 0.42f, cy + s * 0.15f),
-                new Vector2(cx - s * 0.18f, cy + s * 0.38f),
-                leafColor);
-
-            Raylib.DrawTriangle(
-                new Vector2(cx + s * 0.12f, cy - s * 0.1f),
-                new Vector2(cx + s * 0.42f, cy + s * 0.15f),
-                new Vector2(cx + s * 0.18f, cy + s * 0.38f),
-                leafColor);
-
-            // Central vein
-            Raylib.DrawLineEx(
-                new Vector2(cx, cy - s * 0.48f),
-                new Vector2(cx, cy + s * 0.32f),
-                1.2f, stemColor);
-
-            // Short stem at bottom
-            Raylib.DrawLineEx(
-                new Vector2(cx, cy + s * 0.32f),
-                new Vector2(cx, cy + s * 0.55f),
-                1.5f, stemColor);
-        }
-        else if (season.Contains("Winter", StringComparison.OrdinalIgnoreCase))
-        {
-            // Simple 6-point snowflake (cold blue-white)
-            Color snow = new Color(195, 200, 210, 255);
-            float r = s * 0.48f;
-
-            for (int i = 0; i < 6; i++)
-            {
-                float angle = i * MathF.PI / 3f;
-                float dx = MathF.Cos(angle) * r;
-                float dy = MathF.Sin(angle) * r;
-
-                Raylib.DrawLineEx(
-                    new Vector2(cx, cy),
-                    new Vector2(cx + dx, cy + dy),
-                    1.6f, snow);
-            }
-
-            // Small center dot
-            Raylib.DrawCircleV(new Vector2(cx, cy), 1.8f, snow);
-        }
-        else if (season.Contains("Spring", StringComparison.OrdinalIgnoreCase))
-        {
-            // Placeholder: small sprouting bud / three lines
-            Color bud = new Color(120, 145, 95, 255);
-            Raylib.DrawCircleV(new Vector2(cx, cy), s * 0.22f, bud);
-
-            // Three short upward shoots
-            for (int i = -1; i <= 1; i++)
-            {
-                float angle = -MathF.PI / 2f + i * 0.35f;
-                Raylib.DrawLineEx(
-                    new Vector2(cx, cy - s * 0.15f),
-                    new Vector2(cx + MathF.Cos(angle) * s * 0.42f,
-                                cy + MathF.Sin(angle) * s * 0.42f - s * 0.15f),
-                    1.4f, bud);
-            }
-        }
-        else
-        {
-            // Summer or unknown — simple sun placeholder
-            Color sun = new Color(180, 155, 80, 255);
-            Raylib.DrawCircleV(new Vector2(cx, cy), s * 0.28f, sun);
-
-            for (int i = 0; i < 8; i++)
-            {
-                float angle = i * MathF.PI / 4f;
-                Raylib.DrawLineEx(
-                    new Vector2(cx + MathF.Cos(angle) * s * 0.32f,
-                                cy + MathF.Sin(angle) * s * 0.32f),
-                    new Vector2(cx + MathF.Cos(angle) * s * 0.52f,
-                                cy + MathF.Sin(angle) * s * 0.52f),
-                    1.3f, sun);
-            }
-        }
     }
 
     // =====================================================================
@@ -4145,7 +3754,7 @@ public sealed class Game : IGame
         cy = DrawWorldMap(cy, tx);
         cy += 16;
         DrawBuildSidebarButton(cy, tx);
-        if (IsForestSurvivalPhase(_phase))
+        if (GamePhase.IsForestSurvival(_phase))
         {
             cy += 44;
             DrawHuntSidebarButton(cy, tx);
@@ -4176,7 +3785,7 @@ public sealed class Game : IGame
 
     private void DrawQuitConfirmDialog()
     {
-        Raylib.DrawRectangle(0, 0, _screenWidth, _screenHeight, new Color(0, 0, 0, 175));
+        GameDialogUi.DrawModalBackdrop(_screenWidth, _screenHeight, 175);
 
         Font font = _uiFont;
         int panelW = 400;
@@ -4795,7 +4404,7 @@ public sealed class Game : IGame
         Raylib.DrawCircle(px, py, markerRadius, Palette.ActionFlash);
         Raylib.DrawCircleLines(px, py, (int)(markerRadius + 1.5f), Palette.TextPrimary);
 
-        string markerLabel = IsForestSurvivalPhase(_phase) ? "You" : "Ulan-Ude";
+        string markerLabel = GamePhase.IsForestSurvival(_phase) ? "You" : "Ulan-Ude";
         int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelFontSize, 0.35f).X;
         Raylib.DrawTextEx(font, markerLabel,
             new Vector2(player.X - labelW / 2f, player.Y + markerRadius + 4),
@@ -4938,11 +4547,11 @@ public sealed class Game : IGame
 
         DrawSceneBackground(artX, artY, artW, artH);
 
-        if (_hasTrashBagTent && IsOutdoorsPhase(_phase))
+        if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
 
         // Light atmospheric snow (outdoor scenes only)
-        if (IsOutdoorsPhase(_phase))
+        if (GamePhase.IsOutdoorsSurvival(_phase))
         {
             int groundY = artY + (int)(artH * 0.68f);
             DrawAtmosphericSnow(artX, artY, artW, groundY, 48);
@@ -5106,71 +4715,6 @@ public sealed class Game : IGame
         }
     }
 
-    // Clean narrative box anchored to the right edge of the central image.
-    // This is the main flavor text for the current scene.
-    /// <summary>
-    /// Word-wraps text to fit within maxWidth, returning the lines and the total
-    /// pixel height required when drawn with the given font/size/spacing.
-    /// This is what makes the narrative card size itself correctly.
-    /// </summary>
-    private (List<string> lines, int height) WrapTextForBox(
-        string text,
-        Font font,
-        float fontSize,
-        float spacing,
-        int maxWidth,
-        int lineHeight)
-    {
-        if (text == null)
-            return (new List<string>(), 0);
-
-        int blankLineHeight = lineHeight / 2;
-
-        // Normalize newlines and preserve explicit blank lines (e.g. "\n\n" => an empty rendered line)
-        text = text.Replace("\r\n", "\n");
-        var paragraphs = text.Split('\n', StringSplitOptions.None);
-        var lines = new List<string>();
-        int totalHeight = 0;
-
-        foreach (string paragraph in paragraphs)
-        {
-            if (string.IsNullOrWhiteSpace(paragraph))
-            {
-                lines.Add("");
-                totalHeight += blankLineHeight;
-                continue;
-            }
-
-            string[] words = paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            string current = "";
-
-            foreach (string word in words)
-            {
-                string candidate = current.Length == 0 ? word : current + " " + word;
-                Vector2 size = Raylib.MeasureTextEx(font, candidate, fontSize, spacing);
-
-                if (size.X > maxWidth && current.Length > 0)
-                {
-                    lines.Add(current.Trim());
-                    totalHeight += lineHeight;
-                    current = word;
-                }
-                else
-                {
-                    current = candidate;
-                }
-            }
-
-            if (current.Length > 0)
-            {
-                lines.Add(current.Trim());
-                totalHeight += lineHeight;
-            }
-        }
-
-        return (lines, totalHeight);
-    }
-
     /// <summary>
     /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
     /// is computed from the actual measured text. No more hard-coded boxes that clip or look wrong.
@@ -5189,7 +4733,7 @@ public sealed class Game : IGame
 
         int textMaxWidth = maxCardWidth - horizontalPadding * 2;
 
-        var (wrappedLines, textHeight) = WrapTextForBox(
+        var (wrappedLines, textHeight) = GameTextLayout.WrapForBox(
             narrativeText,
             font,
             fontSize,
@@ -5262,6 +4806,8 @@ public sealed class Game : IGame
         return rects;
     }
 
+    // =====================================================================
+    // BOTTOM ACTION BAR
     // =====================================================================
     private void DrawActionBar()
     {
@@ -5355,7 +4901,7 @@ public sealed class Game : IGame
 
     private void ApplyEnvironmentOnAction()
     {
-        if (!IsOutdoorsPhase(_phase)) return;
+        if (!GamePhase.IsOutdoorsSurvival(_phase)) return;
         ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, OutdoorComfortPerActionPenalty());
     }
 
@@ -5387,45 +4933,17 @@ public sealed class Game : IGame
         _comfort = GameStatMath.ClampStat(_comfort + diff);
     }
 
-    /// <summary>
-    /// Steady outdoor discomfort while wearing a winter coat (maps to 1–3 arrows).
-    /// </summary>
-    private static int OutdoorComfortPenaltyForTemp(int tempF)
-    {
-        if (tempF >= 40) return -2;   // 1 arrow — cool air, mostly fine
-        if (tempF >= 22) return -4;   // 1 arrow — chilly courtyard in a winter coat (~27°F)
-        if (tempF >= 12) return -8;   // 2 arrows — cold night in the open
-        if (tempF >= 0) return -12;   // 2 arrows — biting cold
-        return -18;                   // 3 arrows — brutal / hypothermia risk
-    }
-
-    private static int OutdoorComfortPerActionPenalty(int tempF) =>
-        tempF >= 22 ? -1 : tempF >= 12 ? -2 : -3;
-
     private int OutdoorComfortPerActionPenalty() =>
-        OutdoorComfortPerActionPenalty(_temperatureF);
+        SurvivalEnvironment.OutdoorComfortPerActionPenalty(_temperatureF);
 
     private int OutdoorShelterComfortBonus() =>
-        _hasTrashBagTent && IsOutdoorsPhase(_phase) ? TrashBagTentComfortBonus : 0;
+        _hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase) ? TrashBagTentComfortBonus : 0;
 
     private void RefreshOutdoorComfortEnvironment()
     {
-        if (!IsOutdoorsPhase(_phase)) return;
-        SetEnvironmentComfort(OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
+        if (!GamePhase.IsOutdoorsSurvival(_phase)) return;
+        SetEnvironmentComfort(SurvivalEnvironment.OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
     }
-
-    /// <summary>Location-based hide rating before time-of-day modifiers.</summary>
-    private static int ConcealmentForPhase(Phase phase) => phase switch
-    {
-        Phase.Opening => 35,        // indoors at home — some cover, not yet in the wild
-        Phase.Outside => 12,        // exposed courtyard
-        Phase.Store => 8,           // bright public kiosk
-        Phase.Forest => 78,         // deep woods
-        Phase.ForestStream => 68,   // forest edge at open water
-        Phase.Tent => 92,           // cramped trash-bag shelter
-        Phase.Death => 0,
-        _ => 50
-    };
 
     /// <summary>Extra concealment from darkness; scaled down in well-lit or already-hidden places.</summary>
     private int ConcealmentTimeBonus()
@@ -5452,7 +4970,7 @@ public sealed class Game : IGame
 
     private void RefreshConcealment() =>
         _concealment = GameStatMath.ClampStat(
-            ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
+            SurvivalEnvironment.ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
             - ConcealmentDroppedItemsPenalty() - ConcealmentTentPenalty());
 
 }
