@@ -3786,7 +3786,34 @@ public sealed class Game : IGame
             DrawTopRightButtons();
         }
 
+        DrawBuildDateBottomRight();
+
         Raylib.EndDrawing();
+    }
+
+    private void DrawBuildDateBottomRight()
+    {
+        const float pad = 6f;
+
+        string buildLine = $"Build date: {BuildInfo.Timestamp}";
+        float rightEdge = _screenWidth - pad;
+        float bottomEdge = _screenHeight - pad;
+        float minX = pad;
+        float maxWidth = MathF.Max(0f, rightEdge - minX);
+
+        float fontSize = 16f;
+        float width = Raylib.MeasureTextEx(_uiFontItalic, buildLine, fontSize, 0.8f).X;
+        while (width > maxWidth && fontSize > 11f)
+        {
+            fontSize -= 1f;
+            width = Raylib.MeasureTextEx(_uiFontItalic, buildLine, fontSize, 0.8f).X;
+        }
+
+        float x = rightEdge - width;
+        float textH = Raylib.MeasureTextEx(_uiFontItalic, buildLine, fontSize, 0.8f).Y;
+        float y = bottomEdge - textH + 7f;
+        Color buildTint = new Color((byte)Palette.TextMuted.R, (byte)Palette.TextMuted.G, (byte)Palette.TextMuted.B, (byte)165);
+        Raylib.DrawTextEx(_uiFontItalic, buildLine, new Vector2(x, y), fontSize, 0.8f, buildTint);
     }
 
     // =====================================================================
@@ -3823,14 +3850,6 @@ public sealed class Game : IGame
             titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
             Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
         }
-
-        // Build stamp — to the right of the title
-        const int buildStampGap = 18;
-        string buildLine = $"Build date: {BuildInfo.Timestamp}";
-        int buildY = row1Y + (titleLogoHeight - LayoutConstants.TopMetaFontSize) / 2;
-        Raylib.DrawTextEx(_uiFontItalic, buildLine,
-            new Vector2(leftX + titleW + buildStampGap, buildY),
-            LayoutConstants.TopMetaFontSize, 0.8f, Palette.TextMuted);
 
         // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
         string dayLine = $"Day {_day} — {GetTimeOfDayDisplay()}";
