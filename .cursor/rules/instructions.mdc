@@ -183,6 +183,12 @@ public MyClass()
 }
 ```
 
+## C# Class Structure
+
+### Partial Classes
+
+**Never create `partial class` unless it is required** (Designer files, `.g.cs`, EF `DbContext`, etc.). Keep classes in one file by default. Do not split classes across files for organization.
+
 ## Summary
 
 - Use underscore prefix (`_fieldName`) for all private fields
@@ -190,3 +196,4 @@ public MyClass()
 - For complex initialization, use static helper methods called inline rather than instance methods in constructors
 - Remove redundant initialization from constructors when fields are initialized inline
 - Add a blank line after closing braces when followed by another statement, method, or class (except before `else`, `catch`, `finally`, or nested closing braces)
+- Do not use `partial class` unless required (generated code, designers, EF, etc.); keep each class in one file by default
