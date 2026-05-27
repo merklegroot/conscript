@@ -53,7 +53,7 @@ internal static class InputManager
 
     public static bool IsHorizontalNavRightPressed() =>
         Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
-        GamepadPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
+        GamepadPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
 
     public static bool IsVerticalNavUpPressed() =>
         Raylib.IsKeyPressed(KeyboardKey.KEY_UP) || Raylib.IsKeyPressed(KeyboardKey.KEY_W) ||
