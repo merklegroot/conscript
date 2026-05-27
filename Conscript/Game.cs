@@ -123,6 +123,8 @@ public sealed class Game : IGame
         [ItemDuctTape]             = "items.duct-tape.png",
         [ItemRaccoon]              = "items.raccoon.png",
         [ItemRabbit]               = "items.rabbit.png",
+        [ItemFirewood]             = "items.firewood.png",
+        [ItemRocks]                = "items.rocks.png",
     };
 
     // Restart + debug + controller buttons (top right, always available)
