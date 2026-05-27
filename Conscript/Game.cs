@@ -90,6 +90,8 @@ public sealed class Game : IGame
     // Items left on the ground in a room (location = phase)
     private const int DroppedItemLifetimeTurns = 5;
     private const int MaxDroppedItemsPerRoom = 6;
+    private const int ConcealmentPenaltyPerDroppedItem = 7;
+    private const int ConcealmentPenaltyForTent = 18;
     private const int DroppedItemSceneIconSize = 54;
     private const int DroppedItemScenePlatePad = 5;
 
@@ -297,6 +299,7 @@ public sealed class Game : IGame
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
     private bool _hasTrashBagTent;
+    private Phase? _tentBuiltInPhase;
     private Rectangle _buildSidebarButtonRect;
     private bool _buildSidebarButtonHovered;
 
@@ -457,6 +460,7 @@ public sealed class Game : IGame
                 _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
                 _backpackItemCharges = new int?[8];
                 _hasTrashBagTent = false;
+                _tentBuiltInPhase = null;
                 ClearEnvDeltas();
                 ClearActionDeltas();
                 break;
@@ -1973,6 +1977,7 @@ public sealed class Game : IGame
         CloseQuitConfirm();
         CloseStatsHelp();
         _hasTrashBagTent = false;
+        _tentBuiltInPhase = null;
         _buildFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
@@ -1994,6 +1999,7 @@ public sealed class Game : IGame
         CloseQuitConfirm();
         CloseStatsHelp();
         _hasTrashBagTent = false;
+        _tentBuiltInPhase = null;
         _buildFeedback = "";
         _deathLine1 = "You died.";
         _deathLine2 = "The war took you on the first day.";
@@ -2086,7 +2092,10 @@ public sealed class Game : IGame
                 item.TurnsRemaining -= steps;
         }
 
+        int before = CountDroppedItemsInRoom(_phase);
         _droppedItems.RemoveAll(d => d.TurnsRemaining <= 0);
+        if (CountDroppedItemsInRoom(_phase) != before)
+            RefreshConcealment();
         if (IsDroppedItemDialog)
             ValidateDroppedItemDialog();
     }
@@ -2136,6 +2145,7 @@ public sealed class Game : IGame
 
         _actionMessage = $"You set down the {item}.";
         _actionMessageTimer = ActionMessageDuration;
+        RefreshConcealment();
         CloseItemDialog();
     }
 
@@ -2161,6 +2171,7 @@ public sealed class Game : IGame
         _droppedItems.RemoveAt(_dialogDroppedItemIndex);
         _actionMessage = $"You pick up the {dropped.Name}.";
         _actionMessageTimer = ActionMessageDuration;
+        RefreshConcealment();
         CloseItemDialog();
     }
 
@@ -2552,8 +2563,10 @@ public sealed class Game : IGame
             return;
 
         _hasTrashBagTent = true;
+        _tentBuiltInPhase = _phase;
         RefreshOutdoorComfortEnvironment();
         RefreshOutdoorActionChoices();
+        RefreshConcealment();
 
         int bagsSlot = FindBackpackSlotIndex(ItemTrashBags);
         int tapeSlot = FindBackpackSlotIndex(ItemDuctTape);
@@ -3410,7 +3423,7 @@ public sealed class Game : IGame
             "Protection from cold and exposure. Outdoors and low temperatures wear it down; heated places and a trash-bag tent help.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Concealment", Palette.Concealment,
-            "How unlikely you are to be spotted or caught. Darkness helps — you are harder to find at night. Where you are matters too: forest and your tent hide you best; open yards and shops expose you.");
+            "How unlikely you are to be spotted or caught. Darkness and good hiding spots help. Gear on the ground and a pitched tent make the area easier to find.");
         DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
             "Money", Palette.Money,
             "Rubles in hand. Spend them at the convenience store kiosk.");
@@ -5383,8 +5396,16 @@ public sealed class Game : IGame
         };
     }
 
+    private int ConcealmentDroppedItemsPenalty() =>
+        CountDroppedItemsInRoom(_phase) * ConcealmentPenaltyPerDroppedItem;
+
+    private int ConcealmentTentPenalty() =>
+        _hasTrashBagTent && _tentBuiltInPhase == _phase ? ConcealmentPenaltyForTent : 0;
+
     private void RefreshConcealment() =>
-        _concealment = Clamp(ConcealmentForPhase(_phase) + ConcealmentTimeBonus());
+        _concealment = Clamp(
+            ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
+            - ConcealmentDroppedItemsPenalty() - ConcealmentTentPenalty());
 
     private static int StatArrowCount(int delta)
     {
