@@ -76,6 +76,7 @@ public sealed class Game : IGame
     private const string ChoiceDisassembleTent = "DISASSEMBLE TENT";
     private const string ChoiceSleep = "SLEEP";
     private const string ChoiceHunt = "HUNT";
+    private const string ChoiceForage = "FORAGE";
     private const string ChoiceFollowStream = "FOLLOW THE STREAM";
     private const string ChoiceBackToDeepForest = "BACK TO DEEP FOREST";
 
@@ -305,6 +306,8 @@ public sealed class Game : IGame
     private bool _buildSidebarButtonHovered;
     private Rectangle _huntSidebarButtonRect;
     private bool _huntSidebarButtonHovered;
+    private Rectangle _forageSidebarButtonRect;
+    private bool _forageSidebarButtonHovered;
 
     // Stats help (left sidebar info icon + modal)
     private Rectangle _statsHelpIconRect;
@@ -1430,6 +1433,8 @@ public sealed class Game : IGame
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
             _huntSidebarButtonHovered = _huntSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _huntSidebarButtonRect);
+            _forageSidebarButtonHovered = _forageSidebarButtonRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _forageSidebarButtonRect);
             _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
 
@@ -1451,6 +1456,9 @@ public sealed class Game : IGame
                 PerformHunt();
                 return;
             }
+
+            if (leftClicked && _forageSidebarButtonHovered)
+                return;
 
             if (leftClicked && _quitSidebarButtonHovered)
             {
@@ -1605,7 +1613,7 @@ public sealed class Game : IGame
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
         {
             if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered ||
-                _huntSidebarButtonHovered || _quitSidebarButtonHovered)
+                _huntSidebarButtonHovered || _forageSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
             if (_trashBagTentHovered)
@@ -4352,11 +4360,15 @@ public sealed class Game : IGame
         {
             cy += 44;
             DrawHuntSidebarButton(cy, tx);
+            cy += 44;
+            DrawForageSidebarButton(cy, tx);
         }
         else
         {
             _huntSidebarButtonRect = default;
             _huntSidebarButtonHovered = false;
+            _forageSidebarButtonRect = default;
+            _forageSidebarButtonHovered = false;
         }
 
         const int btnH = 36;
@@ -4434,6 +4446,15 @@ public sealed class Game : IGame
         const int btnH = 36;
         _huntSidebarButtonRect = new Rectangle(x, y, available, btnH);
         DrawDialogButton(_huntSidebarButtonRect, ChoiceHunt, _huntSidebarButtonHovered, font);
+    }
+
+    private void DrawForageSidebarButton(int y, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        const int btnH = 36;
+        _forageSidebarButtonRect = new Rectangle(x, y, available, btnH);
+        DrawDialogButton(_forageSidebarButtonRect, ChoiceForage, _forageSidebarButtonHovered, font);
     }
 
     // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
