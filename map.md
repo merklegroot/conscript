@@ -5,9 +5,9 @@
                            |
                   Apartment Courtyard
                            |
- Industrial District --  Town --- Commercial District ---- Convenience Store
-                                            |
-                                      Forest Entry
+ Industrial District --  Town --- Commercial District
+                           |              |
+                  Convenience Store   Forest Entry
                                             |
                                      Forest Stream
                                             |

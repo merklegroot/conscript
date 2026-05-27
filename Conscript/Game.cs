@@ -126,7 +126,7 @@ public sealed class Game : IGame
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
         Town,      // Central streets between the courtyard and the town districts
         IndustrialDistrict,  // Warehouses and yards on the west side of town
-        CommercialDistrict,  // Shops and foot traffic on the east side; forest access is south from here
+        CommercialDistrict,  // Shops on the east side; forest access is south from here
         Store,     // Inside a late-night convenience store / kiosk
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
@@ -137,7 +137,7 @@ public sealed class Game : IGame
 
     private Phase _phase = Phase.Opening;
     private Phase _phaseOutdoorBeforeTent = Phase.ForestEntry;
-    private Phase _phaseBeforeStore = Phase.CommercialDistrict;
+    private Phase _phaseBeforeStore = Phase.Town;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -370,6 +370,7 @@ public sealed class Game : IGame
     private const string TownNarrative =
         "The streets around the courtyard are empty under the streetlights.\n" +
         "Industrial blocks lie to the west; shopfronts and neon to the east.\n" +
+        "A late-night kiosk glows on the corner — you could slip inside.\n" +
         "You keep to the shadows and move quickly.";
 
     private const string IndustrialDistrictNarrative =
@@ -378,7 +379,7 @@ public sealed class Game : IGame
         "Few windows are lit — this is the edge of town.";
 
     private const string CommercialDistrictNarrative =
-        "Shopfronts and a late-night kiosk glow against the dark.\n" +
+        "Shopfronts line the side streets under harsh neon.\n" +
         "Foot traffic is thin, but every window might hide a watcher.\n" +
         "South of here, the pines begin at the edge of the blocks.";
 
@@ -1773,7 +1774,7 @@ public sealed class Game : IGame
             case ChoiceGoBackToTown:
                 ApplyTravelEnergyCost();
                 AdvanceTime();
-                EnterPhase(Phase.CommercialDistrict);
+                EnterPhase(Phase.Town);
                 break;
 
             case ChoiceEnterTent:
@@ -1918,12 +1919,21 @@ public sealed class Game : IGame
                 return;
 
             case ChoiceCommercialDistrict:
-                _actionMessage = "You slip east toward the lit shopfronts and the late-night kiosk.";
+                _actionMessage = "You slip east toward the lit shopfronts.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
                 ApplyTravelEnergyCost(EnergyCostTravelShort);
                 ApplyEnvironmentOnAction();
                 EnterPhase(Phase.CommercialDistrict);
+                return;
+
+            case ChoiceConvenienceStore:
+                _phaseBeforeStore = Phase.Town;
+                ApplyEnvironmentOnAction();
+                _actionMessage = "You push through the heavy glass door into the harsh light.";
+                _actionMessageTimer = 1.8f;
+                ApplyTravelEnergyCost(EnergyCostTravelShort);
+                EnterPhase(Phase.Store);
                 return;
 
             case ChoiceBackToCourtyard:
@@ -2012,15 +2022,6 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Town);
                 return;
 
-            case ChoiceConvenienceStore:
-                _phaseBeforeStore = Phase.CommercialDistrict;
-                ApplyEnvironmentOnAction();
-                _actionMessage = "You push through the heavy glass door into the harsh light.";
-                _actionMessageTimer = 1.8f;
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                EnterPhase(Phase.Store);
-                return;
-
             case ChoiceEnterTent:
                 EnterTent();
                 return;
@@ -2101,7 +2102,7 @@ public sealed class Game : IGame
                 ApplyTravelEnergyCost();
                 EnterPhase(_phaseBeforeStore == Phase.Outside || GamePhase.IsTownDistrict(_phaseBeforeStore)
                     ? _phaseBeforeStore
-                    : Phase.CommercialDistrict);
+                    : Phase.Town);
                 return;
 
             case ChoiceWait:
@@ -2545,6 +2546,7 @@ public sealed class Game : IGame
                 {
                     ChoiceIndustrialDistrict,
                     ChoiceCommercialDistrict,
+                    ChoiceConvenienceStore,
                     ChoiceBackToCourtyard,
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
@@ -2555,6 +2557,7 @@ public sealed class Game : IGame
                 {
                     ChoiceIndustrialDistrict,
                     ChoiceCommercialDistrict,
+                    ChoiceConvenienceStore,
                     ChoiceBackToCourtyard,
                     ChoiceEnterTent,
                     ChoiceWait
@@ -2563,6 +2566,7 @@ public sealed class Game : IGame
                 {
                     ChoiceIndustrialDistrict,
                     ChoiceCommercialDistrict,
+                    ChoiceConvenienceStore,
                     ChoiceBackToCourtyard,
                     ChoiceWait
                 };
@@ -2581,7 +2585,6 @@ public sealed class Game : IGame
                 ? new[]
                 {
                     ChoiceHeadForForest,
-                    ChoiceConvenienceStore,
                     ChoiceBackToTownCenter,
                     ChoiceEnterTent,
                     ChoiceDisassembleTent,
@@ -2591,7 +2594,6 @@ public sealed class Game : IGame
                 ? new[]
                 {
                     ChoiceHeadForForest,
-                    ChoiceConvenienceStore,
                     ChoiceBackToTownCenter,
                     ChoiceEnterTent,
                     ChoiceWait
@@ -2599,7 +2601,6 @@ public sealed class Game : IGame
                 : new[]
                 {
                     ChoiceHeadForForest,
-                    ChoiceConvenienceStore,
                     ChoiceBackToTownCenter,
                     ChoiceWait
                 };
