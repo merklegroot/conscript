@@ -401,9 +401,12 @@ public sealed class Game : IGame
         ("Duct Tape",    120,   0,   0,  0),
     };
 
-    // Custom death screen text (set before entering Phase.Death for specific endings)
-    private string _deathLine1 = "You died.";
-    private string _deathLine2 = "The war took you on the first day.";
+    private const string DefaultDeathLine1 = "You died.";
+    private const string DefaultDeathLine2 = "The war took you on the first day.";
+
+    // Custom death screen text (set via EnterDeath or ResetDeathLines before Phase.Death)
+    private string _deathLine1 = DefaultDeathLine1;
+    private string _deathLine2 = DefaultDeathLine2;
 
     private int _selectedIndex;
 
@@ -454,10 +457,7 @@ public sealed class Game : IGame
 
         // Reset custom death text unless we're deliberately entering the death screen
         if (newPhase != Phase.Death)
-        {
-            _deathLine1 = "You died.";
-            _deathLine2 = "The war took you on the first day.";
-        }
+            ResetDeathLines();
 
         switch (newPhase)
         {
@@ -1831,9 +1831,7 @@ public sealed class Game : IGame
         switch (index)
         {
             case 0: // Open the door — conscripted and dies in the war shortly after
-                _deathLine1 = "You opened the door.";
-                _deathLine2 = "Conscripted. Dead on the front three weeks later.";
-                EnterPhase(Phase.Death);
+                EnterDeath("You opened the door.", "Conscripted. Dead on the front three weeks later.");
                 return;
 
             case 1: // Flee
@@ -1844,9 +1842,8 @@ public sealed class Game : IGame
                 EnterPhase(Phase.Outside);
                 break;
 
-            case 2: // Fight
-                // Immediate death
-                EnterPhase(Phase.Death);
+            case 2: // Fight — immediate death
+                EnterDeath(DefaultDeathLine1, DefaultDeathLine2);
                 break;
         }
     }
@@ -1931,9 +1928,7 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case "HIDE IN THE GARBAGE":
-                _deathLine1 = "They found you.";
-                _deathLine2 = "Dragged from the garbage like an animal.";
-                EnterPhase(Phase.Death);
+                EnterDeath("They found you.", "Dragged from the garbage like an animal.");
                 return;
 
             case "HEAD FOR THE FOREST":
@@ -1946,9 +1941,7 @@ public sealed class Game : IGame
                 return;
 
             case "GO TO UNCLE'S HOUSE":
-                _deathLine1 = "You went to your uncle.";
-                _deathLine2 = "He called them before you could even sit down.";
-                EnterPhase(Phase.Death);
+                EnterDeath("You went to your uncle.", "He called them before you could even sit down.");
                 return;
 
             case "CONVENIENCE STORE":
@@ -2085,11 +2078,21 @@ public sealed class Game : IGame
         _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 2f, size, size);
     }
 
-    private void RestartGame()
+    private void ResetDeathLines()
     {
-        _actionMessage = "";
-        _actionMessageTimer = 0f;
-        _selectedIndex = 0;
+        _deathLine1 = DefaultDeathLine1;
+        _deathLine2 = DefaultDeathLine2;
+    }
+
+    private void EnterDeath(string line1, string line2)
+    {
+        _deathLine1 = line1;
+        _deathLine2 = line2;
+        EnterPhase(Phase.Death);
+    }
+
+    private void CloseAllOverlays()
+    {
         _showItemDialog = false;
         CloseStoreBuyMenu();
         CloseRegionMap();
@@ -2097,11 +2100,18 @@ public sealed class Game : IGame
         CloseControllerDebug();
         CloseQuitConfirm();
         CloseStatsHelp();
+    }
+
+    private void RestartGame()
+    {
+        _actionMessage = "";
+        _actionMessageTimer = 0f;
+        _selectedIndex = 0;
+        CloseAllOverlays();
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
         _buildFeedback = "";
-        _deathLine1 = "You died.";
-        _deathLine2 = "The war took you on the first day.";
+        ResetDeathLines();
         ClearDroppedItems();
         EnterPhase(Phase.Opening);
     }
@@ -2112,18 +2122,11 @@ public sealed class Game : IGame
     /// </summary>
     private void DebugStartGame()
     {
-        _showItemDialog = false;
-        CloseStoreBuyMenu();
-        CloseRegionMap();
-        CloseBuildDialog();
-        CloseControllerDebug();
-        CloseQuitConfirm();
-        CloseStatsHelp();
+        CloseAllOverlays();
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
         _buildFeedback = "";
-        _deathLine1 = "You died.";
-        _deathLine2 = "The war took you on the first day.";
+        ResetDeathLines();
 
         _health = 96;
         _energy = 58;
