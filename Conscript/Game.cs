@@ -27,6 +27,7 @@ public sealed class Game : IGame
 
     // --- Scene textures & UI font ---
     private Font _uiFont;
+    private Font _uiFontItalic;
     private Texture2D _backgroundTexture;   // currently active scene background (swapped on phase change)
     private Texture2D _apartmentBackground;
     private Texture2D _outsideBackground;
@@ -790,6 +791,7 @@ public sealed class Game : IGame
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
         _uiFont = UiFontLoader.Load();
+        _uiFontItalic = UiFontLoader.LoadItalic();
         _apartmentBackground = EmbeddedTextureLoader.Load("apartment-inside.png");
         _outsideBackground   = EmbeddedTextureLoader.Load("apartment-outside.png");
         _townBackground        = EmbeddedTextureLoader.Load("town.png");
@@ -3824,8 +3826,9 @@ public sealed class Game : IGame
 
         // Build stamp — to the right of the title
         const int buildStampGap = 18;
+        string buildLine = $"Build date: {BuildInfo.Timestamp}";
         int buildY = row1Y + (titleLogoHeight - LayoutConstants.TopMetaFontSize) / 2;
-        Raylib.DrawTextEx(font, BuildInfo.Timestamp,
+        Raylib.DrawTextEx(_uiFontItalic, buildLine,
             new Vector2(leftX + titleW + buildStampGap, buildY),
             LayoutConstants.TopMetaFontSize, 0.8f, Palette.TextMuted);
 
