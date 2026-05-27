@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Numerics;
-using System.Linq;
-using System.Reflection;
 using Conscript.Constants;
 using Raylib_cs;
 
@@ -17,6 +15,7 @@ public interface IGame
 
 public sealed class Game : IGame
 {
+    // --- Screen & lifecycle ---
     private const float ActionMessageDuration = 3.5f;
 
     private readonly int _screenWidth = GameConstants.ScreenWidth;
@@ -27,7 +26,7 @@ public sealed class Game : IGame
     private bool _shouldExit;
     public bool ShouldExit => _shouldExit;
 
-    // UI font (loaded TTF for much better readability than the default bitmap font)
+    // --- Scene textures & UI font ---
     private Font _uiFont;
     private Texture2D _backgroundTexture;   // currently active scene background (swapped on phase change)
     private Texture2D _apartmentBackground;
@@ -40,7 +39,7 @@ public sealed class Game : IGame
     private Texture2D _trashBagTentTexture;
     private Texture2D _titleLogoTexture;
 
-    // Geographic bounds for region-map.png — keep in sync with img/region-map.bounds.json
+    // --- Region map geography (sync with img/region-map.bounds.json) ---
     // (regenerate via: python3 scripts/generate_region_map.py)
     private const double RegionMapMinLon = 22.0;
     private const double RegionMapMaxLon = 175.0;
@@ -53,7 +52,7 @@ public sealed class Game : IGame
     private const double ForestStreamLon = 107.32;
     private const double ForestStreamLat = 51.97;
 
-    // Item names (inventory strings)
+    // --- Item names & consumable tuning ---
     private const string ItemBottledWater = "Bottled Water";
     private const string ItemEmptyBottle = "Empty Bottle of Water";
     private const int BottledWaterMaxSips = 4;
@@ -127,7 +126,7 @@ public sealed class Game : IGame
         [ItemRocks]                = "items.rocks.png",
     };
 
-    // Restart + debug + controller buttons (top right, always available)
+    // --- Top-right utility buttons (restart, debug start, controller) ---
     private Rectangle _restartButtonRect;
     private Rectangle _debugStartButtonRect;
     private Rectangle _controllerButtonRect;
@@ -190,7 +189,7 @@ public sealed class Game : IGame
     };
 
     // === Game flow ===
-    private enum Phase
+    internal enum Phase
     {
         Opening,   // At home with family — the knock on the door
         Outside,   // In the apartment courtyard / yard immediately after climbing out the window
@@ -448,6 +447,7 @@ public sealed class Game : IGame
     private string _actionMessage = "";
     private float _actionMessageTimer;
 
+    // --- Phase transitions ---
     private void EnterPhase(Phase newPhase)
     {
         _phase = newPhase;
@@ -611,6 +611,7 @@ public sealed class Game : IGame
         RefreshOutdoorActionChoices();
     }
 
+    // --- Time of day ---
     /// <summary>
     /// Advances the time of day by the given number of slots.
     /// Wrapping from Late Night to Morning starts a new day.
@@ -722,48 +723,11 @@ public sealed class Game : IGame
         return Raylib.GetFontDefault();
     }
 
-    private Texture2D LoadEmbeddedTexture(string fileName)
-    {
-        var assembly = Assembly.GetExecutingAssembly();
-        string[] candidates =
-        {
-            $"Conscript.img.{fileName}",
-            $"Conscript.{fileName}",
-            fileName,
-            $"img.{fileName}"
-        };
-
-        foreach (string name in candidates)
-        {
-            using Stream? stream = assembly.GetManifestResourceStream(name);
-            if (stream != null)
-            {
-                byte[] data = new byte[stream.Length];
-                stream.ReadExactly(data);
-                string ext = Path.GetExtension(fileName);
-                if (string.IsNullOrEmpty(ext)) ext = ".png";
-
-                Image image = Raylib.LoadImageFromMemory(ext, data);
-                if (image.Width <= 0 || image.Height <= 0)
-                {
-                    Raylib.UnloadImage(image);
-                    image = Raylib.GenImageColor(1, 1, Color.DARKGRAY);
-                }
-
-                Texture2D texture = Raylib.LoadTextureFromImage(image);
-                Raylib.UnloadImage(image);
-                return texture;
-            }
-        }
-
-        string available = string.Join(", ", assembly.GetManifestResourceNames().Take(30));
-        throw new FileNotFoundException($"Embedded image '{fileName}' not found. Tried names: {string.Join(", ", candidates)}. Available resources: {available}");
-    }
-
+    // --- Embedded textures & item icons ---
     private void LoadItemIcons()
     {
         foreach (var (itemName, fileName) in ItemIconFiles)
-            _itemIcons[itemName] = LoadEmbeddedTexture(fileName);
+            _itemIcons[itemName] = EmbeddedTextureLoader.Load(fileName);
     }
 
     private void UnloadItemIcons()
@@ -954,6 +918,7 @@ public sealed class Game : IGame
         }
     }
 
+    // --- Lifecycle (Run / shutdown) ---
     public void Run()
     {
         Raylib.InitWindow(_screenWidth, _screenHeight, "CONSCRIPT");
@@ -961,15 +926,15 @@ public sealed class Game : IGame
         Raylib.SetExitKey(KeyboardKey.KEY_NULL); // we handle ESC ourselves
 
         _uiFont = LoadUiFont();
-        _apartmentBackground = LoadEmbeddedTexture("apartment-inside.png");
-        _outsideBackground   = LoadEmbeddedTexture("apartment-outside.png");
-        _forestBackground       = LoadEmbeddedTexture("trees.png");
-        _forestStreamBackground = LoadEmbeddedTexture("forest-stream.png");
-        _storeBackground        = LoadEmbeddedTexture("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
-        _tentBackground      = LoadEmbeddedTexture("tent-interior.png");
-        _regionMapTexture    = LoadEmbeddedTexture("region-map.png");
-        _trashBagTentTexture = LoadEmbeddedTexture("trash-bag-tent.png");
-        _titleLogoTexture    = LoadEmbeddedTexture("conscript-title.png");
+        _apartmentBackground = EmbeddedTextureLoader.Load("apartment-inside.png");
+        _outsideBackground   = EmbeddedTextureLoader.Load("apartment-outside.png");
+        _forestBackground       = EmbeddedTextureLoader.Load("trees.png");
+        _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
+        _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
+        _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
+        _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
+        _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
+        _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -979,34 +944,38 @@ public sealed class Game : IGame
             Draw();
         }
 
-        if (_apartmentBackground.Id != 0)
-            Raylib.UnloadTexture(_apartmentBackground);
-        if (_outsideBackground.Id != 0)
-            Raylib.UnloadTexture(_outsideBackground);
-        if (_forestBackground.Id != 0)
-            Raylib.UnloadTexture(_forestBackground);
-        if (_forestStreamBackground.Id != 0)
-            Raylib.UnloadTexture(_forestStreamBackground);
-        if (_storeBackground.Id != 0)
-            Raylib.UnloadTexture(_storeBackground);
-        if (_tentBackground.Id != 0)
-            Raylib.UnloadTexture(_tentBackground);
-        if (_regionMapTexture.Id != 0)
-            Raylib.UnloadTexture(_regionMapTexture);
-        if (_trashBagTentTexture.Id != 0)
-            Raylib.UnloadTexture(_trashBagTentTexture);
-        if (_titleLogoTexture.Id != 0)
-            Raylib.UnloadTexture(_titleLogoTexture);
+        UnloadSceneTextures();
         UnloadItemIcons();
 
         Raylib.CloseWindow();
     }
 
+    private static void UnloadTextureIfLoaded(ref Texture2D texture)
+    {
+        if (texture.Id != 0)
+            Raylib.UnloadTexture(texture);
+        texture = default;
+    }
+
+    private void UnloadSceneTextures()
+    {
+        UnloadTextureIfLoaded(ref _apartmentBackground);
+        UnloadTextureIfLoaded(ref _outsideBackground);
+        UnloadTextureIfLoaded(ref _forestBackground);
+        UnloadTextureIfLoaded(ref _forestStreamBackground);
+        UnloadTextureIfLoaded(ref _storeBackground);
+        UnloadTextureIfLoaded(ref _tentBackground);
+        UnloadTextureIfLoaded(ref _regionMapTexture);
+        UnloadTextureIfLoaded(ref _trashBagTentTexture);
+        UnloadTextureIfLoaded(ref _titleLogoTexture);
+    }
+
+    // --- Main loop ---
     private void Update()
     {
         float dt = Raylib.GetFrameTime();
 
-        if (IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
+        if (GameInput.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
             if (_showItemDialog)
             {
@@ -1048,7 +1017,7 @@ public sealed class Game : IGame
                 CloseStatsHelp();
                 return;
             }
-            if (IsCancelPressed())
+            if (GameInput.IsCancelPressed())
             {
                 OpenQuitConfirm();
                 return;
@@ -1066,11 +1035,11 @@ public sealed class Game : IGame
 
         if (_showQuitConfirm)
         {
-            if (IsHorizontalNavLeftPressed())
+            if (GameInput.IsHorizontalNavLeftPressed())
                 _quitConfirmSelectedButton = 0;
-            if (IsHorizontalNavRightPressed())
+            if (GameInput.IsHorizontalNavRightPressed())
                 _quitConfirmSelectedButton = 1;
-            if (IsConfirmPressed())
+            if (GameInput.IsConfirmPressed())
             {
                 if (_quitConfirmSelectedButton == 1)
                     _shouldExit = true;
@@ -1080,7 +1049,7 @@ public sealed class Game : IGame
             }
         }
 
-        if (_showStatsHelp && IsConfirmPressed())
+        if (_showStatsHelp && GameInput.IsConfirmPressed())
         {
             CloseStatsHelp();
             return;
@@ -1088,12 +1057,12 @@ public sealed class Game : IGame
 
         if (_showStoreBuyMenu)
         {
-            if (IsVerticalNavUpPressed())
+            if (GameInput.IsVerticalNavUpPressed())
             {
                 _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + _storeCatalog.Length) % _storeCatalog.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
-            if (IsVerticalNavDownPressed())
+            if (GameInput.IsVerticalNavDownPressed())
             {
                 _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % _storeCatalog.Length;
                 _storeBuyDetailIndex = _storeBuyHighlightedIndex;
@@ -1102,26 +1071,26 @@ public sealed class Game : IGame
 
         if (_showForageDialog)
         {
-            if (IsVerticalNavUpPressed())
+            if (GameInput.IsVerticalNavUpPressed())
                 _forageHighlightedIndex = (_forageHighlightedIndex - 1 + ForageOptionCount) % ForageOptionCount;
-            if (IsVerticalNavDownPressed())
+            if (GameInput.IsVerticalNavDownPressed())
                 _forageHighlightedIndex = (_forageHighlightedIndex + 1) % ForageOptionCount;
         }
 
         // Horizontal navigation for bottom action buttons
         if (!_showRegionMap && !_showItemDialog && !_showStoreBuyMenu && !_showBuildDialog && !_showForageDialog && !_showControllerDebug && !_showQuitConfirm && !_showStatsHelp)
         {
-            if (IsHorizontalNavRightPressed())
+            if (GameInput.IsHorizontalNavRightPressed())
             {
                 _selectedIndex = (_selectedIndex + 1) % _choices.Length;
             }
-            if (IsHorizontalNavLeftPressed())
+            if (GameInput.IsHorizontalNavLeftPressed())
             {
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
             }
         }
 
-        if (IsConfirmPressed())
+        if (GameInput.IsConfirmPressed())
         {
             if (_showControllerDebug)
             {
@@ -1654,22 +1623,11 @@ public sealed class Game : IGame
                 ClearActionDeltas();
         }
 
-        // Store buy menu feedback timer
-        if (_showStoreBuyMenu && _storeBuyFeedbackTimer > 0f)
-        {
-            _storeBuyFeedbackTimer -= dt;
-            if (_storeBuyFeedbackTimer <= 0f)
-            {
-                _storeBuyFeedback = "";
-            }
-        }
+        if (_showStoreBuyMenu)
+            TickTimedMessage(ref _storeBuyFeedbackTimer, ref _storeBuyFeedback, dt);
 
-        if (_showBuildDialog && _buildFeedbackTimer > 0f)
-        {
-            _buildFeedbackTimer -= dt;
-            if (_buildFeedbackTimer <= 0f)
-                _buildFeedback = "";
-        }
+        if (_showBuildDialog)
+            TickTimedMessage(ref _buildFeedbackTimer, ref _buildFeedback, dt);
 
         // === Update mouse cursor to indicate clickable elements ===
         bool overClickable = false;
@@ -1788,6 +1746,7 @@ public sealed class Game : IGame
             : MouseCursor.MOUSE_CURSOR_DEFAULT);
     }
 
+    // --- Choice handlers ---
     private void PerformChoice(int index)
     {
         ClearActionDeltas();
@@ -2142,6 +2101,7 @@ public sealed class Game : IGame
         EnterPhase(Phase.ForestStream);
     }
 
+    // --- Inventory & ground items ---
     private void OpenItemDialog(int slotIndex)
     {
         if (slotIndex < 0 || slotIndex >= _backpack.Length) return;
@@ -2385,40 +2345,6 @@ public sealed class Game : IGame
     private void CycleControllerDebugPad(int delta)
     {
         _controllerDebugPadIndex = (_controllerDebugPadIndex + delta + MaxGamepadsToShow) % MaxGamepadsToShow;
-    }
-
-    private static bool IsCancelPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_ESCAPE) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
-
-    private static bool IsHorizontalNavLeftPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_LEFT) || Raylib.IsKeyPressed(KeyboardKey.KEY_A) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_LEFT);
-
-    private static bool IsHorizontalNavRightPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_RIGHT) || Raylib.IsKeyPressed(KeyboardKey.KEY_D) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_RIGHT);
-
-    private static bool IsVerticalNavUpPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_UP) || Raylib.IsKeyPressed(KeyboardKey.KEY_W) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_UP);
-
-    private static bool IsVerticalNavDownPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_DOWN) || Raylib.IsKeyPressed(KeyboardKey.KEY_S) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_LEFT_FACE_DOWN);
-
-    private static bool IsConfirmPressed() =>
-        Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_SPACE) ||
-        IsAnyGamepadButtonPressed(GamepadButton.GAMEPAD_BUTTON_RIGHT_FACE_DOWN);
-
-    private static bool IsAnyGamepadButtonPressed(GamepadButton button)
-    {
-        for (int i = 0; i < MaxGamepadsToShow; i++)
-        {
-            if (Raylib.IsGamepadAvailable(i) && Raylib.IsGamepadButtonPressed(i, button))
-                return true;
-        }
-        return false;
     }
 
     private void OpenQuitConfirm()
@@ -5660,6 +5586,8 @@ public sealed class Game : IGame
 
     // =====================================================================
     // BOTTOM ACTION BAR — Strong visual weight, clear, tactile buttons
+    // =====================================================================
+
     /// <summary>
     /// Computes the on-screen rectangles for the current action buttons.
     /// Used by both drawing and mouse hit-testing so the layout stays in one place.
@@ -5730,7 +5658,8 @@ public sealed class Game : IGame
         }
     }
 
-    private static int Clamp(int v) => Math.Max(0, Math.Min(100, v));
+    // --- Player stats (0–100 clamp, environment, concealment) ---
+    private static int ClampStat(int v) => Math.Max(0, Math.Min(100, v));
 
     /// <summary>Math.Clamp throws when min &gt; max due to floating-point error at full zoom.</summary>
     private static double SafeClamp(double value, double min, double max) =>
@@ -5772,13 +5701,13 @@ public sealed class Game : IGame
     {
         if (amount == 0) return;
         actionDelta += amount;
-        stat = Clamp(stat + amount);
+        stat = ClampStat(stat + amount);
         MarkActionChanged();
     }
 
     private void SetStatFromAction(ref int stat, ref int actionDelta, int value)
     {
-        int clamped = Clamp(value);
+        int clamped = ClampStat(value);
         int change = clamped - stat;
         if (change == 0) return;
         actionDelta += change;
@@ -5817,7 +5746,7 @@ public sealed class Game : IGame
         int diff = targetDelta - _envComfortDelta;
         if (diff == 0) return;
         _envComfortDelta = targetDelta;
-        _comfort = Clamp(_comfort + diff);
+        _comfort = ClampStat(_comfort + diff);
     }
 
     /// <summary>
@@ -5884,9 +5813,19 @@ public sealed class Game : IGame
         _hasTrashBagTent && _tentBuiltInPhase == _phase ? ConcealmentPenaltyForTent : 0;
 
     private void RefreshConcealment() =>
-        _concealment = Clamp(
+        _concealment = ClampStat(
             ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
             - ConcealmentDroppedItemsPenalty() - ConcealmentTentPenalty());
+
+    private static void TickTimedMessage(ref float timer, ref string message, float deltaSeconds)
+    {
+        if (timer <= 0f)
+            return;
+
+        timer -= deltaSeconds;
+        if (timer <= 0f)
+            message = "";
+    }
 
     private static int StatArrowCount(int delta)
     {
@@ -5897,12 +5836,4 @@ public sealed class Game : IGame
         return 3;
     }
 
-    private sealed class DroppedItem
-    {
-        public required string Name { get; init; }
-        public int? Charges { get; init; }
-        public Phase Room { get; init; }
-        public int TurnsRemaining { get; set; }
-        public int AnchorIndex { get; init; }
-    }
 }
