@@ -303,6 +303,8 @@ public sealed class Game : IGame
     private Phase? _tentBuiltInPhase;
     private Rectangle _buildSidebarButtonRect;
     private bool _buildSidebarButtonHovered;
+    private Rectangle _huntSidebarButtonRect;
+    private bool _huntSidebarButtonHovered;
 
     // Stats help (left sidebar info icon + modal)
     private Rectangle _statsHelpIconRect;
@@ -1426,6 +1428,8 @@ public sealed class Game : IGame
                 Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
             _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
+            _huntSidebarButtonHovered = _huntSidebarButtonRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _huntSidebarButtonRect);
             _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
 
@@ -1438,6 +1442,13 @@ public sealed class Game : IGame
             if (leftClicked && _buildSidebarButtonHovered)
             {
                 OpenBuildDialog();
+                return;
+            }
+
+            if (leftClicked && _huntSidebarButtonHovered)
+            {
+                ClearActionDeltas();
+                PerformHunt();
                 return;
             }
 
@@ -1593,7 +1604,8 @@ public sealed class Game : IGame
 
         if (!_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog && !_showQuitConfirm && !_showStatsHelp)
         {
-            if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered || _quitSidebarButtonHovered)
+            if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered ||
+                _huntSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
             if (_trashBagTentHovered)
@@ -1779,10 +1791,6 @@ public sealed class Game : IGame
                 TryDisassembleTrashBagTent();
                 break;
 
-            case ChoiceHunt:
-                PerformHunt();
-                break;
-
             case "WAIT":
                 PerformIdle();
                 break;
@@ -1817,10 +1825,6 @@ public sealed class Game : IGame
 
             case ChoiceDisassembleTent:
                 TryDisassembleTrashBagTent();
-                break;
-
-            case ChoiceHunt:
-                PerformHunt();
                 break;
 
             case "WAIT":
@@ -2350,18 +2354,18 @@ public sealed class Game : IGame
         else if (_phase == Phase.Forest)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.Forest
-                ? new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                ? new[] { ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
                 : _hasTrashBagTent
-                ? new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceHunt, ChoiceFollowStream, "GO BACK TO TOWN", "WAIT" };
+                ? new[] { ChoiceFollowStream, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { ChoiceFollowStream, "GO BACK TO TOWN", "WAIT" };
         }
         else if (_phase == Phase.ForestStream)
         {
             _choices = _hasTrashBagTent && _tentBuiltInPhase == Phase.ForestStream
-                ? new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
+                ? new[] { ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, ChoiceDisassembleTent, "WAIT" }
                 : _hasTrashBagTent
-                ? new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
-                : new[] { ChoiceHunt, ChoiceBackToDeepForest, "GO BACK TO TOWN", "WAIT" };
+                ? new[] { ChoiceBackToDeepForest, "GO BACK TO TOWN", ChoiceEnterTent, "WAIT" }
+                : new[] { ChoiceBackToDeepForest, "GO BACK TO TOWN", "WAIT" };
         }
         else
         {
@@ -4344,6 +4348,16 @@ public sealed class Game : IGame
         cy = DrawWorldMap(cy, tx);
         cy += 16;
         DrawBuildSidebarButton(cy, tx);
+        if (IsForestSurvivalPhase(_phase))
+        {
+            cy += 44;
+            DrawHuntSidebarButton(cy, tx);
+        }
+        else
+        {
+            _huntSidebarButtonRect = default;
+            _huntSidebarButtonHovered = false;
+        }
 
         const int btnH = 36;
         int quitY = y + h - GameConstants.SidebarPadding - btnH;
@@ -4411,6 +4425,15 @@ public sealed class Game : IGame
         const int btnH = 36;
         _buildSidebarButtonRect = new Rectangle(x, y, available, btnH);
         DrawDialogButton(_buildSidebarButtonRect, "BUILD", _buildSidebarButtonHovered, font);
+    }
+
+    private void DrawHuntSidebarButton(int y, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        const int btnH = 36;
+        _huntSidebarButtonRect = new Rectangle(x, y, available, btnH);
+        DrawDialogButton(_huntSidebarButtonRect, ChoiceHunt, _huntSidebarButtonHovered, font);
     }
 
     // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
