@@ -2906,10 +2906,13 @@ public sealed class Game : IGame
         _ => "Standard kiosk stock."
     };
 
+    private static bool IsBuildingMaterial(string name) =>
+        string.Equals(name, ItemTrashBags, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, ItemDuctTape, StringComparison.OrdinalIgnoreCase);
+
     private static string FormatStoreItemEffects(string name, int satiation, int hydration, int health)
     {
-        if (string.Equals(name, ItemTrashBags, StringComparison.OrdinalIgnoreCase) ||
-            string.Equals(name, ItemDuctTape, StringComparison.OrdinalIgnoreCase))
+        if (IsBuildingMaterial(name))
             return "Building material.";
 
         var parts = new List<string>();
@@ -3367,10 +3370,16 @@ public sealed class Game : IGame
         if (isGround)
         {
             int turns = _droppedItems[_dialogDroppedItemIndex].TurnsRemaining;
-            return turns == 1
+            string groundLine = turns == 1
                 ? "On the ground here. About one turn left before you lose track of it."
                 : $"On the ground here. About {turns} turns left before you lose track of it.";
+            if (IsBuildingMaterial(_dialogItemName))
+                return groundLine + "\n\n" + GetStoreItemFlavorText(_dialogItemName);
+            return groundLine;
         }
+
+        if (IsBuildingMaterial(_dialogItemName))
+            return GetStoreItemFlavorText(_dialogItemName);
 
         int slot = _dialogItemIndex;
         return eatAction switch
@@ -3379,10 +3388,6 @@ public sealed class Game : IGame
             _ when canDrink => GetBottledWaterDialogText(slot),
             _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
                 "An empty plastic bottle. The stream is right here — you could fill it.",
-            _ when string.Equals(_dialogItemName, ItemTrashBags, StringComparison.OrdinalIgnoreCase) =>
-                "Building material. Use with duct tape to pitch a trash bag tent outdoors.",
-            _ when string.Equals(_dialogItemName, ItemDuctTape, StringComparison.OrdinalIgnoreCase) =>
-                "Building material. Use with trash bags to pitch a trash bag tent outdoors.",
             _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
@@ -3407,7 +3412,22 @@ public sealed class Game : IGame
         bool canAct = canDrink || canFill || eatAction == DialogItemAction.EatSoup;
 
         int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
-        int panelH = 240;
+        Font font = _uiFont;
+
+        const float bodySpacing = 0.6f;
+        int bodySize = 16;
+        int bodyLineHeight = 22;
+        int textMaxW = panelW - 48;
+        string body = GetItemDialogBody(isGround, eatAction, canDrink, canFill);
+        var (bodyLines, bodyHeight) = WrapTextForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
+        bool showBuildingTag = IsBuildingMaterial(_dialogItemName);
+        string? buildingTag = showBuildingTag
+            ? FormatStoreItemEffects(_dialogItemName, 0, 0, 0)
+            : null;
+        int tagHeight = buildingTag != null ? 20 : 0;
+        int tagGap = buildingTag != null ? 4 : 0;
+
+        int panelH = Math.Max(240, 124 + bodyHeight + tagGap + tagHeight + 60);
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 20;
 
@@ -3415,8 +3435,6 @@ public sealed class Game : IGame
 
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
-
-        Font font = _uiFont;
 
         const int iconSize = 56;
         int iconX = panelX + (panelW - iconSize) / 2;
@@ -3435,15 +3453,24 @@ public sealed class Game : IGame
 
         Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
 
-        string body = GetItemDialogBody(isGround, eatAction, canDrink, canFill);
-        int bodySize = 18;
-        int bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
-        if (bodyW > panelW - 48)
-            bodySize = 16;
-        bodyW = (int)Raylib.MeasureTextEx(font, body, bodySize, 0.6f).X;
-        Raylib.DrawTextEx(font, body,
-            new Vector2(panelX + (panelW - bodyW) / 2, panelY + 124),
-            bodySize, 0.6f, Palette.TextSecondary);
+        int textY = panelY + 124;
+        foreach (string line in bodyLines)
+        {
+            int lineW = (int)Raylib.MeasureTextEx(font, line, bodySize, bodySpacing).X;
+            Raylib.DrawTextEx(font, line,
+                new Vector2(panelX + (panelW - lineW) / 2, textY),
+                bodySize, bodySpacing, Palette.TextSecondary);
+            textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
+        }
+
+        if (buildingTag != null)
+        {
+            textY += tagGap;
+            int tagW = (int)Raylib.MeasureTextEx(font, buildingTag, 15, 0.5f).X;
+            Raylib.DrawTextEx(font, buildingTag,
+                new Vector2(panelX + (panelW - tagW) / 2, textY),
+                15, 0.5f, Palette.TextDim);
+        }
 
         int btnH = 36;
         int btnY = panelY + panelH - 52;
