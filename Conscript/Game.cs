@@ -2901,13 +2901,17 @@ public sealed class Game : IGame
         ItemBottledWater => "A plastic bottle of still water from the cooler.",
         "Loaf of Bread" => "A dense loaf, still soft enough to tear by hand.",
         "Canned Soup" => "Tinned soup — heat is optional when you are desperate.",
-        ItemTrashBags => "Heavy-duty plastic bags. Useful for improvised shelter.",
-        "Duct Tape" => "Strong adhesive tape. Pairs with trash bags for a crude tent.",
+        ItemTrashBags => "Heavy-duty plastic bags. Building material for improvised shelter.",
+        ItemDuctTape => "Strong adhesive tape. Building material — pairs with trash bags for a crude tent.",
         _ => "Standard kiosk stock."
     };
 
-    private static string FormatStoreItemEffects(int satiation, int hydration, int health)
+    private static string FormatStoreItemEffects(string name, int satiation, int hydration, int health)
     {
+        if (string.Equals(name, ItemTrashBags, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(name, ItemDuctTape, StringComparison.OrdinalIgnoreCase))
+            return "Building material.";
+
         var parts = new List<string>();
         if (satiation > 0)
             parts.Add($"Food +{satiation}");
@@ -3375,6 +3379,10 @@ public sealed class Game : IGame
             _ when canDrink => GetBottledWaterDialogText(slot),
             _ when canFill && string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase) =>
                 "An empty plastic bottle. The stream is right here — you could fill it.",
+            _ when string.Equals(_dialogItemName, ItemTrashBags, StringComparison.OrdinalIgnoreCase) =>
+                "Building material. Use with duct tape to pitch a trash bag tent outdoors.",
+            _ when string.Equals(_dialogItemName, ItemDuctTape, StringComparison.OrdinalIgnoreCase) =>
+                "Building material. Use with trash bags to pitch a trash bag tent outdoors.",
             _ => string.Equals(_dialogItemName, ItemEmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, ItemEmptyCan, StringComparison.OrdinalIgnoreCase)
@@ -3938,7 +3946,7 @@ public sealed class Game : IGame
         }
 
         textY += 4;
-        string effects = FormatStoreItemEffects(satiation, hydration, health);
+        string effects = FormatStoreItemEffects(name, satiation, hydration, health);
         Raylib.DrawTextEx(font, effects, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
         textY += 22;
 
