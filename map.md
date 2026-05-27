@@ -5,7 +5,7 @@
           |
  Apartment Courtyard
           |
-         Town ---- Late-Night Kiosk
+         Town ---- Convenience Store
           |
     Forest Entry
           |
@@ -14,4 +14,4 @@
     Deep Forest
 ```
 
-Main column is the escape route out of the city into the taiga. **Late-Night Kiosk** is a side branch from **Town**. Links are two-way except **Home** (one-way at game start).
+Main column is the escape route out of the city into the taiga. **Convenience Store** is a side branch from **Town**. Links are two-way except **Home** (one-way at game start).

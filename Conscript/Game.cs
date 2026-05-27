@@ -488,7 +488,7 @@ public sealed class Game : IGame
                 ApplyEnvironmentHeatedBuilding();
                 _day = 0;
                 _timeOfDay = "Night";
-                _location = "Late-Night Kiosk";
+                _location = "Convenience Store";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
                 _season = "Early Autumn";
