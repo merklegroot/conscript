@@ -1,5 +1,6 @@
+import Link from "next/link";
 import type { GameRoom } from "@/lib/game-rooms";
-import { gameImageUrl } from "@/lib/game-rooms";
+import { gameImageUrl, roomHref } from "@/lib/game-rooms";
 
 type RoomCardProps = {
   room: GameRoom;
@@ -8,7 +9,10 @@ type RoomCardProps = {
 
 export default function RoomCard({ room, imageExists }: RoomCardProps) {
   return (
-    <article className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <Link
+      href={roomHref(room.phase)}
+      className="block overflow-hidden rounded-lg border border-zinc-200 bg-white transition hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600"
+    >
       <div className="aspect-[3/2] bg-zinc-100 dark:bg-zinc-900">
         {imageExists ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -32,6 +36,6 @@ export default function RoomCard({ room, imageExists }: RoomCardProps) {
           <span className="font-mono">{room.imageFile}</span>
         </p>
       </div>
-    </article>
+    </Link>
   );
 }

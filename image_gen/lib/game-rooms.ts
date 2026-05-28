@@ -45,3 +45,11 @@ export const GAME_ROOMS: GameRoom[] = [
 export function gameImageUrl(imageFile: string): string {
   return `/api/game-images/${encodeURIComponent(imageFile)}`;
 }
+
+export function roomHref(phase: string): string {
+  return `/rooms/${encodeURIComponent(phase)}`;
+}
+
+export function getRoomByPhase(phase: string): GameRoom | undefined {
+  return GAME_ROOMS.find((room) => room.phase === phase);
+}
