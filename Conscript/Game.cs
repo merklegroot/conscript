@@ -1644,14 +1644,14 @@ public sealed class Game : IGame
             bool isGround = IsDroppedItemDialog;
             bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
             bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-            DialogItemAction eatAction = isGround
+            DialogItemAction itemAction = isGround
                 ? DialogItemAction.None
                 : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
-            bool canAct = !isGround && (canDrink || canFill || eatAction == DialogItemAction.EatSoup);
+            bool canAct = !isGround && (canDrink || canFill || IsDialogPrimaryAction(itemAction));
 
             _dialogActionHovered = _dialogActionRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
-                (isGround || canDrink || (canFill && !canDrink) || eatAction == DialogItemAction.EatSoup);
+                (isGround || canDrink || (canFill && !canDrink) || IsDialogPrimaryAction(itemAction));
             _dialogSecondaryActionHovered = _dialogSecondaryActionRect.Width > 0 &&
                 canDrink && canFill &&
                 Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
@@ -1667,8 +1667,8 @@ public sealed class Game : IGame
                     TryPerformDialogItemAction(DialogItemAction.DrinkWater);
                 else if (canFill)
                     TryPerformDialogItemAction(DialogItemAction.FillBottle);
-                else if (eatAction == DialogItemAction.EatSoup)
-                    TryPerformDialogItemAction(DialogItemAction.EatSoup);
+                else if (IsDialogPrimaryAction(itemAction))
+                    TryPerformDialogItemAction(itemAction);
                 return;
             }
             if (leftClicked && _dialogSecondaryActionHovered)
@@ -2666,12 +2666,14 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private void ThrowLitMolotovAtWarehouseAmbush()
+    private void ThrowLitMolotovAtWarehouseAmbush(int? preferredSlot = null)
     {
-        int slot = FindBackpackSlotIndex(GameItems.LitMolotov);
-        if (slot < 0)
+        int slot = preferredSlot ?? FindBackpackSlotIndex(GameItems.LitMolotov);
+        if (slot < 0 || slot >= _backpack.Length ||
+            !string.Equals(_backpack[slot], GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase))
         {
-            SetWarehouseAmbushChoices();
+            if (_phase == Phase.WarehouseAmbush)
+                SetWarehouseAmbushChoices();
             return;
         }
 
@@ -3955,11 +3957,18 @@ public sealed class Game : IGame
         None,
         DrinkWater,
         EatSoup,
-        FillBottle
+        FillBottle,
+        ThrowLitMolotov
     }
+
+    private bool CanThrowLitMolotovAtAmbush() => _phase == Phase.WarehouseAmbush;
 
     private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
     {
+        if (string.Equals(itemName, GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase) &&
+            CanThrowLitMolotovAtAmbush())
+            return DialogItemAction.ThrowLitMolotov;
+
         if (string.Equals(itemName, GameItems.BottledWater, StringComparison.OrdinalIgnoreCase) &&
             GetBackpackSlotCharges(slotIndex, GameItems.BottledWater) > 0)
             return DialogItemAction.DrinkWater;
@@ -3984,8 +3993,12 @@ public sealed class Game : IGame
             DialogItemAction.DrinkWater => "DRINK",
             DialogItemAction.EatSoup => "EAT",
             DialogItemAction.FillBottle => "FILL",
+            DialogItemAction.ThrowLitMolotov => "THROW",
             _ => ""
         };
+
+    private static bool IsDialogPrimaryAction(DialogItemAction action) =>
+        action is DialogItemAction.EatSoup or DialogItemAction.ThrowLitMolotov;
 
     private void TryPerformDialogItemAction(DialogItemAction action)
     {
@@ -4001,9 +4014,26 @@ public sealed class Game : IGame
             case DialogItemAction.FillBottle:
                 PerformFillBottleFromStream();
                 return;
+            case DialogItemAction.ThrowLitMolotov:
+                TryThrowLitMolotovFromItemDialog();
+                return;
             default:
                 return;
         }
+    }
+
+    private void TryThrowLitMolotovFromItemDialog()
+    {
+        if (!CanThrowLitMolotovAtAmbush() || _dialogItemIndex < 0)
+            return;
+
+        string? item = _backpack[_dialogItemIndex];
+        if (!string.Equals(item, GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        int slot = _dialogItemIndex;
+        CloseItemDialog();
+        ThrowLitMolotovAtWarehouseAmbush(slot);
     }
 
     private void TryDrinkBottledWater()
@@ -4179,7 +4209,7 @@ public sealed class Game : IGame
     // =====================================================================
     // ITEM DIALOG (modal) — use / examine / close per item
     // =====================================================================
-    private string GetItemDialogBody(bool isGround, DialogItemAction eatAction, bool canDrink, bool canFill)
+    private string GetItemDialogBody(bool isGround, DialogItemAction itemAction, bool canDrink, bool canFill)
     {
         if (isGround)
         {
@@ -4196,8 +4226,10 @@ public sealed class Game : IGame
             return StoreCatalog.GetFlavorText(_dialogItemName);
 
         int slot = _dialogItemIndex;
-        return eatAction switch
+        return itemAction switch
         {
+            DialogItemAction.ThrowLitMolotov =>
+                "The rag is soaked and burning. One throw into the bratdvas and this bottle stops being vodka.",
             DialogItemAction.EatSoup => GetCannedSoupDialogText(slot),
             _ when canDrink => GetBottledWaterDialogText(slot),
             _ when canFill && string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase) =>
@@ -4218,12 +4250,12 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
         bool isGround = IsDroppedItemDialog;
-        DialogItemAction eatAction = isGround
+        DialogItemAction itemAction = isGround
             ? DialogItemAction.None
             : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
         bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-        bool canAct = canDrink || canFill || eatAction == DialogItemAction.EatSoup;
+        bool canAct = canDrink || canFill || IsDialogPrimaryAction(itemAction);
 
         int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
         Font font = _uiFont;
@@ -4232,7 +4264,7 @@ public sealed class Game : IGame
         int bodySize = 16;
         int bodyLineHeight = 22;
         int textMaxW = panelW - 48;
-        string body = GetItemDialogBody(isGround, eatAction, canDrink, canFill);
+        string body = GetItemDialogBody(isGround, itemAction, canDrink, canFill);
         var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
         bool showBuildingTag = GameItems.IsBuildingMaterial(_dialogItemName);
         string? buildingTag = showBuildingTag
@@ -4328,7 +4360,7 @@ public sealed class Game : IGame
                 ? "DRINK"
                 : canFill
                     ? "FILL"
-                    : GetDialogItemActionLabel(eatAction);
+                    : GetDialogItemActionLabel(itemAction);
             GameDialogUi.DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
             GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
