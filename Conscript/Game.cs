@@ -6507,24 +6507,32 @@ public sealed class Game : IGame
     }
 
     private const int NarrativeMaxCardWidth = 320;
-    private const int NarrativeCardEdgeInset = 18;
-    private const int NarrativeCardTopInset = 22;
+    private const int NarrativeCardEdgeInset = 0;
+    private const int NarrativeCardTopInset = 0;
     private const int NarrativeHorizontalPadding = 18;
     private const int NarrativeVerticalPadding = 16;
-    private const int NarrativeCollapsedTabSize = 36;
-    private const int NarrativeCaretInsetX = 12;
-    private const int NarrativeCaretInsetY = 11;
+    private const int NarrativeCollapsedHeight = 36;
+    private const int NarrativeCaretCornerPad = 8;
+    private const int NarrativeCaretTextReserve = 14;
 
     private static void DrawNarrativeCardCaret(int cardX, int cardY, int cardW, bool collapsed, bool hovered)
     {
-        int cx = cardX + cardW - NarrativeCaretInsetX;
-        int cy = cardY + NarrativeCaretInsetY;
+        const float chevronSize = 5f;
+        int cornerRight = cardX + cardW;
+        int cornerTop = cardY;
+        int cx = cornerRight - NarrativeCaretCornerPad;
         Color color = hovered ? Palette.TextPrimary : Palette.TextMuted;
 
         if (collapsed)
+        {
+            int cy = cornerTop + NarrativeCaretCornerPad + (int)(chevronSize * 0.35f);
             DrawChevronDown(cx, cy, color);
+        }
         else
+        {
+            int cy = cornerTop + NarrativeCaretCornerPad + (int)chevronSize;
             DrawChevronUp(cx, cy, color);
+        }
     }
 
     /// <summary>
@@ -6539,7 +6547,7 @@ public sealed class Game : IGame
         int lineHeight = (int)(fontSize * 1.42f);
         int blankLineHeight = lineHeight / 2;
 
-        int textMaxWidth = NarrativeMaxCardWidth - NarrativeHorizontalPadding * 2;
+        int textMaxWidth = NarrativeMaxCardWidth - NarrativeHorizontalPadding * 2 - NarrativeCaretTextReserve;
 
         var (wrappedLines, textHeight) = GameTextLayout.WrapForBox(
             narrativeText,
@@ -6556,14 +6564,13 @@ public sealed class Game : IGame
 
         if (_narrativeCollapsed)
         {
-            int tabX = artX + artW - NarrativeCollapsedTabSize - NarrativeCardEdgeInset;
-            _narrativeCardRect = new Rectangle(tabX, cardY, NarrativeCollapsedTabSize, NarrativeCollapsedTabSize);
+            _narrativeCardRect = new Rectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight);
 
             Color bg = _narrativeCardHovered ? Palette.ButtonSelectedBg : Palette.CardBg;
             Color border = _narrativeCardHovered ? Palette.ButtonSelectedBorder : Palette.CardBorder;
-            Raylib.DrawRectangle(tabX, cardY, NarrativeCollapsedTabSize, NarrativeCollapsedTabSize, bg);
-            Raylib.DrawRectangleLines(tabX, cardY, NarrativeCollapsedTabSize, NarrativeCollapsedTabSize, border);
-            DrawNarrativeCardCaret(tabX, cardY, NarrativeCollapsedTabSize, collapsed: true, _narrativeCardHovered);
+            Raylib.DrawRectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, bg);
+            Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, border);
+            DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: true, _narrativeCardHovered);
             return;
         }
 
