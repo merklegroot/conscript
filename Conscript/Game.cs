@@ -87,7 +87,6 @@ public sealed class Game : IGame
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
     private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
-    private const string ChoiceThrowLitMolotov = "THROW LIT MOLOTOV";
     private const string ChoiceFight = "FIGHT";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
@@ -695,7 +694,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAmbush:
-                SetWarehouseAmbushChoices();
+                _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
                 _selectedIndex = 0;
                 ApplyEnvironmentOutside();
                 _day = 0;
@@ -2624,14 +2623,6 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
-    private void SetWarehouseAmbushChoices()
-    {
-        if (HasBackpackItem(GameItems.LitMolotov))
-            _choices = new[] { ChoiceThrowLitMolotov, ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
-        else
-            _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
-    }
-
     private void HandleWarehouseAmbushChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -2639,10 +2630,6 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
-            case ChoiceThrowLitMolotov:
-                ThrowLitMolotovAtWarehouseAmbush();
-                return;
-
             case ChoiceGetBackInTruck:
                 _actionMessage = "You slide back into the cab and pull the door shut. The bratdvas haven't moved yet.";
                 _actionMessageTimer = 2.1f;
@@ -2671,11 +2658,7 @@ public sealed class Game : IGame
         int slot = preferredSlot ?? FindBackpackSlotIndex(GameItems.LitMolotov);
         if (slot < 0 || slot >= _backpack.Length ||
             !string.Equals(_backpack[slot], GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase))
-        {
-            if (_phase == Phase.WarehouseAmbush)
-                SetWarehouseAmbushChoices();
             return;
-        }
 
         RemoveBackpackItemAtSlot(slot);
         _warehouseAmbushersDead = true;
@@ -3742,9 +3725,6 @@ public sealed class Game : IGame
 
         _buildFeedback = $"Crafted {CraftLitMolotov}.";
         _buildFeedbackTimer = BuildFeedbackDuration;
-
-        if (_phase == Phase.WarehouseAmbush)
-            SetWarehouseAmbushChoices();
     }
 
     private void TryCraftMolotov()
@@ -3958,16 +3938,31 @@ public sealed class Game : IGame
         DrinkWater,
         EatSoup,
         FillBottle,
+        LightMolotov,
         ThrowLitMolotov
     }
 
     private bool CanThrowLitMolotovAtAmbush() => _phase == Phase.WarehouseAmbush;
+
+    private bool CanLightMolotovFromDialog(int slotIndex)
+    {
+        if (slotIndex < 0 || slotIndex >= _backpack.Length)
+            return false;
+
+        if (!string.Equals(_backpack[slotIndex], GameItems.Molotov, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return FindBackpackSlotIndex("Lighter") >= 0;
+    }
 
     private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
     {
         if (string.Equals(itemName, GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase) &&
             CanThrowLitMolotovAtAmbush())
             return DialogItemAction.ThrowLitMolotov;
+
+        if (CanLightMolotovFromDialog(slotIndex))
+            return DialogItemAction.LightMolotov;
 
         if (string.Equals(itemName, GameItems.BottledWater, StringComparison.OrdinalIgnoreCase) &&
             GetBackpackSlotCharges(slotIndex, GameItems.BottledWater) > 0)
@@ -3993,12 +3988,13 @@ public sealed class Game : IGame
             DialogItemAction.DrinkWater => "DRINK",
             DialogItemAction.EatSoup => "EAT",
             DialogItemAction.FillBottle => "FILL",
+            DialogItemAction.LightMolotov => "LIGHT",
             DialogItemAction.ThrowLitMolotov => "THROW",
             _ => ""
         };
 
     private static bool IsDialogPrimaryAction(DialogItemAction action) =>
-        action is DialogItemAction.EatSoup or DialogItemAction.ThrowLitMolotov;
+        action is DialogItemAction.EatSoup or DialogItemAction.LightMolotov or DialogItemAction.ThrowLitMolotov;
 
     private void TryPerformDialogItemAction(DialogItemAction action)
     {
@@ -4014,12 +4010,37 @@ public sealed class Game : IGame
             case DialogItemAction.FillBottle:
                 PerformFillBottleFromStream();
                 return;
+            case DialogItemAction.LightMolotov:
+                TryLightMolotovFromItemDialog();
+                return;
             case DialogItemAction.ThrowLitMolotov:
                 TryThrowLitMolotovFromItemDialog();
                 return;
             default:
                 return;
         }
+    }
+
+    private void TryLightMolotovFromItemDialog()
+    {
+        if (_dialogItemIndex < 0 || !CanLightMolotovFromDialog(_dialogItemIndex))
+            return;
+
+        int slot = _dialogItemIndex;
+        RemoveBackpackItemAtSlot(slot);
+        CompactBackpack();
+
+        if (!TryAddToBackpack(GameItems.LitMolotov))
+        {
+            TryAddToBackpack(GameItems.Molotov);
+            _actionMessage = "Backpack is full — make space before lighting it.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        CloseItemDialog();
+        _actionMessage = "You touch the lighter to the rag. The bottle catches with a hungry hiss.";
+        _actionMessageTimer = ActionMessageDuration;
     }
 
     private void TryThrowLitMolotovFromItemDialog()
@@ -4228,6 +4249,8 @@ public sealed class Game : IGame
         int slot = _dialogItemIndex;
         return itemAction switch
         {
+            DialogItemAction.LightMolotov =>
+                "Vodka in a bottle with a rag wick. One spark from your lighter and it's ready to throw.",
             DialogItemAction.ThrowLitMolotov =>
                 "The rag is soaked and burning. One throw into the bratdvas and this bottle stops being vodka.",
             DialogItemAction.EatSoup => GetCannedSoupDialogText(slot),
