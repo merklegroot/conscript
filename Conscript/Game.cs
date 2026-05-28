@@ -75,6 +75,7 @@ public sealed class Game : IGame
     private const string ChoiceBrowseShelves = "BROWSE SHELVES";
     private const string ChoiceLeaveStore = "LEAVE THE WAY YOU CAME";
     private const string ChoiceCafe = "КАФЕ";
+    private const string ChoiceTalkToOwner = "TALK TO THE OWNER";
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
@@ -299,6 +300,14 @@ public sealed class Game : IGame
     private readonly Rectangle[] _forageOptionRowRects = new Rectangle[ForageOptionCount];
     private readonly bool[] _forageOptionHovered = new bool[ForageOptionCount];
     private int _forageHighlightedIndex;
+    private bool _showCafeOwnerDialog;
+    private Rectangle _cafeOwnerPanelRect;
+    private Rectangle _cafeOwnerCloseRect;
+    private bool _cafeOwnerCloseHovered;
+    private readonly Rectangle[] _cafeOwnerOptionRowRects = new Rectangle[CafeOwnerDialog.OptionCount];
+    private readonly bool[] _cafeOwnerOptionHovered = new bool[CafeOwnerDialog.OptionCount];
+    private int _cafeOwnerHighlightedIndex;
+    private int _cafeOwnerSelectedOption = -1;
     private const int TrashBagTentComfortBonus = 8;
     private const int TentInteriorComfortBonus = 14;
     private Rectangle _trashBagTentClickRect;
@@ -381,13 +390,13 @@ public sealed class Game : IGame
     private const string IndustrialDistrictNarrative =
         "Warehouses and fenced lots line the side streets.\n" +
         "A distant rail yard clanks in the cold.\n" +
-        "A workers' café still has light in the window — you could duck inside.\n" +
+        "A dingy café still glows on the corner — the owner runs more than tea.\n" +
         "Few other windows are lit — this is the edge of town.";
 
     private const string CafeNarrative =
-        "Steam and the smell of cheap tea fill the narrow room.\n" +
-        "Night-shift workers stare into their cups and don't look up.\n" +
-        "The heat feels guilty after the yards outside.";
+        "Steam and cheap tea mask the smell of cigarettes and diesel.\n" +
+        "The owner watches the room like he owns everyone in it.\n" +
+        "He might help you disappear — or sell you out for pocket change.";
 
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
@@ -565,6 +574,7 @@ public sealed class Game : IGame
             case Phase.Cafe:
                 _choices = new[]
                 {
+                    ChoiceTalkToOwner,
                     ChoiceLeaveCafe,
                     ChoiceWait
                 };
@@ -965,6 +975,11 @@ public sealed class Game : IGame
                 CloseForageDialog();
                 return;
             }
+            if (_showCafeOwnerDialog)
+            {
+                CloseCafeOwnerDialog();
+                return;
+            }
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
@@ -1040,6 +1055,19 @@ public sealed class Game : IGame
                 _forageHighlightedIndex = (_forageHighlightedIndex + 1) % ForageOptionCount;
         }
 
+        if (_showCafeOwnerDialog)
+        {
+            if (InputManager.IsVerticalNavUpPressed())
+            {
+                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex - 1 + CafeOwnerDialog.OptionCount)
+                    % CafeOwnerDialog.OptionCount;
+            }
+            if (InputManager.IsVerticalNavDownPressed())
+            {
+                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex + 1) % CafeOwnerDialog.OptionCount;
+            }
+        }
+
         // Horizontal navigation for bottom action buttons
         if (!BlocksActionBarNavigation())
         {
@@ -1074,6 +1102,10 @@ public sealed class Game : IGame
             else if (_showForageDialog)
             {
                 TryPerformForage(_forageHighlightedIndex);
+            }
+            else if (_showCafeOwnerDialog)
+            {
+                SelectCafeOwnerOption(_cafeOwnerHighlightedIndex);
             }
             else if (_showStoreBuyMenu)
             {
@@ -1352,6 +1384,42 @@ public sealed class Game : IGame
                 if (!Raylib.CheckCollisionPointRec(mouse, _foragePanelRect))
                 {
                     CloseForageDialog();
+                    return;
+                }
+            }
+        }
+
+        // === Café owner dialog (modal) ===
+        if (_showCafeOwnerDialog)
+        {
+            _cafeOwnerCloseHovered = Raylib.CheckCollisionPointRec(mouse, _cafeOwnerCloseRect);
+            for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+            {
+                _cafeOwnerOptionHovered[i] = Raylib.CheckCollisionPointRec(mouse, _cafeOwnerOptionRowRects[i]);
+                if (_cafeOwnerOptionHovered[i])
+                    _cafeOwnerHighlightedIndex = i;
+            }
+
+            if (leftClicked)
+            {
+                for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+                {
+                    if (_cafeOwnerOptionHovered[i])
+                    {
+                        SelectCafeOwnerOption(i);
+                        return;
+                    }
+                }
+
+                if (_cafeOwnerCloseHovered)
+                {
+                    CloseCafeOwnerDialog();
+                    return;
+                }
+
+                if (!Raylib.CheckCollisionPointRec(mouse, _cafeOwnerPanelRect))
+                {
+                    CloseCafeOwnerDialog();
                     return;
                 }
             }
@@ -1691,6 +1759,13 @@ public sealed class Game : IGame
         {
             if (_forageCloseHovered || _forageOptionHovered.Any(h => h) ||
                 !Raylib.CheckCollisionPointRec(mouse, _foragePanelRect))
+                overClickable = true;
+        }
+
+        if (_showCafeOwnerDialog)
+        {
+            if (_cafeOwnerCloseHovered || _cafeOwnerOptionHovered.Any(h => h) ||
+                !Raylib.CheckCollisionPointRec(mouse, _cafeOwnerPanelRect))
                 overClickable = true;
         }
 
@@ -2164,7 +2239,12 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceTalkToOwner:
+                OpenCafeOwnerDialog();
+                return;
+
             case ChoiceLeaveCafe:
+                CloseCafeOwnerDialog();
                 _actionMessage = "You step back out into the cold industrial dark.";
                 AdvanceTime();
                 ApplyTravelEnergyCost();
@@ -2206,7 +2286,7 @@ public sealed class Game : IGame
                 _actionMessage = "You linger by the shelves, pretending to read labels.";
                 break;
             case Phase.Cafe:
-                _actionMessage = "You cradle an untouched cup and watch the steam rise.";
+                _actionMessage = "You keep your head down. The owner hasn't stopped watching you.";
                 break;
             case Phase.ForestEntry:
                 _actionMessage = "You hold still among the young pines. The city is still too close.";
@@ -2261,6 +2341,7 @@ public sealed class Game : IGame
         CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
+        CloseCafeOwnerDialog();
         CloseControllerDebug();
         CloseQuitConfirm();
         CloseStatsHelp();
@@ -2268,11 +2349,11 @@ public sealed class Game : IGame
 
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showBuildDialog || _showForageDialog
-        || _showControllerDebug || _showQuitConfirm || _showStatsHelp;
+        || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm || _showStatsHelp;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog
-        && !_showForageDialog && !_showQuitConfirm && !_showStatsHelp;
+        && !_showForageDialog && !_showCafeOwnerDialog && !_showQuitConfirm && !_showStatsHelp;
 
     private void RestartGame()
     {
@@ -2289,8 +2370,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot: forest stream with trash bags, duct tape, and an empty bottle.
-    /// Resets stats, money, and backpack for outdoor survival / tent-building testing.
+    /// Jump to a reproducible debug snapshot inside the industrial-district café (Кафе).
+    /// Resets stats, money, and backpack for dialogue / interior testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -2311,7 +2392,8 @@ public sealed class Game : IGame
         ClearEnvDeltas();
         ClearActionDeltas();
 
-        EnterPhase(Phase.ForestStream);
+        _phaseBeforeCafe = Phase.IndustrialDistrict;
+        EnterPhase(Phase.Cafe);
     }
 
     // --- Inventory & ground items ---
@@ -2502,6 +2584,35 @@ public sealed class Game : IGame
         _showForageDialog = false;
         _forageCloseHovered = false;
         Array.Clear(_forageOptionHovered);
+    }
+
+    private void OpenCafeOwnerDialog()
+    {
+        if (_phase != Phase.Cafe)
+            return;
+
+        _showCafeOwnerDialog = true;
+        _cafeOwnerHighlightedIndex = 0;
+        _cafeOwnerSelectedOption = -1;
+        _cafeOwnerCloseHovered = false;
+        Array.Clear(_cafeOwnerOptionHovered);
+    }
+
+    private void CloseCafeOwnerDialog()
+    {
+        _showCafeOwnerDialog = false;
+        _cafeOwnerCloseHovered = false;
+        _cafeOwnerSelectedOption = -1;
+        Array.Clear(_cafeOwnerOptionHovered);
+    }
+
+    private void SelectCafeOwnerOption(int optionIndex)
+    {
+        if (!_showCafeOwnerDialog || optionIndex < 0 || optionIndex >= CafeOwnerDialog.OptionCount)
+            return;
+
+        _cafeOwnerSelectedOption = optionIndex;
+        _cafeOwnerHighlightedIndex = optionIndex;
     }
 
     private void TryPerformForage(int optionIndex)
@@ -3796,6 +3907,108 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
+    // CAFÉ OWNER DIALOG (modal) — talk to Vovka
+    // =====================================================================
+    private void DrawCafeOwnerDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        GameDialogUi.DrawModalBackdrop(screenW, screenH);
+
+        int panelW = 480;
+        int panelH = 420;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _cafeOwnerPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, CafeOwnerDialog.Title,
+            new Vector2(panelX + 22, panelY + 18), 25, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
+
+        string response = CafeOwnerDialog.GetResponseText(_cafeOwnerSelectedOption);
+        int responseY = panelY + 56;
+        DrawWrappedDialogText(font, response, panelX + 22, responseY, panelW - 44, 16, 0.55f, Palette.TextSecondary);
+
+        Raylib.DrawTextEx(font, CafeOwnerDialog.PickPrompt,
+            new Vector2(panelX + 22, panelY + 128), 16, 0.55f, Palette.TextDim);
+
+        int rowY = panelY + 152;
+        int rowH = 44;
+        int rowX = panelX + 22;
+        int rowW = panelW - 44;
+
+        for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+        {
+            _cafeOwnerOptionRowRects[i] = new Rectangle(rowX, rowY, rowW, rowH);
+
+            bool highlighted = _cafeOwnerHighlightedIndex == i || _cafeOwnerOptionHovered[i];
+            bool chosen = _cafeOwnerSelectedOption == i;
+            Color rowBg = highlighted || chosen
+                ? Palette.ButtonSelectedBg
+                : new Color(16, 18, 22, 255);
+            Raylib.DrawRectangleRec(_cafeOwnerOptionRowRects[i], rowBg);
+            Color border = chosen ? Palette.ButtonSelectedBorder : Palette.SubtleBorder;
+            Raylib.DrawRectangleLinesEx(_cafeOwnerOptionRowRects[i], 1f, border);
+
+            Raylib.DrawTextEx(font, CafeOwnerDialog.PlayerLines[i],
+                new Vector2(rowX + 12, rowY + 12), 17, 0.55f, Palette.TextPrimary);
+
+            rowY += rowH + 6;
+        }
+
+        int closeW = 120;
+        int closeH = 36;
+        int closeX = panelX + (panelW - closeW) / 2;
+        int closeY = panelY + panelH - closeH - 16;
+        _cafeOwnerCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
+        GameDialogUi.DrawDialogButton(_cafeOwnerCloseRect, "CLOSE", _cafeOwnerCloseHovered, font);
+    }
+
+    private static void DrawWrappedDialogText(
+        Font font,
+        string text,
+        float x,
+        float y,
+        float maxWidth,
+        float fontSize,
+        float spacing,
+        Color color)
+    {
+        if (string.IsNullOrEmpty(text))
+            return;
+
+        string[] words = text.Split(' ');
+        string line = "";
+        float lineY = y;
+
+        foreach (string word in words)
+        {
+            string trial = string.IsNullOrEmpty(line) ? word : line + " " + word;
+            if (Raylib.MeasureTextEx(font, trial, fontSize, spacing).X > maxWidth && !string.IsNullOrEmpty(line))
+            {
+                Raylib.DrawTextEx(font, line, new Vector2(x, lineY), fontSize, spacing, color);
+                lineY += fontSize + 4f;
+                line = word;
+            }
+            else
+            {
+                line = trial;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(line))
+            Raylib.DrawTextEx(font, line, new Vector2(x, lineY), fontSize, spacing, color);
+    }
+
+    // =====================================================================
     // STORE BUY MENU (modal shopping interface)
     // =====================================================================
     private void DrawStoreBuyMenu()
@@ -4036,6 +4249,11 @@ public sealed class Game : IGame
         if (_showForageDialog)
         {
             DrawForageDialog();
+        }
+
+        if (_showCafeOwnerDialog)
+        {
+            DrawCafeOwnerDialog();
         }
 
         if (_showQuitConfirm)
