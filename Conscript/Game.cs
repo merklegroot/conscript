@@ -463,6 +463,17 @@ public sealed class Game : IGame
     // --- Phase transitions ---
     private void EnterPhase(Phase newPhase)
     {
+        // Lit molotovs are not safe to travel with. If Sergei tries to change rooms while carrying one,
+        // it goes off in his hands.
+        if (newPhase != _phase &&
+            newPhase != Phase.Death &&
+            _phase != Phase.Death &&
+            HasBackpackItem(GameItems.LitMolotov))
+        {
+            EnterDeath("It explodes in your hands.", "You die before you even feel the heat.");
+            return;
+        }
+
         _phase = newPhase;
         _selectedIndex = 0;
         _actionMessage = "";
