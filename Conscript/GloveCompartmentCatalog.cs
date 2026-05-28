@@ -3,8 +3,9 @@ namespace Conscript;
 /// <summary>Items Sergei can find in the delivery truck glove box.</summary>
 internal static class GloveCompartmentCatalog
 {
-    public const string CashEnvelope = "Cash Envelope";
-    public const string BurnerPhone = "Burner Phone";
+    public const string Crowbar = GameItems.Crowbar;
+    public const string Vodka = GameItems.Vodka;
+    public const string Rag = GameItems.Rag;
 
     public readonly record struct Entry(
         string Name,
@@ -17,18 +18,25 @@ internal static class GloveCompartmentCatalog
     public static readonly Entry[] Entries =
     [
         new(
-            CashEnvelope,
-            CashEnvelope,
-            IsMoney: true,
-            MoneyAmount: 15_000,
-            Flavor: "A grease-stained paper band holding mixed bills — probably the last driver's emergency float.",
-            EffectHint: "Adds 15,000 ₽ to your money."),
-        new(
-            BurnerPhone,
-            "Phone",
+            Crowbar,
+            Crowbar,
             IsMoney: false,
             MoneyAmount: 0,
-            Flavor: "A scratched prepaid Nokia, still on. The last contact is labeled only \"B.\"",
+            Flavor: "A short steel crowbar with old paint on the curve. Heavy enough to count as an argument.",
+            EffectHint: "Goes in your backpack."),
+        new(
+            Vodka,
+            Vodka,
+            IsMoney: false,
+            MoneyAmount: 0,
+            Flavor: "A half-liter bottle, label torn, cap re-seated crooked. It burns just looking at it.",
+            EffectHint: "Goes in your backpack."),
+        new(
+            Rag,
+            Rag,
+            IsMoney: false,
+            MoneyAmount: 0,
+            Flavor: "A greasy shop rag, stiff with old oil. Still better than your sleeve.",
             EffectHint: "Goes in your backpack."),
     ];
 

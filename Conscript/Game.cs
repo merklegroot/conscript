@@ -4719,11 +4719,13 @@ public sealed class Game : IGame
             Color nameColor = taken ? Palette.TextMuted : Palette.TextPrimary;
             Raylib.DrawTextEx(font, entry.Name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
 
-            string statusStr = taken ? "TAKEN" : "FREE";
-            int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 17, 0.6f).X;
-            Color statusColor = taken ? Palette.TextMuted : new Color(140, 175, 130, 255);
-            Raylib.DrawTextEx(font, statusStr,
-                new Vector2(listX + listW - 10 - statusW, rowY + 8), 17, 0.6f, statusColor);
+            if (taken)
+            {
+                const string statusStr = "TAKEN";
+                int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 17, 0.6f).X;
+                Raylib.DrawTextEx(font, statusStr,
+                    new Vector2(listX + listW - 10 - statusW, rowY + 8), 17, 0.6f, Palette.TextMuted);
+            }
         }
 
         DrawGloveBoxDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
@@ -4772,14 +4774,16 @@ public sealed class Game : IGame
             new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
             22, 0.75f, Palette.TextPrimary);
 
-        string statusStr = taken ? "Already taken" : "Free to take";
-        int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 18, 0.6f).X;
-        Color statusColor = taken ? Palette.TextMuted : new Color(140, 175, 130, 255);
-        Raylib.DrawTextEx(font, statusStr,
-            new Vector2(x + (w - statusW) / 2, iconY + iconSize + 36),
-            18, 0.6f, statusColor);
-
-        int textY = iconY + iconSize + 62;
+        int textY = iconY + iconSize + 36;
+        if (taken)
+        {
+            const string statusStr = "Already taken";
+            int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 18, 0.6f).X;
+            Raylib.DrawTextEx(font, statusStr,
+                new Vector2(x + (w - statusW) / 2, textY),
+                18, 0.6f, Palette.TextMuted);
+            textY += 26;
+        }
         const int flavorSize = 16;
         float flavorSpacing = 0.55f;
         int flavorLineHeight = 22;
