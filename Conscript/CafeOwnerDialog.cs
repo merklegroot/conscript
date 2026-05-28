@@ -8,7 +8,8 @@ internal static class CafeOwnerDialog
 {
     public const int OptionCount = 4;
 
-    public const string Title = "ВОВКА";
+    public const string Title = "БОРИС";
+    public const string Subtitle = "Bratva — café owner";
     public const string IdleText =
         "A wiry man behind the counter watches you without blinking. \"Talk. Then I decide if you're trouble.\"";
     public const string PickPrompt = "What do you say?";

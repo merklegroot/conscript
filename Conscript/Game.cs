@@ -39,6 +39,7 @@ public sealed class Game : IGame
     private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
     private Texture2D _cafeBackground;
+    private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
@@ -886,6 +887,7 @@ public sealed class Game : IGame
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
+        _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
@@ -936,6 +938,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _forestStreamBackground);
         UnloadTextureIfLoaded(ref _storeBackground);
         UnloadTextureIfLoaded(ref _cafeBackground);
+        UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
@@ -3907,8 +3910,10 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // CAFÉ OWNER DIALOG (modal) — talk to Vovka
+    // CAFÉ OWNER DIALOG (modal) — talk to Boris (Bratva)
     // =====================================================================
+    private const int CafeOwnerPortraitColumnW = 158;
+
     private void DrawCafeOwnerDialog()
     {
         int screenW = _screenWidth;
@@ -3916,8 +3921,8 @@ public sealed class Game : IGame
 
         GameDialogUi.DrawModalBackdrop(screenW, screenH);
 
-        int panelW = 480;
-        int panelH = 420;
+        int panelW = 640;
+        int panelH = 440;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 10;
 
@@ -3928,22 +3933,32 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
-        Raylib.DrawTextEx(font, CafeOwnerDialog.Title,
-            new Vector2(panelX + 22, panelY + 18), 25, 0.75f, Palette.TextPrimary);
+        int contentX = panelX + CafeOwnerPortraitColumnW;
+        int contentW = panelW - CafeOwnerPortraitColumnW - 22;
 
-        Raylib.DrawLine(panelX + 22, panelY + 46, panelX + panelW - 22, panelY + 46, Palette.SubtleBorder);
+        DrawCafeOwnerPortrait(panelX, panelY, panelH);
+
+        Raylib.DrawLine(contentX - 8, panelY + 14, contentX - 8, panelY + panelH - 14, Palette.SubtleBorder);
+
+        Raylib.DrawTextEx(font, CafeOwnerDialog.Title,
+            new Vector2(contentX, panelY + 18), 25, 0.75f, Palette.TextPrimary);
+
+        Raylib.DrawTextEx(font, CafeOwnerDialog.Subtitle,
+            new Vector2(contentX, panelY + 44), 14, 0.5f, Palette.TextDim);
+
+        Raylib.DrawLine(contentX, panelY + 64, panelX + panelW - 22, panelY + 64, Palette.SubtleBorder);
 
         string response = CafeOwnerDialog.GetResponseText(_cafeOwnerSelectedOption);
-        int responseY = panelY + 56;
-        DrawWrappedDialogText(font, response, panelX + 22, responseY, panelW - 44, 16, 0.55f, Palette.TextSecondary);
+        int responseY = panelY + 74;
+        DrawWrappedDialogText(font, response, contentX, responseY, contentW, 16, 0.55f, Palette.TextSecondary);
 
         Raylib.DrawTextEx(font, CafeOwnerDialog.PickPrompt,
-            new Vector2(panelX + 22, panelY + 128), 16, 0.55f, Palette.TextDim);
+            new Vector2(contentX, panelY + 148), 16, 0.55f, Palette.TextDim);
 
-        int rowY = panelY + 152;
+        int rowY = panelY + 172;
         int rowH = 44;
-        int rowX = panelX + 22;
-        int rowW = panelW - 44;
+        int rowX = contentX;
+        int rowW = contentW;
 
         for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
         {
@@ -3966,10 +3981,82 @@ public sealed class Game : IGame
 
         int closeW = 120;
         int closeH = 36;
-        int closeX = panelX + (panelW - closeW) / 2;
+        int closeX = contentX + (contentW - closeW) / 2;
         int closeY = panelY + panelH - closeH - 16;
         _cafeOwnerCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
         GameDialogUi.DrawDialogButton(_cafeOwnerCloseRect, "CLOSE", _cafeOwnerCloseHovered, font);
+    }
+
+    private void DrawCafeOwnerPortrait(int panelX, int panelY, int panelH)
+    {
+        const int pad = 14;
+        const float portraitAspect = 3f / 4f; // width / height — matches cafe-owner-portrait.png
+
+        int frameW = CafeOwnerPortraitColumnW - pad * 2;
+        int frameH = (int)MathF.Round(frameW / portraitAspect);
+        int maxH = panelH - pad * 2 - 8;
+        if (frameH > maxH)
+        {
+            frameH = maxH;
+            frameW = (int)MathF.Round(frameH * portraitAspect);
+        }
+
+        float frameX = panelX + pad + (CafeOwnerPortraitColumnW - pad * 2 - frameW) / 2f;
+        float frameY = panelY + pad + 4 + (maxH - frameH) / 2f;
+        var frame = new Rectangle(frameX, frameY, frameW, frameH);
+
+        Raylib.DrawRectangleRec(frame, new Color(10, 11, 14, 255));
+        Raylib.DrawRectangleLinesEx(frame, 1.5f, Palette.SubtleBorder);
+
+        if (_cafeOwnerPortraitTexture.Id == 0)
+            return;
+
+        var inset = new Rectangle(frame.X + 3, frame.Y + 3, frame.Width - 6, frame.Height - 6);
+        Rectangle src = new Rectangle(0, 0, _cafeOwnerPortraitTexture.Width, _cafeOwnerPortraitTexture.Height);
+        float texAspect = _cafeOwnerPortraitTexture.Width / (float)_cafeOwnerPortraitTexture.Height;
+        Rectangle fitted = FitRectangleAspect(inset, texAspect, cover: false);
+        Raylib.DrawTexturePro(_cafeOwnerPortraitTexture, src, fitted, Vector2.Zero, 0f, Color.WHITE);
+    }
+
+    /// <summary>Size and center a rect to match texture aspect (contain or cover).</summary>
+    private static Rectangle FitRectangleAspect(Rectangle bounds, float widthOverHeight, bool cover)
+    {
+        float boundsAspect = bounds.Width / bounds.Height;
+        float destW;
+        float destH;
+
+        if (cover)
+        {
+            if (boundsAspect > widthOverHeight)
+            {
+                destH = bounds.Height;
+                destW = destH * widthOverHeight;
+            }
+            else
+            {
+                destW = bounds.Width;
+                destH = destW / widthOverHeight;
+            }
+        }
+        else
+        {
+            if (boundsAspect > widthOverHeight)
+            {
+                destW = bounds.Width;
+                destH = destW / widthOverHeight;
+            }
+            else
+            {
+                destH = bounds.Height;
+                destW = destH * widthOverHeight;
+            }
+        }
+
+        return new Rectangle(
+            bounds.X + (bounds.Width - destW) / 2f,
+            bounds.Y + (bounds.Height - destH) / 2f,
+            destW,
+            destH);
     }
 
     private static void DrawWrappedDialogText(
