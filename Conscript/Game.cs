@@ -275,6 +275,8 @@ public sealed class Game : IGame
     private Rectangle _gloveBoxPickupRect;
     private bool _gloveBoxPickupHovered;
     private readonly bool[] _gloveBoxLootTaken = new bool[GloveCompartmentCatalog.EntryCount];
+    private readonly int[] _gloveBoxVisibleCatalogIndices = new int[GloveCompartmentCatalog.EntryCount];
+    private int _gloveBoxVisibleCount;
 
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
@@ -1121,16 +1123,23 @@ public sealed class Game : IGame
 
         if (_showGloveBoxMenu)
         {
+            RefreshGloveBoxVisibleList();
+
             if (InputManager.IsVerticalNavUpPressed())
             {
-                _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex - 1 + GloveCompartmentCatalog.EntryCount)
-                    % GloveCompartmentCatalog.EntryCount;
-                _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+                if (_gloveBoxVisibleCount > 0)
+                {
+                    _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex - 1 + _gloveBoxVisibleCount) % _gloveBoxVisibleCount;
+                    _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+                }
             }
             if (InputManager.IsVerticalNavDownPressed())
             {
-                _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex + 1) % GloveCompartmentCatalog.EntryCount;
-                _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+                if (_gloveBoxVisibleCount > 0)
+                {
+                    _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex + 1) % _gloveBoxVisibleCount;
+                    _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+                }
             }
         }
 
@@ -1197,10 +1206,13 @@ public sealed class Game : IGame
             }
             else if (_showGloveBoxMenu)
             {
-                if (_gloveBoxPickupHovered && _gloveBoxDetailIndex >= 0)
-                    TryTakeGloveBoxItem(_gloveBoxDetailIndex);
-                else if (_gloveBoxDetailIndex == _gloveBoxHighlightedIndex && _gloveBoxDetailIndex >= 0)
-                    TryTakeGloveBoxItem(_gloveBoxDetailIndex);
+                int catalogIndex = GetGloveBoxCatalogIndexFromVisibleIndex(_gloveBoxDetailIndex);
+                int highlightedCatalogIndex = GetGloveBoxCatalogIndexFromVisibleIndex(_gloveBoxHighlightedIndex);
+
+                if (_gloveBoxPickupHovered && catalogIndex >= 0)
+                    TryTakeGloveBoxItem(catalogIndex);
+                else if (_gloveBoxDetailIndex == _gloveBoxHighlightedIndex && highlightedCatalogIndex >= 0)
+                    TryTakeGloveBoxItem(highlightedCatalogIndex);
                 else
                     _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
             }
@@ -1766,7 +1778,9 @@ public sealed class Game : IGame
 
         if (_showGloveBoxMenu)
         {
-            for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
+            RefreshGloveBoxVisibleList();
+
+            for (int i = 0; i < _gloveBoxVisibleCount; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _gloveBoxItemRects[i]))
                 {
@@ -1780,7 +1794,9 @@ public sealed class Game : IGame
             if (leftClicked && _gloveBoxDetailIndex >= 0 &&
                 (_gloveBoxPickupHovered || Raylib.CheckCollisionPointRec(mouse, _gloveBoxPickupRect)))
             {
-                TryTakeGloveBoxItem(_gloveBoxDetailIndex);
+                int catalogIndex = GetGloveBoxCatalogIndexFromVisibleIndex(_gloveBoxDetailIndex);
+                if (catalogIndex >= 0)
+                    TryTakeGloveBoxItem(catalogIndex);
                 return;
             }
 
@@ -2461,6 +2477,32 @@ public sealed class Game : IGame
 
     private void ResetGloveCompartmentLoot() => Array.Clear(_gloveBoxLootTaken);
 
+    private void RefreshGloveBoxVisibleList()
+    {
+        int count = 0;
+        for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
+        {
+            if (!_gloveBoxLootTaken[i])
+                _gloveBoxVisibleCatalogIndices[count++] = i;
+        }
+
+        _gloveBoxVisibleCount = count;
+
+        if (_gloveBoxVisibleCount <= 0)
+        {
+            _gloveBoxHighlightedIndex = 0;
+            _gloveBoxDetailIndex = -1;
+            return;
+        }
+
+        _gloveBoxHighlightedIndex = Math.Clamp(_gloveBoxHighlightedIndex, 0, _gloveBoxVisibleCount - 1);
+        if (_gloveBoxDetailIndex >= _gloveBoxVisibleCount)
+            _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+    }
+
+    private int GetGloveBoxCatalogIndexFromVisibleIndex(int visibleIndex) =>
+        visibleIndex < 0 || visibleIndex >= _gloveBoxVisibleCount ? -1 : _gloveBoxVisibleCatalogIndices[visibleIndex];
+
     private void OpenGloveBoxMenu()
     {
         if (_phase != Phase.DeliveryTruck || !GloveCompartmentHasRemainingLoot())
@@ -2473,6 +2515,7 @@ public sealed class Game : IGame
         _gloveBoxFeedbackTimer = 0f;
         _gloveBoxCloseHovered = false;
         _gloveBoxPickupHovered = false;
+        RefreshGloveBoxVisibleList();
     }
 
     private void CloseGloveBoxMenu()
@@ -2529,6 +2572,10 @@ public sealed class Game : IGame
         _gloveBoxLootTaken[index] = true;
         _gloveBoxFeedback = $"Took {entry.Name}";
         _gloveBoxFeedbackTimer = 1.2f;
+
+        RefreshGloveBoxVisibleList();
+        if (_gloveBoxVisibleCount <= 0)
+            CloseGloveBoxMenu();
     }
 
     private void HandleCafeChoice(int index)
@@ -4645,6 +4692,8 @@ public sealed class Game : IGame
     // =====================================================================
     private void DrawGloveBoxMenu()
     {
+        RefreshGloveBoxVisibleList();
+
         int screenW = _screenWidth;
         int screenH = _screenHeight;
 
@@ -4692,11 +4741,11 @@ public sealed class Game : IGame
         int rowHeight = 44;
         const int iconSize = 28;
 
-        for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
+        for (int i = 0; i < _gloveBoxVisibleCount; i++)
         {
-            var entry = GloveCompartmentCatalog.Entries[i];
-            bool taken = _gloveBoxLootTaken[i];
-            bool canTake = CanTakeGloveBoxItem(i);
+            int catalogIndex = _gloveBoxVisibleCatalogIndices[i];
+            var entry = GloveCompartmentCatalog.Entries[catalogIndex];
+            bool canTake = CanTakeGloveBoxItem(catalogIndex);
 
             int rowY = contentTop + i * rowHeight;
             _gloveBoxItemRects[i] = new Rectangle(listX, rowY, listW, rowHeight - 4);
@@ -4709,23 +4758,13 @@ public sealed class Game : IGame
             else if (rowHovered || rowHighlighted)
                 Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
 
-            Color tint = taken
-                ? new Color(100, 98, 92, 255)
-                : canTake ? Color.WHITE : new Color(120, 118, 112, 255);
+            Color tint = canTake ? Color.WHITE : new Color(120, 118, 112, 255);
             int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
             Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
             DrawItemIcon(entry.IconItemName, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
 
-            Color nameColor = taken ? Palette.TextMuted : Palette.TextPrimary;
+            Color nameColor = Palette.TextPrimary;
             Raylib.DrawTextEx(font, entry.Name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
-
-            if (taken)
-            {
-                const string statusStr = "TAKEN";
-                int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 17, 0.6f).X;
-                Raylib.DrawTextEx(font, statusStr,
-                    new Vector2(listX + listW - 10 - statusW, rowY + 8), 17, 0.6f, Palette.TextMuted);
-            }
         }
 
         DrawGloveBoxDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
@@ -4756,17 +4795,23 @@ public sealed class Game : IGame
             return;
         }
 
-        var entry = GloveCompartmentCatalog.Entries[_gloveBoxDetailIndex];
-        bool taken = _gloveBoxLootTaken[_gloveBoxDetailIndex];
-        bool canTake = CanTakeGloveBoxItem(_gloveBoxDetailIndex);
+        int catalogIndex = GetGloveBoxCatalogIndexFromVisibleIndex(_gloveBoxDetailIndex);
+        if (catalogIndex < 0)
+        {
+            _gloveBoxDetailIndex = -1;
+            _gloveBoxPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        var entry = GloveCompartmentCatalog.Entries[catalogIndex];
+        bool canTake = CanTakeGloveBoxItem(catalogIndex);
 
         const int iconSize = 64;
         int iconX = x + (w - iconSize) / 2;
         int iconY = y + 4;
         Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
         Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
-        DrawItemIcon(entry.IconItemName, new Rectangle(iconX, iconY, iconSize, iconSize),
-            taken ? new Color(100, 98, 92, 255) : Color.WHITE);
+        DrawItemIcon(entry.IconItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
 
         string title = entry.Name.ToUpperInvariant();
         int titleW = (int)Raylib.MeasureTextEx(font, title, 22, 0.75f).X;
@@ -4775,15 +4820,6 @@ public sealed class Game : IGame
             22, 0.75f, Palette.TextPrimary);
 
         int textY = iconY + iconSize + 36;
-        if (taken)
-        {
-            const string statusStr = "Already taken";
-            int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 18, 0.6f).X;
-            Raylib.DrawTextEx(font, statusStr,
-                new Vector2(x + (w - statusW) / 2, textY),
-                18, 0.6f, Palette.TextMuted);
-            textY += 26;
-        }
         const int flavorSize = 16;
         float flavorSpacing = 0.55f;
         int flavorLineHeight = 22;
@@ -4798,7 +4834,7 @@ public sealed class Game : IGame
         Raylib.DrawTextEx(font, entry.EffectHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
         textY += 22;
 
-        if (!canTake && !taken)
+        if (!canTake)
         {
             Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f,
                 new Color(200, 130, 110, 255));
