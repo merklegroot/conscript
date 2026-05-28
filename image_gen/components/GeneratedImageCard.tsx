@@ -1,5 +1,9 @@
+import Link from "next/link";
 import type { GenerationRecord } from "@/lib/generation-types";
-import { generatedImageUrl } from "@/lib/load-generations";
+import {
+  generatedDetailHref,
+  generatedImageUrl,
+} from "@/lib/load-generations";
 
 type GeneratedImageCardProps = {
   record: GenerationRecord;
@@ -20,7 +24,10 @@ export default function GeneratedImageCard({
   const prompt = record.grok.request.prompt;
 
   return (
-    <article className="overflow-hidden rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+    <Link
+      href={generatedDetailHref(record.id)}
+      className="block overflow-hidden rounded-lg border border-zinc-200 bg-white transition hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600"
+    >
       <div className="aspect-[3/2] bg-zinc-100 dark:bg-zinc-900">
         {imageExists ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -48,15 +55,7 @@ export default function GeneratedImageCard({
           </p>
         </div>
 
-        <details className="text-xs text-zinc-600 dark:text-zinc-400">
-          <summary className="cursor-pointer font-medium text-zinc-800 dark:text-zinc-200">
-            Metadata
-          </summary>
-          <pre className="mt-2 max-h-48 overflow-auto rounded bg-zinc-50 p-2 font-mono text-[11px] dark:bg-zinc-900">
-            {JSON.stringify(record, null, 2)}
-          </pre>
-        </details>
       </div>
-    </article>
+    </Link>
   );
 }

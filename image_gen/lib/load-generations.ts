@@ -7,6 +7,10 @@ export function generatedImageUrl(imageFile: string): string {
   return `/api/generated/${encodeURIComponent(imageFile)}`;
 }
 
+export function generatedDetailHref(id: string): string {
+  return `/generated/${encodeURIComponent(id)}`;
+}
+
 async function fileExists(filePath: string): Promise<boolean> {
   try {
     await access(filePath);
@@ -70,4 +74,37 @@ export async function loadGenerations(): Promise<LoadedGeneration[]> {
   );
 
   return loaded;
+}
+
+export async function getGenerationById(
+  id: string,
+): Promise<LoadedGeneration | undefined> {
+  const metadataPath = path.join(GENERATED_IMAGES_DIR, `${id}.json`);
+
+  let raw: string;
+
+  try {
+    raw = await readFile(metadataPath, "utf8");
+  } catch {
+    const all = await loadGenerations();
+    return all.find((item) => item.record.id === id);
+  }
+
+  let record: GenerationRecord;
+
+  try {
+    record = JSON.parse(raw) as GenerationRecord;
+  } catch {
+    return undefined;
+  }
+
+  if (!record.id || !record.imageFile) {
+    return undefined;
+  }
+
+  const imageExists = await fileExists(
+    path.join(GENERATED_IMAGES_DIR, record.imageFile),
+  );
+
+  return { record, imageExists };
 }
