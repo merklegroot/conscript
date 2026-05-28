@@ -39,6 +39,7 @@ public sealed class Game : IGame
     private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
     private Texture2D _cafeBackground;
+    private Texture2D _deliveryTruckBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -134,6 +135,7 @@ public sealed class Game : IGame
         CommercialDistrict,  // Shops on the east side; forest access is south from here
         Store,     // Inside a late-night convenience store / kiosk
         Cafe,      // Workers' café off an industrial side street (Кафе)
+        DeliveryTruck, // Behind the wheel on Boris's warehouse run
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -145,6 +147,8 @@ public sealed class Game : IGame
     private Phase _phaseOutdoorBeforeTent = Phase.ForestEntry;
     private Phase _phaseBeforeStore = Phase.Town;
     private Phase _phaseBeforeCafe = Phase.IndustrialDistrict;
+    private bool _borisDeliveryJobActive;
+    private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
     private readonly string[] _timeSlots =
@@ -305,8 +309,8 @@ public sealed class Game : IGame
     private Rectangle _cafeOwnerPanelRect;
     private Rectangle _cafeOwnerCloseRect;
     private bool _cafeOwnerCloseHovered;
-    private readonly Rectangle[] _cafeOwnerOptionRowRects = new Rectangle[CafeOwnerDialog.OptionCount];
-    private readonly bool[] _cafeOwnerOptionHovered = new bool[CafeOwnerDialog.OptionCount];
+    private readonly Rectangle[] _cafeOwnerOptionRowRects = new Rectangle[CafeOwnerDialog.MainOptionCount];
+    private readonly bool[] _cafeOwnerOptionHovered = new bool[CafeOwnerDialog.MainOptionCount];
     private int _cafeOwnerHighlightedIndex;
     private int _cafeOwnerSelectedOption = -1;
     private const int TrashBagTentComfortBonus = 8;
@@ -396,8 +400,13 @@ public sealed class Game : IGame
 
     private const string CafeNarrative =
         "Steam and cheap tea mask the smell of cigarettes and diesel.\n" +
-        "The owner watches the room like he owns everyone in it.\n" +
+        "Boris watches the room like he owns everyone in it.\n" +
         "He might help you disappear — or sell you out for pocket change.";
+
+    private const string DeliveryTruckNarrative =
+        "You sit in the cab of an old ZIL with the engine ticking.\n" +
+        $"Boris wants this load at {CafeOwnerDialog.WarehouseName} — loading bay three, west yards.\n" +
+        "The key is warm in your hand. No one else is in the cab with you.";
 
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
@@ -589,6 +598,19 @@ public sealed class Game : IGame
                 _temperatureF = 28;
                 break;
 
+            case Phase.DeliveryTruck:
+                _choices = Array.Empty<string>();
+                _selectedIndex = 0;
+                ApplyEnvironmentOutside();
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = $"Delivery Truck — {CafeOwnerDialog.WarehouseName}";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 22;
+                break;
+
             case Phase.Tent:
                 _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, ChoiceWait };
                 ApplyEnvironmentTentInterior();
@@ -606,6 +628,7 @@ public sealed class Game : IGame
             Phase.CommercialDistrict => _commercialDistrictBackground,
             Phase.Store        => _storeBackground,
             Phase.Cafe         => _cafeBackground,
+            Phase.DeliveryTruck => _deliveryTruckBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -808,7 +831,7 @@ public sealed class Game : IGame
 
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
-        GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent;
+        GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -887,6 +910,7 @@ public sealed class Game : IGame
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
+        _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
@@ -938,6 +962,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _forestStreamBackground);
         UnloadTextureIfLoaded(ref _storeBackground);
         UnloadTextureIfLoaded(ref _cafeBackground);
+        UnloadTextureIfLoaded(ref _deliveryTruckBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
@@ -1060,28 +1085,20 @@ public sealed class Game : IGame
 
         if (_showCafeOwnerDialog)
         {
+            int cafeDialogOptions = CafeOwnerDialog.GetOptionCount(_cafeOwnerDialogStage);
             if (InputManager.IsVerticalNavUpPressed())
-            {
-                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex - 1 + CafeOwnerDialog.OptionCount)
-                    % CafeOwnerDialog.OptionCount;
-            }
+                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex - 1 + cafeDialogOptions) % cafeDialogOptions;
             if (InputManager.IsVerticalNavDownPressed())
-            {
-                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex + 1) % CafeOwnerDialog.OptionCount;
-            }
+                _cafeOwnerHighlightedIndex = (_cafeOwnerHighlightedIndex + 1) % cafeDialogOptions;
         }
 
         // Horizontal navigation for bottom action buttons
-        if (!BlocksActionBarNavigation())
+        if (!BlocksActionBarNavigation() && _choices.Length > 0)
         {
             if (InputManager.IsHorizontalNavRightPressed())
-            {
                 _selectedIndex = (_selectedIndex + 1) % _choices.Length;
-            }
             if (InputManager.IsHorizontalNavLeftPressed())
-            {
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
-            }
         }
 
         if (InputManager.IsConfirmPressed())
@@ -1395,8 +1412,9 @@ public sealed class Game : IGame
         // === Café owner dialog (modal) ===
         if (_showCafeOwnerDialog)
         {
+            int cafeDialogOptions = CafeOwnerDialog.GetOptionCount(_cafeOwnerDialogStage);
             _cafeOwnerCloseHovered = Raylib.CheckCollisionPointRec(mouse, _cafeOwnerCloseRect);
-            for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+            for (int i = 0; i < cafeDialogOptions; i++)
             {
                 _cafeOwnerOptionHovered[i] = Raylib.CheckCollisionPointRec(mouse, _cafeOwnerOptionRowRects[i]);
                 if (_cafeOwnerOptionHovered[i])
@@ -1405,7 +1423,7 @@ public sealed class Game : IGame
 
             if (leftClicked)
             {
-                for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+                for (int i = 0; i < cafeDialogOptions; i++)
                 {
                     if (_cafeOwnerOptionHovered[i])
                     {
@@ -1829,6 +1847,9 @@ public sealed class Game : IGame
 
             case Phase.Cafe:
                 HandleCafeChoice(index);
+                break;
+
+            case Phase.DeliveryTruck:
                 break;
 
             case Phase.Tent:
@@ -2352,7 +2373,8 @@ public sealed class Game : IGame
 
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showBuildDialog || _showForageDialog
-        || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm || _showStatsHelp;
+        || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm || _showStatsHelp
+        || _phase == Phase.DeliveryTruck;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog
@@ -2366,6 +2388,7 @@ public sealed class Game : IGame
         CloseAllOverlays();
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
+        _borisDeliveryJobActive = false;
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -2395,6 +2418,7 @@ public sealed class Game : IGame
         ClearEnvDeltas();
         ClearActionDeltas();
 
+        _borisDeliveryJobActive = false;
         _phaseBeforeCafe = Phase.IndustrialDistrict;
         EnterPhase(Phase.Cafe);
     }
@@ -2595,6 +2619,7 @@ public sealed class Game : IGame
             return;
 
         _showCafeOwnerDialog = true;
+        _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
         _cafeOwnerHighlightedIndex = 0;
         _cafeOwnerSelectedOption = -1;
         _cafeOwnerCloseHovered = false;
@@ -2606,16 +2631,59 @@ public sealed class Game : IGame
         _showCafeOwnerDialog = false;
         _cafeOwnerCloseHovered = false;
         _cafeOwnerSelectedOption = -1;
+        _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
         Array.Clear(_cafeOwnerOptionHovered);
     }
 
     private void SelectCafeOwnerOption(int optionIndex)
     {
-        if (!_showCafeOwnerDialog || optionIndex < 0 || optionIndex >= CafeOwnerDialog.OptionCount)
+        if (!_showCafeOwnerDialog)
             return;
+
+        int count = CafeOwnerDialog.GetOptionCount(_cafeOwnerDialogStage);
+        if (optionIndex < 0 || optionIndex >= count)
+            return;
+
+        if (_cafeOwnerDialogStage == CafeOwnerDialog.Stage.Main)
+        {
+            if (optionIndex == CafeOwnerDialog.WorkOptionIndex && !_borisDeliveryJobActive)
+            {
+                _cafeOwnerDialogStage = CafeOwnerDialog.Stage.DeliveryOffer;
+                _cafeOwnerSelectedOption = -1;
+                _cafeOwnerHighlightedIndex = 0;
+                return;
+            }
+
+            _cafeOwnerSelectedOption = optionIndex;
+            _cafeOwnerHighlightedIndex = optionIndex;
+            return;
+        }
 
         _cafeOwnerSelectedOption = optionIndex;
         _cafeOwnerHighlightedIndex = optionIndex;
+        if (optionIndex == 0)
+            AcceptBorisDeliveryJob();
+        else
+            DeclineBorisDeliveryJob();
+    }
+
+    private void AcceptBorisDeliveryJob()
+    {
+        CloseCafeOwnerDialog();
+        _borisDeliveryJobActive = true;
+        _actionMessage = "Boris slides keys across the counter. \"Get in the truck. " +
+                         CafeOwnerDialog.WarehouseName + ", bay three. Move.\"";
+        _actionMessageTimer = 2.8f;
+        AdvanceTime();
+        ApplyTravelEnergyCost(EnergyCostTravelShort);
+        EnterPhase(Phase.DeliveryTruck);
+    }
+
+    private void DeclineBorisDeliveryJob()
+    {
+        CloseCafeOwnerDialog();
+        _actionMessage = "Boris turns back to the samovar. \"Then don't waste my time.\"";
+        _actionMessageTimer = ActionMessageDuration;
     }
 
     private void TryPerformForage(int optionIndex)
@@ -3948,19 +4016,25 @@ public sealed class Game : IGame
 
         Raylib.DrawLine(contentX, panelY + 64, panelX + panelW - 22, panelY + 64, Palette.SubtleBorder);
 
-        string response = CafeOwnerDialog.GetResponseText(_cafeOwnerSelectedOption);
+        string response = CafeOwnerDialog.GetResponseText(
+            _cafeOwnerDialogStage, _cafeOwnerSelectedOption, _borisDeliveryJobActive);
         int responseY = panelY + 74;
         DrawWrappedDialogText(font, response, contentX, responseY, contentW, 16, 0.55f, Palette.TextSecondary);
 
-        Raylib.DrawTextEx(font, CafeOwnerDialog.PickPrompt,
+        string pickPrompt = _cafeOwnerDialogStage == CafeOwnerDialog.Stage.DeliveryOffer
+            ? CafeOwnerDialog.DeliveryPickPrompt
+            : CafeOwnerDialog.PickPrompt;
+        Raylib.DrawTextEx(font, pickPrompt,
             new Vector2(contentX, panelY + 148), 16, 0.55f, Palette.TextDim);
 
         int rowY = panelY + 172;
         int rowH = 44;
         int rowX = contentX;
         int rowW = contentW;
+        int optionCount = CafeOwnerDialog.GetOptionCount(_cafeOwnerDialogStage);
+        string[] playerLines = CafeOwnerDialog.GetPlayerLines(_cafeOwnerDialogStage);
 
-        for (int i = 0; i < CafeOwnerDialog.OptionCount; i++)
+        for (int i = 0; i < optionCount; i++)
         {
             _cafeOwnerOptionRowRects[i] = new Rectangle(rowX, rowY, rowW, rowH);
 
@@ -3973,7 +4047,7 @@ public sealed class Game : IGame
             Color border = chosen ? Palette.ButtonSelectedBorder : Palette.SubtleBorder;
             Raylib.DrawRectangleLinesEx(_cafeOwnerOptionRowRects[i], 1f, border);
 
-            Raylib.DrawTextEx(font, CafeOwnerDialog.PlayerLines[i],
+            Raylib.DrawTextEx(font, playerLines[i],
                 new Vector2(rowX + 12, rowY + 12), 17, 0.55f, Palette.TextPrimary);
 
             rowY += rowH + 6;
@@ -4297,6 +4371,7 @@ public sealed class Game : IGame
             case Phase.CommercialDistrict:
             case Phase.Store:
             case Phase.Cafe:
+            case Phase.DeliveryTruck:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -5216,6 +5291,7 @@ public sealed class Game : IGame
             Phase.Town                => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
             Phase.IndustrialDistrict  => (RegionMapGeo.IndustrialDistrictLon, RegionMapGeo.IndustrialDistrictLat),
             Phase.Cafe                => (RegionMapGeo.CafeLon, RegionMapGeo.CafeLat),
+            Phase.DeliveryTruck       => (RegionMapGeo.DeliveryTruckLon, RegionMapGeo.DeliveryTruckLat),
             Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
@@ -5232,6 +5308,7 @@ public sealed class Game : IGame
             Phase.Town               => TownNarrative,
             Phase.IndustrialDistrict => IndustrialDistrictNarrative,
             Phase.Cafe               => CafeNarrative,
+            Phase.DeliveryTruck      => DeliveryTruckNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,
@@ -5595,7 +5672,8 @@ public sealed class Game : IGame
         int barH = GameConstants.ActionBarHeight;
 
         int count = _choices.Length;
-        if (count == 0) count = 1;
+        if (count == 0)
+            return Array.Empty<Rectangle>();
 
         int gap = GameConstants.ActionButtonGap;
         int paddingX = 28;
@@ -5620,6 +5698,9 @@ public sealed class Game : IGame
     // =====================================================================
     private void DrawActionBar()
     {
+        if (_choices.Length == 0)
+            return;
+
         int barY = _screenHeight - GameConstants.ActionBarHeight;
         int barH = GameConstants.ActionBarHeight;
 

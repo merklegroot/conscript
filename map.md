@@ -7,9 +7,10 @@
                            |
  Industrial District --  Town --- Commercial District
         |                  |              |
-      Кафе        Convenience Store   Forest Entry
-                                            |
-                                     Forest Stream
-                                            |
-                                      Deep Forest
+      Кафе            Convenience Store   Forest Entry
+        |                  |              |
+   (Boris: truck)          |         Forest Stream
+        |                  |              |
+  Delivery Truck           |         Deep Forest
+  → Warehouse 14           |
 ```
