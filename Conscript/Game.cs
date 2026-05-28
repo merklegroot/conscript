@@ -6535,6 +6535,11 @@ public sealed class Game : IGame
         }
     }
 
+    private static (Color bg, Color border) GetNarrativeCardColors(bool hovered) =>
+        hovered
+            ? (Palette.NarrativeCardHoverBg, Palette.NarrativeCardHoverBorder)
+            : (Palette.NarrativeCardBg, Palette.NarrativeCardBorder);
+
     /// <summary>
     /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
     /// is computed from the actual measured text. Click the card to collapse or expand it.
@@ -6566,8 +6571,7 @@ public sealed class Game : IGame
         {
             _narrativeCardRect = new Rectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight);
 
-            Color bg = _narrativeCardHovered ? Palette.ButtonSelectedBg : Palette.CardBg;
-            Color border = _narrativeCardHovered ? Palette.ButtonSelectedBorder : Palette.CardBorder;
+            (Color bg, Color border) = GetNarrativeCardColors(_narrativeCardHovered);
             Raylib.DrawRectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, bg);
             Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, border);
             DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: true, _narrativeCardHovered);
@@ -6589,8 +6593,7 @@ public sealed class Game : IGame
 
         _narrativeCardRect = new Rectangle(cardX, cardY, expandedCardW, expandedCardH);
 
-        Color cardBg = _narrativeCardHovered ? Palette.ButtonSelectedBg : Palette.CardBg;
-        Color cardBorder = _narrativeCardHovered ? Palette.ButtonSelectedBorder : Palette.CardBorder;
+        (Color cardBg, Color cardBorder) = GetNarrativeCardColors(_narrativeCardHovered);
         Raylib.DrawRectangle(cardX, cardY, expandedCardW, expandedCardH, cardBg);
         Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, expandedCardH, cardBorder);
         DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: false, _narrativeCardHovered);
