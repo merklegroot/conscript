@@ -2682,8 +2682,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot inside the industrial-district café (Кафе).
-    /// Resets stats, money, and backpack for dialogue / interior testing.
+    /// Jump to a reproducible debug snapshot in Boris's delivery truck (glove box loot, drive to warehouse).
+    /// Resets stats, money, and backpack for delivery-run testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -2704,10 +2704,9 @@ public sealed class Game : IGame
         ClearEnvDeltas();
         ClearActionDeltas();
 
-        _borisDeliveryJobActive = false;
+        _borisDeliveryJobActive = true;
         ResetGloveCompartmentLoot();
-        _phaseBeforeCafe = Phase.IndustrialDistrict;
-        EnterPhase(Phase.Cafe);
+        EnterPhase(Phase.DeliveryTruck);
     }
 
     // --- Inventory & ground items ---
