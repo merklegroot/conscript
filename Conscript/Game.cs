@@ -49,6 +49,7 @@ public sealed class Game : IGame
 
     // --- Survival tuning (choices, energy, dropped items) ---
     private const string BuildTrashBagTent = "Trash Bag Tent";
+    private const string CraftMolotov = "Molotov";
     private const string ChoiceEnterTent = "ENTER TENT";
     private const string ChoiceExitTent = "EXIT TENT";
     private const string ChoiceDisassembleTent = "DISASSEMBLE TENT";
@@ -314,6 +315,9 @@ public sealed class Game : IGame
     private Rectangle _buildTentRowRect;
     private Rectangle _buildTentButtonRect;
     private bool _buildTentButtonHovered;
+    private Rectangle _buildMolotovRowRect;
+    private Rectangle _buildMolotovButtonRect;
+    private bool _buildMolotovButtonHovered;
     private string _buildFeedback = "";
     private float _buildFeedbackTimer;
     private const float BuildFeedbackDuration = 2.2f;
@@ -1418,9 +1422,13 @@ public sealed class Game : IGame
             _buildCloseHovered = Raylib.CheckCollisionPointRec(mouse, _buildCloseRect);
             bool canBuildTent = CanBuildTrashBagTent(out _);
             bool canDisassembleTent = CanDisassembleTrashBagTent(out _);
+            bool canCraftMolotov = CanCraftMolotov(out _);
             _buildTentButtonHovered =
                 (_hasTrashBagTent ? canDisassembleTent : canBuildTent) &&
                 Raylib.CheckCollisionPointRec(mouse, _buildTentButtonRect);
+            _buildMolotovButtonHovered =
+                canCraftMolotov &&
+                Raylib.CheckCollisionPointRec(mouse, _buildMolotovButtonRect);
 
             if (leftClicked && _buildTentButtonHovered)
             {
@@ -1431,12 +1439,25 @@ public sealed class Game : IGame
                 return;
             }
 
+            if (leftClicked && _buildMolotovButtonHovered)
+            {
+                TryCraftMolotov();
+                return;
+            }
+
             if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _buildTentRowRect))
             {
                 if (_hasTrashBagTent)
                     TryDisassembleTrashBagTent();
                 else if (canBuildTent)
                     TryBuildTrashBagTent();
+                return;
+            }
+
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _buildMolotovRowRect))
+            {
+                if (canCraftMolotov)
+                    TryCraftMolotov();
                 return;
             }
 
@@ -3415,6 +3436,61 @@ public sealed class Game : IGame
         return true;
     }
 
+    private void RemoveBackpackItemAtSlot(int slot)
+    {
+        if (slot < 0 || slot >= _backpack.Length)
+            return;
+
+        _backpack[slot] = null;
+        _backpackItemCharges[slot] = null;
+    }
+
+    private bool CanCraftMolotov(out string reason)
+    {
+        int vodkaSlot = FindBackpackSlotIndex(GameItems.Vodka);
+        if (vodkaSlot < 0)
+        {
+            reason = $"Need {GameItems.Vodka}.";
+            return false;
+        }
+
+        int ragSlot = FindBackpackSlotIndex(GameItems.Rag);
+        if (ragSlot < 0)
+        {
+            reason = $"Need {GameItems.Rag}.";
+            return false;
+        }
+
+        reason = "";
+        return true;
+    }
+
+    private void TryCraftMolotov()
+    {
+        if (!CanCraftMolotov(out string reason))
+        {
+            _buildFeedback = reason;
+            _buildFeedbackTimer = BuildFeedbackDuration;
+            return;
+        }
+
+        int vodkaSlot = FindBackpackSlotIndex(GameItems.Vodka);
+        int ragSlot = FindBackpackSlotIndex(GameItems.Rag);
+        if (vodkaSlot < 0 || ragSlot < 0)
+            return;
+
+        RemoveBackpackItemAtSlot(vodkaSlot);
+        if (ragSlot == vodkaSlot)
+            ragSlot = FindBackpackSlotIndex(GameItems.Rag);
+        RemoveBackpackItemAtSlot(ragSlot);
+
+        CompactBackpack();
+        TryAddToBackpack(GameItems.Molotov);
+
+        _buildFeedback = $"Crafted {CraftMolotov}.";
+        _buildFeedbackTimer = BuildFeedbackDuration;
+    }
+
     private bool CanBuildTrashBagTent(out string reason)
     {
         if (_hasTrashBagTent)
@@ -4095,7 +4171,8 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
 
         int panelW = 460;
-        int panelH = 320;
+        bool canCraftMolotov = CanCraftMolotov(out _);
+        int panelH = canCraftMolotov ? 390 : 320;
         int panelX = (screenW - panelW) / 2;
         int panelY = (screenH - panelH) / 2 - 10;
 
@@ -4232,6 +4309,43 @@ public sealed class Game : IGame
             Raylib.DrawTextEx(font, blockReason,
                 new Vector2(panelX + (panelW - hintW) / 2, panelY + panelH - 78),
                 hintSize, 0.5f, Palette.TextDim);
+        }
+
+        // Molotov craft row (only shown when craftable)
+        if (canCraftMolotov)
+        {
+            int molotovRowY = rowY + rowH + 12;
+            _buildMolotovRowRect = new Rectangle(rowX, molotovRowY, rowW, rowH);
+
+            Color mRowBg = _buildMolotovButtonHovered
+                ? Palette.ButtonSelectedBg
+                : new Color(16, 18, 22, 255);
+            Raylib.DrawRectangleRec(_buildMolotovRowRect, mRowBg);
+            Raylib.DrawRectangleLinesEx(_buildMolotovRowRect, 1f, Palette.SubtleBorder);
+
+            int iconY2 = molotovRowY + (rowH - iconSize) / 2;
+            int vodkaSlot = FindBackpackSlotIndex(GameItems.Vodka);
+            int ragSlot = FindBackpackSlotIndex(GameItems.Rag);
+            DrawItemIcon(GameItems.Vodka, new Rectangle(rowX + 10, iconY2, iconSize, iconSize), Color.WHITE, vodkaSlot);
+            DrawItemIcon(GameItems.Rag, new Rectangle(rowX + 10 + iconSize + 4, iconY2, iconSize, iconSize), Color.WHITE, ragSlot);
+
+            int textX2 = rowX + 10 + iconSize * 2 + 14;
+            Raylib.DrawTextEx(font, CraftMolotov,
+                new Vector2(textX2, molotovRowY + 10), 20, 0.65f, Palette.TextPrimary);
+            Raylib.DrawTextEx(font, $"Uses {GameItems.Vodka} + {GameItems.Rag}",
+                new Vector2(textX2, molotovRowY + 30), 14, 0.5f, Palette.TextDim);
+
+            int mBtnW = 72;
+            int mBtnH = 30;
+            int mBtnX = rowX + rowW - mBtnW - 10;
+            int btnY2 = molotovRowY + (rowH - mBtnH) / 2;
+            _buildMolotovButtonRect = new Rectangle(mBtnX, btnY2, mBtnW, mBtnH);
+            GameDialogUi.DrawDialogButton(_buildMolotovButtonRect, "CRAFT", _buildMolotovButtonHovered, font);
+        }
+        else
+        {
+            _buildMolotovRowRect = new Rectangle(0, 0, 0, 0);
+            _buildMolotovButtonRect = new Rectangle(0, 0, 0, 0);
         }
 
         int closeW = 120;

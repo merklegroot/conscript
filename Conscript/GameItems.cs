@@ -29,6 +29,7 @@ internal static class GameItems
     public const string Crowbar = "Crowbar";
     public const string Vodka = "Vodka";
     public const string Rag = "Rag";
+    public const string Molotov = "Molotov";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -39,6 +40,7 @@ internal static class GameItems
         [Crowbar]         = "items.crowbar.png",
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
+        [Molotov]         = "items.vodka.png",
         [BottledWater]    = "items.bottled-water.png",
         [EmptyBottle]     = "items.empty-bottle.png",
         [LoafOfBread]     = "items.loaf-of-bread.png",
