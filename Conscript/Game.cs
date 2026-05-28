@@ -41,6 +41,7 @@ public sealed class Game : IGame
     private Texture2D _cafeBackground;
     private Texture2D _deliveryTruckBackground;
     private Texture2D _warehouseBackground;
+    private Texture2D _warehouseAmbushBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -707,7 +708,7 @@ public sealed class Game : IGame
             Phase.Cafe         => _cafeBackground,
             Phase.DeliveryTruck => _deliveryTruckBackground,
             Phase.WarehouseTruck    => _warehouseBackground,
-            Phase.WarehouseAmbush   => _warehouseBackground,
+            Phase.WarehouseAmbush   => _warehouseAmbushBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -992,6 +993,7 @@ public sealed class Game : IGame
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
         _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
+        _warehouseAmbushBackground = LoadTextureOrFallback("warehouse-14-ambush.png", _warehouseBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
@@ -1045,6 +1047,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _cafeBackground);
         UnloadTextureIfLoaded(ref _deliveryTruckBackground);
         UnloadTextureIfLoaded(ref _warehouseBackground);
+        UnloadTextureIfLoaded(ref _warehouseAmbushBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);

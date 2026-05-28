@@ -110,6 +110,7 @@ Requires Pillow (`pip install Pillow` or `scripts/requirements.txt`).
 | Issue | Fix |
 |-------|-----|
 | Agent “forgot” to generate | Re-read this skill; **must** call `GenerateImage` |
+| `GenerateImage` tool unavailable / “not available for current selected model” | Switch the chat model to one that supports image generation. In this repo, **Composer 2.5 Fast** has been confirmed to work when “Auto” does not. After switching, retry `GenerateImage`, then proceed with install + rebuild steps. |
 | Image looks like wrong district | Regenerate; tighten prompt with narrative specifics |
 | Stale texture in game | `dotnet build` after PNG change |
 | Map markers wrong | Use **generate-maps**, not this skill |
