@@ -85,6 +85,7 @@ public sealed class Game : IGame
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
+    private const string ChoiceFight = "FIGHT";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
     private const string ChoiceOpenDoor = "Open the door";
@@ -677,7 +678,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAmbush:
-                _choices = Array.Empty<string>();
+                _choices = new[] { ChoiceFight, ChoiceWait };
                 _selectedIndex = 0;
                 ApplyEnvironmentOutside();
                 _day = 0;
@@ -2115,6 +2116,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAmbush:
+                HandleWarehouseAmbushChoice(index);
                 break;
 
             case Phase.Tent:
@@ -2570,6 +2572,28 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void HandleWarehouseAmbushChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceFight:
+                EnterDeath(
+                    "You swung at the nearest bratdva.",
+                    "Two against one in the rain. Boris sold you cheap.");
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private bool GloveCompartmentHasRemainingLoot()
     {
         for (int i = 0; i < _gloveBoxLootTaken.Length; i++)
@@ -2815,7 +2839,7 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBuildDialog
         || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm
-        || _showStatsHelp || _phase == Phase.WarehouseAmbush;
+        || _showStatsHelp;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showRegionMap

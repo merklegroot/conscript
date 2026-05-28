@@ -10,6 +10,18 @@ export default function TopNav() {
         >
           Home
         </Link>
+        <Link
+          href="/rooms"
+          className="text-sm font-medium text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
+        >
+          Rooms
+        </Link>
+        <Link
+          href="/generated"
+          className="text-sm font-medium text-zinc-900 hover:text-zinc-600 dark:text-zinc-100 dark:hover:text-zinc-300"
+        >
+          Generated
+        </Link>
       </nav>
     </header>
   );
