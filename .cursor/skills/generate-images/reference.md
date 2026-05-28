@@ -1,5 +1,15 @@
 # Generate Images — reference
 
+## Grok vs GenerateImage
+
+| | Grok | GenerateImage |
+|---|------|----------------|
+| Skill | [generate-grok-images](../generate-grok-images/SKILL.md) | [generate-images](../generate-images/SKILL.md) |
+| Command | `./scripts/generate_grok_image.sh -p "..."` | Cursor `GenerateImage` tool |
+| Draft output | `generated_images/<id>.*` + JSON metadata | Cursor assets path |
+| Game install | `install_scene_image.py` (same) | `install_scene_image.py` (same) |
+| Prompt log **tool** | `Grok` | `GenerateImage` |
+
 ## Scene background inventory
 
 | PNG | Phase / use | Narrative constant (`Game.cs`) |

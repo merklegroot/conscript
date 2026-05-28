@@ -1,18 +1,29 @@
 ---
 name: generate-images
 description: >-
-  Generate Conscript scene background PNGs with the GenerateImage tool, match
-  the post-Soviet cinematic style, crop to 1536×1024, and install under
-  Conscript/img/. Use when the user asks to create, regenerate, or replace game
-  background art, district images, phase photos, or similar embedded textures —
-  not for GeoPandas maps (use generate-maps) or tiny item icons.
+  Generate Conscript scene background PNGs with the Cursor GenerateImage tool,
+  match the post-Soviet cinematic style, crop to 1536×1024, and install under
+  Conscript/img/. Use when the user asks to create or replace game background art
+  with GenerateImage (not Grok/xAI). For Grok, grok imagine, xAI, image_gen, or
+  generate_grok_image.sh, use generate-grok-images instead. Not for GeoPandas maps
+  (generate-maps) or tiny item icons.
 ---
 
 # Generate Images (GenerateImage → game asset)
 
+## Choosing a generator
+
+| User wants | Skill |
+|------------|--------|
+| **Grok**, **xAI**, `generate_grok_image.sh`, `image_gen`, automation | [generate-grok-images](../generate-grok-images/SKILL.md) |
+| **GenerateImage** (Cursor), no Grok | **This skill** |
+| Region map | [generate-maps](../generate-maps/SKILL.md) |
+
+If the user does not specify, ask once or default to **Grok** when they mention scripting, batch runs, or the existing `generated_images/` pipeline.
+
 ## Critical rule
 
-**You have the `GenerateImage` tool. Use it.**
+**You have the `GenerateImage` tool. Use it** (only when this skill applies — not for Grok requests).
 
 When the user asks for a new or updated scene background, do **not**:
 
@@ -27,10 +38,11 @@ When the user asks for a new or updated scene background, do **not**:
 
 | Request | Skill |
 |---------|--------|
-| Town / industrial / commercial / forest scene photo | **This skill** |
+| Town / industrial / commercial / forest scene (via **GenerateImage**) | **This skill** |
+| Same scenes via **Grok** / xAI / shell script | [generate-grok-images](../generate-grok-images/SKILL.md) |
 | Sidebar `region-map.png` | [generate-maps](../generate-maps/SKILL.md) |
 | Steam caps, app icons | `scripts/generate_steam_assets.py` |
-| Small item icons (`items/*.png`) | GenerateImage if asked; often need transparent PNG — see [reference.md](reference.md) |
+| Small item icons (`items/*.png`) | GenerateImage if asked; Grok if user prefers — see [reference.md](reference.md) |
 
 ## Workflow checklist
 
@@ -120,4 +132,5 @@ Requires Pillow (`pip install Pillow` or `scripts/requirements.txt`).
 ## Additional resources
 
 - Asset table, narratives, item-icon notes: [reference.md](reference.md)
+- Grok / xAI / `generate_grok_image.sh`: [generate-grok-images](../generate-grok-images/SKILL.md)
 - Map pipeline: [generate-maps](../generate-maps/SKILL.md)

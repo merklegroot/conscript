@@ -6,8 +6,8 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 
 - **asset**: destination file under `Conscript/img/`
 - **date**: ISO-8601 local date
-- **model**: the Cursor chat model used for the `GenerateImage` call (best-effort)
-- **tool**: `GenerateImage`
+- **model**: generator model (e.g. Composer 2.5 Fast for GenerateImage; `grok-imagine-image-quality` for Grok)
+- **tool**: `GenerateImage` or `Grok` (`scripts/generate_grok_image.sh` / `image_gen`)
 - **prompt**: exact `description` string passed to the tool
 - **notes**: install script / wiring details
 
