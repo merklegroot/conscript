@@ -5678,6 +5678,22 @@ public sealed class Game : IGame
         Raylib.DrawLineEx(new Vector2(cx + size, cy), new Vector2(cx - size * 0.35f, cy + size), thickness, color);
     }
 
+    private static void DrawChevronUp(int cx, int cy, Color color)
+    {
+        const float size = 5f;
+        const float thickness = 2f;
+        Raylib.DrawLineEx(new Vector2(cx - size, cy + size * 0.35f), new Vector2(cx, cy - size), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy - size), new Vector2(cx + size, cy + size * 0.35f), thickness, color);
+    }
+
+    private static void DrawChevronDown(int cx, int cy, Color color)
+    {
+        const float size = 5f;
+        const float thickness = 2f;
+        Raylib.DrawLineEx(new Vector2(cx - size, cy - size * 0.35f), new Vector2(cx, cy + size), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy + size), new Vector2(cx + size, cy - size * 0.35f), thickness, color);
+    }
+
     // Simple text-only row:  Label          Value
     private void DrawTextStatLine(ref int y, int x, string label, string value)
     {
@@ -6496,6 +6512,20 @@ public sealed class Game : IGame
     private const int NarrativeHorizontalPadding = 18;
     private const int NarrativeVerticalPadding = 16;
     private const int NarrativeCollapsedTabSize = 36;
+    private const int NarrativeCaretInsetX = 12;
+    private const int NarrativeCaretInsetY = 11;
+
+    private static void DrawNarrativeCardCaret(int cardX, int cardY, int cardW, bool collapsed, bool hovered)
+    {
+        int cx = cardX + cardW - NarrativeCaretInsetX;
+        int cy = cardY + NarrativeCaretInsetY;
+        Color color = hovered ? Palette.TextPrimary : Palette.TextMuted;
+
+        if (collapsed)
+            DrawChevronDown(cx, cy, color);
+        else
+            DrawChevronUp(cx, cy, color);
+    }
 
     /// <summary>
     /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
@@ -6533,19 +6563,7 @@ public sealed class Game : IGame
             Color border = _narrativeCardHovered ? Palette.ButtonSelectedBorder : Palette.CardBorder;
             Raylib.DrawRectangle(tabX, cardY, NarrativeCollapsedTabSize, NarrativeCollapsedTabSize, bg);
             Raylib.DrawRectangleLines(tabX, cardY, NarrativeCollapsedTabSize, NarrativeCollapsedTabSize, border);
-
-            const string collapsedLabel = "···";
-            float labelSize = 22f;
-            Vector2 labelSizeVec = Raylib.MeasureTextEx(font, collapsedLabel, labelSize, 0.5f);
-            Raylib.DrawTextEx(
-                font,
-                collapsedLabel,
-                new Vector2(
-                    tabX + (NarrativeCollapsedTabSize - labelSizeVec.X) / 2f,
-                    cardY + (NarrativeCollapsedTabSize - labelSizeVec.Y) / 2f - 1f),
-                labelSize,
-                0.5f,
-                Palette.TextMuted);
+            DrawNarrativeCardCaret(tabX, cardY, NarrativeCollapsedTabSize, collapsed: true, _narrativeCardHovered);
             return;
         }
 
@@ -6555,6 +6573,7 @@ public sealed class Game : IGame
         Color cardBorder = _narrativeCardHovered ? Palette.ButtonSelectedBorder : Palette.CardBorder;
         Raylib.DrawRectangle(cardX, cardY, expandedCardW, expandedCardH, cardBg);
         Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, expandedCardH, cardBorder);
+        DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: false, _narrativeCardHovered);
 
         int textLeft = cardX + NarrativeHorizontalPadding;
         int textTop = cardY + NarrativeVerticalPadding;
