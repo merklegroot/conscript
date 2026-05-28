@@ -367,11 +367,140 @@ def render_rag(out_path: str) -> None:
     bg.save(out_path, "PNG")
 
 
+def render_molotov_unlit(out_path: str) -> None:
+    seed = 4019
+    bg = _textured_bg(seed)
+
+    # Bottle mask (reuse vodka proportions)
+    mask = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(mask)
+    bx0, by0 = int(W * 0.43), int(H * 0.17)
+    bx1, by1 = int(W * 0.57), int(H * 0.84)
+    d.rounded_rectangle((bx0, by0 + 160, bx1, by1), radius=58, fill=255)  # body
+    nx0, nx1 = int(W * 0.475), int(W * 0.525)
+    d.rounded_rectangle((nx0, by0 + 70, nx1, by0 + 200), radius=26, fill=255)  # neck
+    # NOTE: no cap for molotov; rag is stuffed in the neck.
+    mask = mask.filter(ImageFilter.GaussianBlur(0.8))
+
+    shadow = _drop_shadow(mask, dx=18, dy=26, blur=26, alpha=200)
+    bg = Image.composite(bg, Image.new("RGB", (W, H), (0, 0, 0)), shadow)
+
+    # Glass + liquid base (like vodka, but a touch dirtier)
+    glass = Image.new("RGB", (W, H), (162, 168, 176))
+    grad = Image.new("L", (W, H), 0)
+    gp = grad.load()
+    for y in range(H):
+        t = _clamp((y - by0) / (by1 - by0))
+        v = int(_lerp(240, 160, t))
+        for x in range(W):
+            gp[x, y] = v
+    grad = grad.filter(ImageFilter.GaussianBlur(18))
+    glass = Image.composite(Image.new("RGB", (W, H), (186, 192, 200)), glass, grad)
+
+    liquid = Image.new("RGB", (W, H), (186, 176, 160))
+    liquid_mask = Image.new("L", (W, H), 0)
+    lm = ImageDraw.Draw(liquid_mask)
+    fill_y = int(H * 0.73)
+    lm.rounded_rectangle((bx0 + 18, by0 + 210, bx1 - 18, fill_y), radius=44, fill=220)
+    liquid_mask = ImageChops.multiply(liquid_mask, mask).filter(ImageFilter.GaussianBlur(6))
+    bottle = Image.composite(liquid, glass, liquid_mask)
+
+    # label (torn / muted)
+    label = Image.new("RGB", (W, H), (34, 48, 70))
+    label_mask = Image.new("L", (W, H), 0)
+    ld = ImageDraw.Draw(label_mask)
+    ly0, ly1 = int(H * 0.43), int(H * 0.56)
+    ld.rounded_rectangle((bx0 + 10, ly0, bx1 - 10, ly1), radius=28, fill=175)
+    # tear notch
+    ld.polygon([(bx1 - 30, ly0 + 18), (bx1 + 10, ly0 + 44), (bx1 - 30, ly0 + 74)], fill=0)
+    label_mask = ImageChops.multiply(label_mask, mask).filter(ImageFilter.GaussianBlur(2))
+    bottle = Image.composite(label, bottle, label_mask)
+
+    # dark bottle opening (subtle)
+    opening = Image.new("RGB", (W, H), (26, 26, 28))
+    opening_mask = Image.new("L", (W, H), 0)
+    od = ImageDraw.Draw(opening_mask)
+    od.ellipse((nx0 - 10, by0 + 68, nx1 + 10, by0 + 98), fill=190)
+    opening_mask = opening_mask.filter(ImageFilter.GaussianBlur(3))
+    bottle = Image.composite(opening, bottle, opening_mask)
+
+    # grime + scratches
+    n = _noise_layer(seed + 7, amount=24)
+    bottle = ImageChops.subtract(bottle, Image.merge("RGB", (n, n, n)))
+
+    # specular highlights
+    spec = Image.new("RGB", (W, H), (150, 160, 170))
+    spec_mask = Image.new("L", (W, H), 0)
+    sd = ImageDraw.Draw(spec_mask)
+    sd.rounded_rectangle((bx0 + 26, by0 + 190, bx0 + 60, by1 - 40), radius=20, fill=120)
+    sd.rounded_rectangle((bx1 - 64, by0 + 240, bx1 - 38, by1 - 60), radius=20, fill=70)
+    spec_mask = ImageChops.multiply(spec_mask, mask).filter(ImageFilter.GaussianBlur(10))
+    spec_layer = _paste_with_mask(Image.new("RGB", (W, H), (0, 0, 0)), spec, spec_mask)
+    bottle = _screen_blend(bottle, spec_layer, 0.65)
+
+    # Rag stuffed in neck (key distinguishing feature)
+    rag_mask = Image.new("L", (W, H), 0)
+    rd = ImageDraw.Draw(rag_mask)
+    cx = (nx0 + nx1) // 2
+    rag_top = by0 - 10
+    rag_base = by0 + 110
+    # cloth emerging from bottle opening, with jagged/frayed top
+    rd.polygon(
+        [
+            (cx - 55, rag_base),
+            (cx + 55, rag_base),
+            (cx + 70, rag_base - 42),
+            (cx + 34, rag_top + 40),
+            (cx + 10, rag_top + 18),
+            (cx - 8, rag_top + 42),
+            (cx - 26, rag_top + 20),
+            (cx - 62, rag_top + 54),
+            (cx - 76, rag_base - 34),
+        ],
+        fill=230,
+    )
+    # fray spikes
+    for i in range(10):
+        x = cx - 58 + i * 12
+        rd.polygon([(x, rag_top + 38), (x + 6, rag_top + 6), (x + 12, rag_top + 38)], fill=120)
+    rag_mask = rag_mask.filter(ImageFilter.GaussianBlur(2.2))
+
+    rag = Image.new("RGB", (W, H), (170, 162, 150))
+    rn = _noise_layer(seed + 21, amount=72)
+    rag = ImageChops.add(rag, Image.merge("RGB", (rn, rn, rn)))
+    rag = ImageEnhance.Color(rag).enhance(0.55)
+    rag = ImageEnhance.Contrast(rag).enhance(1.14)
+    # soot at tip (unlit, but char-stained)
+    soot = Image.new("L", (W, H), 0)
+    sdd = ImageDraw.Draw(soot)
+    sdd.ellipse((cx - 90, rag_top - 10, cx + 90, rag_top + 90), fill=95)
+    soot = soot.filter(ImageFilter.GaussianBlur(26))
+    soot = ImageChops.multiply(soot, rag_mask)
+    rag = ImageChops.subtract(rag, Image.merge("RGB", (soot, soot, soot)))
+
+    # slight rim shadow where rag enters bottle
+    entry_shadow = Image.new("L", (W, H), 0)
+    es = ImageDraw.Draw(entry_shadow)
+    es.ellipse((cx - 46, by0 + 52, cx + 46, by0 + 92), fill=70)
+    entry_shadow = entry_shadow.filter(ImageFilter.GaussianBlur(10))
+    bottle = ImageChops.subtract(bottle, Image.merge("RGB", (entry_shadow, entry_shadow, entry_shadow)))
+
+    bg = _paste_with_mask(bg, bottle, mask)
+
+    rag_shadow = _drop_shadow(rag_mask, dx=8, dy=12, blur=14, alpha=160).point(lambda p: int(p * 0.45))
+    bg = ImageChops.subtract(bg, Image.merge("RGB", (rag_shadow, rag_shadow, rag_shadow)))
+    bg = _paste_with_mask(bg, rag, rag_mask)
+    bg = ImageEnhance.Contrast(bg).enhance(1.05)
+    bg = ImageEnhance.Sharpness(bg).enhance(1.22)
+    bg.save(out_path, "PNG")
+
+
 @dataclass(frozen=True)
 class Output:
     crowbar_path: str
     vodka_path: str
     rag_path: str
+    molotov_path: str
 
 
 def main() -> None:
@@ -379,13 +508,16 @@ def main() -> None:
         crowbar_path="Conscript/img/items/crowbar.png",
         vodka_path="Conscript/img/items/vodka.png",
         rag_path="Conscript/img/items/rag.png",
+        molotov_path="Conscript/img/items/molotov.png",
     )
     render_crowbar(out.crowbar_path)
     render_vodka(out.vodka_path)
     render_rag(out.rag_path)
+    render_molotov_unlit(out.molotov_path)
     print(f"Wrote {out.crowbar_path}")
     print(f"Wrote {out.vodka_path}")
     print(f"Wrote {out.rag_path}")
+    print(f"Wrote {out.molotov_path}")
 
 
 if __name__ == "__main__":
