@@ -42,7 +42,7 @@ internal static class GameItems
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
         [Molotov]         = "items.molotov.png",
-        [LitMolotov]      = "items.molotov.png",
+        [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
         [EmptyBottle]     = "items.empty-bottle.png",
         [LoafOfBread]     = "items.loaf-of-bread.png",
