@@ -16,6 +16,9 @@ internal static class GamePhase
         phase is Game.Phase.Outside or Game.Phase.ForestEntry or Game.Phase.Forest or Game.Phase.ForestStream
         || IsTownDistrict(phase);
 
+    public static bool IsInTruckCab(Game.Phase phase) =>
+        phase is Game.Phase.DeliveryTruck or Game.Phase.WarehouseTruck;
+
     public static bool ShowsSceneNarrative(Game.Phase phase) =>
         phase is Game.Phase.Opening or Game.Phase.Outside or Game.Phase.Town
             or Game.Phase.IndustrialDistrict or Game.Phase.CommercialDistrict or Game.Phase.Store

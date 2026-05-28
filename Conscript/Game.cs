@@ -85,6 +85,7 @@ public sealed class Game : IGame
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
+    private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
     private const string ChoiceFight = "FIGHT";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
@@ -684,7 +685,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAmbush:
-                _choices = new[] { ChoiceFight, ChoiceWait };
+                _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
                 _selectedIndex = 0;
                 ApplyEnvironmentOutside();
                 _day = 0;
@@ -1768,14 +1769,14 @@ public sealed class Game : IGame
                 _trashBagTentHovered = false;
             }
 
-            if (_phase == Phase.DeliveryTruck)
+            if (GamePhase.IsInTruckCab(_phase))
             {
                 if (!GloveCompartmentHasRemainingLoot())
                     _gloveCompartmentClickRect = default;
                 else
                 {
                     GetCinematicArtBounds(out int ax, out int ay, out int aw, out int ah);
-                    _gloveCompartmentClickRect = ComputeDeliveryTruckGloveBoxClickRect(ax, ay, aw, ah);
+                    _gloveCompartmentClickRect = ComputeTruckGloveBoxClickRect(_phase, ax, ay, aw, ah);
                 }
 
                 if (_gloveCompartmentClickRect.Width > 0)
@@ -2600,6 +2601,14 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceGetBackInTruck:
+                _actionMessage = "You slide back into the cab and pull the door shut. The bratdvas haven't moved yet.";
+                _actionMessageTimer = 2.1f;
+                AdvanceTime();
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.WarehouseTruck);
+                return;
+
             case ChoiceFight:
                 EnterDeath(
                     "You swung at the nearest bratdva.",
@@ -2656,7 +2665,7 @@ public sealed class Game : IGame
 
     private void OpenGloveBoxMenu()
     {
-        if (_phase != Phase.DeliveryTruck || !GloveCompartmentHasRemainingLoot())
+        if (!GamePhase.IsInTruckCab(_phase) || !GloveCompartmentHasRemainingLoot())
             return;
 
         _showGloveBoxMenu = true;
@@ -6301,7 +6310,7 @@ public sealed class Game : IGame
         if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
 
-        if (_phase == Phase.DeliveryTruck)
+        if (GamePhase.IsInTruckCab(_phase))
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
 
         // Light atmospheric snow (outdoor scenes only)
@@ -6423,14 +6432,24 @@ public sealed class Game : IGame
         DrawTopRightButtons();
     }
 
-    private static Rectangle ComputeDeliveryTruckGloveBoxClickRect(int artX, int artY, int artW, int artH)
+    private static Rectangle ComputeTruckGloveBoxClickRect(Phase phase, int artX, int artY, int artW, int artH)
     {
-        // Driver's POV — glove compartment latch on the right side of the dashboard
-        int x = artX + (int)(artW * 0.58f);
-        int y = artY + (int)(artH * 0.50f);
-        int w = (int)(artW * 0.24f);
-        int h = (int)(artH * 0.20f);
-        return new Rectangle(x, y, w, h);
+        if (phase == Phase.WarehouseTruck)
+        {
+            // Parked at the loading bay — cab interior frames the bottom; glove box lower right
+            int x = artX + (int)(artW * 0.68f);
+            int y = artY + (int)(artH * 0.74f);
+            int w = (int)(artW * 0.26f);
+            int h = (int)(artH * 0.18f);
+            return new Rectangle(x, y, w, h);
+        }
+
+        // En route — glove compartment latch on the right side of the dashboard
+        int dashX = artX + (int)(artW * 0.58f);
+        int dashY = artY + (int)(artH * 0.50f);
+        int dashW = (int)(artW * 0.24f);
+        int dashH = (int)(artH * 0.20f);
+        return new Rectangle(dashX, dashY, dashW, dashH);
     }
 
     private void DrawDeliveryTruckGloveCompartmentHotspot(int artX, int artY, int artW, int artH)
