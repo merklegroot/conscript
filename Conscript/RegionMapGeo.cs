@@ -21,6 +21,8 @@ internal static class RegionMapGeo
     public const double CafeLat = 51.835;
     public const double DeliveryTruckLon = 107.495;
     public const double DeliveryTruckLat = 51.838;
+    public const double WarehouseLon = 107.48;
+    public const double WarehouseLat = 51.832;
     public const double CommercialDistrictLon = 107.58;
     public const double CommercialDistrictLat = 51.84;
     public const double ForestEntryLon = 107.48;

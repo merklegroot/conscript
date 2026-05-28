@@ -27,6 +27,7 @@ internal static class SurvivalEnvironment
         Game.Phase.Store => 8,
         Game.Phase.Cafe => 10,
         Game.Phase.DeliveryTruck => 6,
+        Game.Phase.Warehouse => 8,
         Game.Phase.ForestEntry => 42,
         Game.Phase.Forest => 78,
         Game.Phase.ForestStream => 68,

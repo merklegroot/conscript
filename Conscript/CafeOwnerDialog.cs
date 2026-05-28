@@ -73,7 +73,7 @@ internal static class CafeOwnerDialog
 
         if (selectedOption == WorkOptionIndex && deliveryJobActive)
         {
-            return "\"You're already on the delivery. Get in the truck and go to " + WarehouseName + ".\"";
+            return "\"You're already on the delivery. Drive to " + WarehouseName + " — bay three. Don't keep me waiting.\"";
         }
 
         return selectedOption >= 0 && selectedOption < MainOptionCount

@@ -40,6 +40,7 @@ public sealed class Game : IGame
     private Texture2D _storeBackground;
     private Texture2D _cafeBackground;
     private Texture2D _deliveryTruckBackground;
+    private Texture2D _warehouseBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -79,6 +80,7 @@ public sealed class Game : IGame
     private const string ChoiceCafe = "КАФЕ";
     private const string ChoiceTalkToOwner = "TALK TO THE OWNER";
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
+    private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
     private const string ChoiceOpenDoor = "Open the door";
@@ -136,6 +138,7 @@ public sealed class Game : IGame
         Store,     // Inside a late-night convenience store / kiosk
         Cafe,      // Workers' café off an industrial side street (Кафе)
         DeliveryTruck, // Behind the wheel on Boris's warehouse run
+        Warehouse,    // Warehouse 14 loading bay — delivery drop-off
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -406,7 +409,12 @@ public sealed class Game : IGame
     private const string DeliveryTruckNarrative =
         "You sit in the cab of an old ZIL with the engine ticking.\n" +
         $"Boris wants this load at {CafeOwnerDialog.WarehouseName} — loading bay three, west yards.\n" +
-        "The key is warm in your hand. No one else is in the cab with you.";
+        "The key is warm in your hand. The warehouse is waiting.";
+
+    private const string WarehouseNarrative =
+        "The truck idles at loading bay three behind a corrugated hangar.\n" +
+        "Floodlights cut through the rain. The roll-up door is half open — someone is expected.\n" +
+        "Boris said fifty thousand when the cargo is inside. No one is watching the street.";
 
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
@@ -599,16 +607,28 @@ public sealed class Game : IGame
                 break;
 
             case Phase.DeliveryTruck:
+                _choices = new[] { ChoiceDriveToWarehouse, ChoiceWait };
+                ApplyEnvironmentOutside();
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Delivery Truck";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 22;
+                break;
+
+            case Phase.Warehouse:
                 _choices = Array.Empty<string>();
                 _selectedIndex = 0;
                 ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
-                _location = $"Delivery Truck — {CafeOwnerDialog.WarehouseName}";
+                _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _status = "On the Run";
                 _season = "Early Autumn";
-                _temperatureF = 22;
+                _temperatureF = 21;
                 break;
 
             case Phase.Tent:
@@ -629,6 +649,7 @@ public sealed class Game : IGame
             Phase.Store        => _storeBackground,
             Phase.Cafe         => _cafeBackground,
             Phase.DeliveryTruck => _deliveryTruckBackground,
+            Phase.Warehouse    => _warehouseBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -831,7 +852,7 @@ public sealed class Game : IGame
 
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
-        GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck;
+        GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck || _phase == Phase.Warehouse;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -911,6 +932,7 @@ public sealed class Game : IGame
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
         _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
+        _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
@@ -963,6 +985,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _storeBackground);
         UnloadTextureIfLoaded(ref _cafeBackground);
         UnloadTextureIfLoaded(ref _deliveryTruckBackground);
+        UnloadTextureIfLoaded(ref _warehouseBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
@@ -1850,6 +1873,10 @@ public sealed class Game : IGame
                 break;
 
             case Phase.DeliveryTruck:
+                HandleDeliveryTruckChoice(index);
+                break;
+
+            case Phase.Warehouse:
                 break;
 
             case Phase.Tent:
@@ -2256,6 +2283,31 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void HandleDeliveryTruckChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceDriveToWarehouse:
+                _actionMessage = "You pull out onto the industrial roads, headlights cutting the rain toward the west yards.";
+                _actionMessageTimer = 2.8f;
+                AdvanceTime();
+                ApplyTravelEnergyCost();
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.Warehouse);
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private void HandleCafeChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -2311,6 +2363,14 @@ public sealed class Game : IGame
                 break;
             case Phase.Cafe:
                 _actionMessage = "You keep your head down. The owner hasn't stopped watching you.";
+                break;
+            case Phase.DeliveryTruck:
+                _actionMessage = "The engine rumbles under you. The yards are a few minutes away.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.Warehouse:
+                _actionMessage = "You sit in the cab and watch the bay through the windshield.";
+                ApplyEnvironmentOnAction();
                 break;
             case Phase.ForestEntry:
                 _actionMessage = "You hold still among the young pines. The city is still too close.";
@@ -2374,7 +2434,7 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showBuildDialog || _showForageDialog
         || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm || _showStatsHelp
-        || _phase == Phase.DeliveryTruck;
+        || _phase == Phase.Warehouse;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog
@@ -4372,6 +4432,7 @@ public sealed class Game : IGame
             case Phase.Store:
             case Phase.Cafe:
             case Phase.DeliveryTruck:
+            case Phase.Warehouse:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -5292,6 +5353,7 @@ public sealed class Game : IGame
             Phase.IndustrialDistrict  => (RegionMapGeo.IndustrialDistrictLon, RegionMapGeo.IndustrialDistrictLat),
             Phase.Cafe                => (RegionMapGeo.CafeLon, RegionMapGeo.CafeLat),
             Phase.DeliveryTruck       => (RegionMapGeo.DeliveryTruckLon, RegionMapGeo.DeliveryTruckLat),
+            Phase.Warehouse           => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
@@ -5309,6 +5371,7 @@ public sealed class Game : IGame
             Phase.IndustrialDistrict => IndustrialDistrictNarrative,
             Phase.Cafe               => CafeNarrative,
             Phase.DeliveryTruck      => DeliveryTruckNarrative,
+            Phase.Warehouse          => WarehouseNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,

@@ -9,8 +9,7 @@
         |                  |              |
       Кафе            Convenience Store   Forest Entry
         |                  |              |
-   (Boris: truck)          |         Forest Stream
+   Delivery Truck          |         Forest Stream
         |                  |              |
-  Delivery Truck           |         Deep Forest
-  → Warehouse 14           |
+  Warehouse 14 (Bay 3)     |         Deep Forest
 ```
