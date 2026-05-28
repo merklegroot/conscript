@@ -6571,6 +6571,19 @@ public sealed class Game : IGame
             Raylib.DrawRectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, bg);
             Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, border);
             DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: true, _narrativeCardHovered);
+
+            const string collapsedLabel = "…";
+            float collapsedLabelSize = 22f;
+            Vector2 collapsedLabelSizeVec = Raylib.MeasureTextEx(font, collapsedLabel, collapsedLabelSize, 0.5f);
+            Raylib.DrawTextEx(
+                font,
+                collapsedLabel,
+                new Vector2(
+                    cardX + NarrativeHorizontalPadding,
+                    cardY + (NarrativeCollapsedHeight - collapsedLabelSizeVec.Y) / 2f),
+                collapsedLabelSize,
+                0.5f,
+                Palette.TextMuted);
             return;
         }
 
