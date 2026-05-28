@@ -25,12 +25,14 @@ internal static class GameItems
     public const int DuctTapeMaxUses = 3;
 
     public const string LoafOfBread = "Loaf of Bread";
+    public const string BurnerPhone = "Burner Phone";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Knife"]         = "items.knife.png",
         ["Lighter"]       = "items.lighter.png",
         ["Phone"]         = "items.phone.png",
+        [BurnerPhone]     = "items.phone.png",
         [BottledWater]    = "items.bottled-water.png",
         [EmptyBottle]     = "items.empty-bottle.png",
         [LoafOfBread]     = "items.loaf-of-bread.png",

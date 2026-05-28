@@ -262,6 +262,20 @@ public sealed class Game : IGame
     private Rectangle _storeBuyPurchaseRect;
     private bool _storeBuyPurchaseHovered;
 
+    // Delivery truck glove compartment (modal — take items, no price)
+    private bool _showGloveBoxMenu;
+    private int _gloveBoxHighlightedIndex;
+    private int _gloveBoxDetailIndex = -1;
+    private string _gloveBoxFeedback = "";
+    private float _gloveBoxFeedbackTimer;
+    private readonly Rectangle[] _gloveBoxItemRects = new Rectangle[GloveCompartmentCatalog.EntryCount];
+    private Rectangle _gloveBoxPanelRect;
+    private Rectangle _gloveBoxCloseRect;
+    private bool _gloveBoxCloseHovered;
+    private Rectangle _gloveBoxPickupRect;
+    private bool _gloveBoxPickupHovered;
+    private readonly bool[] _gloveBoxLootTaken = new bool[GloveCompartmentCatalog.EntryCount];
+
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
     private bool _hasTrashBagTent;
@@ -320,6 +334,8 @@ public sealed class Game : IGame
     private const int TentInteriorComfortBonus = 14;
     private Rectangle _trashBagTentClickRect;
     private bool _trashBagTentHovered;
+    private Rectangle _gloveCompartmentClickRect;
+    private bool _gloveCompartmentHovered;
 
     // Region map — sidebar thumbnail opens expanded view
     private bool _showRegionMap;
@@ -1011,6 +1027,11 @@ public sealed class Game : IGame
                 CloseStoreBuyMenu();
                 return;
             }
+            if (_showGloveBoxMenu)
+            {
+                CloseGloveBoxMenu();
+                return;
+            }
             if (_showRegionMap)
             {
                 CloseRegionMap();
@@ -1098,6 +1119,21 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showGloveBoxMenu)
+        {
+            if (InputManager.IsVerticalNavUpPressed())
+            {
+                _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex - 1 + GloveCompartmentCatalog.EntryCount)
+                    % GloveCompartmentCatalog.EntryCount;
+                _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+            }
+            if (InputManager.IsVerticalNavDownPressed())
+            {
+                _gloveBoxHighlightedIndex = (_gloveBoxHighlightedIndex + 1) % GloveCompartmentCatalog.EntryCount;
+                _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+            }
+        }
+
         if (_showForageDialog)
         {
             if (InputManager.IsVerticalNavUpPressed())
@@ -1158,6 +1194,15 @@ public sealed class Game : IGame
                     TryBuyStoreItem(_storeBuyDetailIndex);
                 else
                     _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+            }
+            else if (_showGloveBoxMenu)
+            {
+                if (_gloveBoxPickupHovered && _gloveBoxDetailIndex >= 0)
+                    TryTakeGloveBoxItem(_gloveBoxDetailIndex);
+                else if (_gloveBoxDetailIndex == _gloveBoxHighlightedIndex && _gloveBoxDetailIndex >= 0)
+                    TryTakeGloveBoxItem(_gloveBoxDetailIndex);
+                else
+                    _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
             }
             else
             {
@@ -1537,6 +1582,17 @@ public sealed class Game : IGame
             _storeBuyPurchaseHovered = false;
         }
 
+        if (_showGloveBoxMenu)
+        {
+            _gloveBoxCloseHovered = Raylib.CheckCollisionPointRec(mouse, _gloveBoxCloseRect);
+            _gloveBoxPickupHovered = Raylib.CheckCollisionPointRec(mouse, _gloveBoxPickupRect);
+        }
+        else
+        {
+            _gloveBoxCloseHovered = false;
+            _gloveBoxPickupHovered = false;
+        }
+
         if (AllowsSidebarAndSceneInput())
         {
             _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
@@ -1601,6 +1657,34 @@ public sealed class Game : IGame
             else
             {
                 _trashBagTentHovered = false;
+            }
+
+            if (_phase == Phase.DeliveryTruck)
+            {
+                if (!GloveCompartmentHasRemainingLoot())
+                    _gloveCompartmentClickRect = default;
+                else
+                {
+                    GetCinematicArtBounds(out int ax, out int ay, out int aw, out int ah);
+                    _gloveCompartmentClickRect = ComputeDeliveryTruckGloveBoxClickRect(ax, ay, aw, ah);
+                }
+
+                if (_gloveCompartmentClickRect.Width > 0)
+                {
+                    _gloveCompartmentHovered = Raylib.CheckCollisionPointRec(mouse, _gloveCompartmentClickRect);
+                    if (leftClicked && _gloveCompartmentHovered)
+                    {
+                        OpenGloveBoxMenu();
+                        return;
+                    }
+                }
+                else
+                    _gloveCompartmentHovered = false;
+            }
+            else
+            {
+                _gloveCompartmentClickRect = default;
+                _gloveCompartmentHovered = false;
             }
 
             _hoveredDroppedItemListIndex = -1;
@@ -1680,6 +1764,39 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showGloveBoxMenu)
+        {
+            for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _gloveBoxItemRects[i]))
+                {
+                    _gloveBoxHighlightedIndex = i;
+                    if (leftClicked)
+                        _gloveBoxDetailIndex = i;
+                    break;
+                }
+            }
+
+            if (leftClicked && _gloveBoxDetailIndex >= 0 &&
+                (_gloveBoxPickupHovered || Raylib.CheckCollisionPointRec(mouse, _gloveBoxPickupRect)))
+            {
+                TryTakeGloveBoxItem(_gloveBoxDetailIndex);
+                return;
+            }
+
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _gloveBoxCloseRect))
+            {
+                CloseGloveBoxMenu();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _gloveBoxPanelRect))
+            {
+                CloseGloveBoxMenu();
+                return;
+            }
+        }
+
         if (_actionMessageTimer > 0f)
         {
             _actionMessageTimer -= dt;
@@ -1698,6 +1815,9 @@ public sealed class Game : IGame
 
         if (_showStoreBuyMenu)
             GameStatMath.TickTimedMessage(ref _storeBuyFeedbackTimer, ref _storeBuyFeedback, dt);
+
+        if (_showGloveBoxMenu)
+            GameStatMath.TickTimedMessage(ref _gloveBoxFeedbackTimer, ref _gloveBoxFeedback, dt);
 
         if (_showBuildDialog)
             GameStatMath.TickTimedMessage(ref _buildFeedbackTimer, ref _buildFeedback, dt);
@@ -1723,6 +1843,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_trashBagTentHovered)
+                overClickable = true;
+
+            if (_gloveCompartmentHovered)
                 overClickable = true;
 
             if (_hoveredDroppedItemListIndex >= 0)
@@ -1783,6 +1906,23 @@ public sealed class Game : IGame
             for (int i = 0; i < _storeBuyItemRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
+            }
+        }
+
+        if (_showGloveBoxMenu)
+        {
+            if (_gloveBoxCloseHovered || _gloveBoxPickupHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _gloveBoxPanelRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _gloveBoxPanelRect))
+                overClickable = true;
+
+            for (int i = 0; i < _gloveBoxItemRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _gloveBoxItemRects[i]))
                 {
                     overClickable = true;
                     break;
@@ -2308,6 +2448,89 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private bool GloveCompartmentHasRemainingLoot()
+    {
+        for (int i = 0; i < _gloveBoxLootTaken.Length; i++)
+        {
+            if (!_gloveBoxLootTaken[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    private void ResetGloveCompartmentLoot() => Array.Clear(_gloveBoxLootTaken);
+
+    private void OpenGloveBoxMenu()
+    {
+        if (_phase != Phase.DeliveryTruck || !GloveCompartmentHasRemainingLoot())
+            return;
+
+        _showGloveBoxMenu = true;
+        _gloveBoxHighlightedIndex = 0;
+        _gloveBoxDetailIndex = -1;
+        _gloveBoxFeedback = "";
+        _gloveBoxFeedbackTimer = 0f;
+        _gloveBoxCloseHovered = false;
+        _gloveBoxPickupHovered = false;
+    }
+
+    private void CloseGloveBoxMenu()
+    {
+        _showGloveBoxMenu = false;
+        _gloveBoxDetailIndex = -1;
+        _gloveBoxFeedback = "";
+        _gloveBoxFeedbackTimer = 0f;
+        _gloveBoxCloseHovered = false;
+        _gloveBoxPickupHovered = false;
+    }
+
+    private bool CanTakeGloveBoxItem(int index)
+    {
+        if (index < 0 || index >= GloveCompartmentCatalog.EntryCount || _gloveBoxLootTaken[index])
+            return false;
+
+        var entry = GloveCompartmentCatalog.Entries[index];
+        return entry.IsMoney || _backpack.Any(s => string.IsNullOrEmpty(s));
+    }
+
+    private void TryTakeGloveBoxItem(int index)
+    {
+        if (index < 0 || index >= GloveCompartmentCatalog.EntryCount)
+            return;
+
+        if (_gloveBoxLootTaken[index])
+        {
+            _gloveBoxFeedback = "Already taken.";
+            _gloveBoxFeedbackTimer = 1.6f;
+            return;
+        }
+
+        var entry = GloveCompartmentCatalog.Entries[index];
+
+        if (entry.IsMoney)
+        {
+            _money += entry.MoneyAmount;
+            _gloveBoxLootTaken[index] = true;
+            ClearActionDeltas();
+            MarkActionChanged();
+            _gloveBoxFeedback = $"Took {entry.Name} (+{entry.MoneyAmount:N0} ₽)";
+            _gloveBoxFeedbackTimer = 1.4f;
+            return;
+        }
+
+        if (!TryAddToBackpack(entry.Name))
+        {
+            _gloveBoxFeedback = "Backpack is full.";
+            _gloveBoxFeedbackTimer = 1.6f;
+            return;
+        }
+
+        _gloveBoxLootTaken[index] = true;
+        _gloveBoxFeedback = $"Took {entry.Name}";
+        _gloveBoxFeedbackTimer = 1.2f;
+    }
+
     private void HandleCafeChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -2422,6 +2645,7 @@ public sealed class Game : IGame
     {
         _showItemDialog = false;
         CloseStoreBuyMenu();
+        CloseGloveBoxMenu();
         CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
@@ -2432,13 +2656,14 @@ public sealed class Game : IGame
     }
 
     private bool BlocksActionBarNavigation() =>
-        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showBuildDialog || _showForageDialog
-        || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm || _showStatsHelp
-        || _phase == Phase.Warehouse;
+        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBuildDialog
+        || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm
+        || _showStatsHelp || _phase == Phase.Warehouse;
 
     private bool AllowsSidebarAndSceneInput() =>
-        !_showItemDialog && !_showStoreBuyMenu && !_showRegionMap && !_showBuildDialog
-        && !_showForageDialog && !_showCafeOwnerDialog && !_showQuitConfirm && !_showStatsHelp;
+        !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showRegionMap
+        && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog && !_showQuitConfirm
+        && !_showStatsHelp;
 
     private void RestartGame()
     {
@@ -2449,6 +2674,7 @@ public sealed class Game : IGame
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
         _borisDeliveryJobActive = false;
+        ResetGloveCompartmentLoot();
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -2479,6 +2705,7 @@ public sealed class Game : IGame
         ClearActionDeltas();
 
         _borisDeliveryJobActive = false;
+        ResetGloveCompartmentLoot();
         _phaseBeforeCafe = Phase.IndustrialDistrict;
         EnterPhase(Phase.Cafe);
     }
@@ -2731,6 +2958,7 @@ public sealed class Game : IGame
     {
         CloseCafeOwnerDialog();
         _borisDeliveryJobActive = true;
+        ResetGloveCompartmentLoot();
         _actionMessage = "Boris slides keys across the counter. \"Get in the truck. " +
                          CafeOwnerDialog.WarehouseName + ", bay three. Move.\"";
         _actionMessageTimer = 2.8f;
@@ -4413,6 +4641,186 @@ public sealed class Game : IGame
         }
     }
 
+    // =====================================================================
+    // GLOVE COMPARTMENT MENU (modal — take items, store-style layout)
+    // =====================================================================
+    private void DrawGloveBoxMenu()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 160));
+
+        int panelW = 720;
+        int panelH = 360;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _gloveBoxPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, "GLOVE COMPARTMENT",
+            new Vector2(panelX + 24, panelY + 18), 28, 0.8f, Palette.TextPrimary);
+
+        string hint = "Take what you want";
+        int hintW = (int)Raylib.MeasureTextEx(font, hint, 18, 0.55f).X;
+        Raylib.DrawTextEx(font, hint,
+            new Vector2(panelX + panelW - 24 - hintW, panelY + 22),
+            18, 0.55f, Palette.TextSecondary);
+
+        int headerBottom = panelY + 50;
+        Raylib.DrawLine(panelX + 20, headerBottom, panelX + panelW - 20, headerBottom, Palette.SubtleBorder);
+
+        int listX = panelX + 16;
+        int listW = 268;
+        int contentTop = headerBottom + 10;
+        int panelBottom = panelY + panelH - 12;
+        int closeH = 32;
+        int closeW = 100;
+        int closeY = panelBottom - closeH;
+        int closeX = listX + (listW - closeW) / 2;
+        int dividerX = listX + listW + 8;
+        int detailX = dividerX + 9;
+        int detailW = panelX + panelW - 20 - detailX;
+
+        Raylib.DrawLine(dividerX, contentTop, dividerX, panelBottom, Palette.SubtleBorder);
+        Raylib.DrawLine(listX, closeY - 6, listX + listW, closeY - 6, Palette.SubtleBorder);
+
+        int rowHeight = 44;
+        const int iconSize = 28;
+
+        for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
+        {
+            var entry = GloveCompartmentCatalog.Entries[i];
+            bool taken = _gloveBoxLootTaken[i];
+            bool canTake = CanTakeGloveBoxItem(i);
+
+            int rowY = contentTop + i * rowHeight;
+            _gloveBoxItemRects[i] = new Rectangle(listX, rowY, listW, rowHeight - 4);
+            bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _gloveBoxItemRects[i]);
+            bool rowHighlighted = i == _gloveBoxHighlightedIndex;
+            bool rowConfirmed = _gloveBoxDetailIndex >= 0 && i == _gloveBoxDetailIndex;
+
+            if (rowConfirmed)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(62, 58, 48, 200));
+            else if (rowHovered || rowHighlighted)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
+
+            Color tint = taken
+                ? new Color(100, 98, 92, 255)
+                : canTake ? Color.WHITE : new Color(120, 118, 112, 255);
+            int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
+            Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
+            DrawItemIcon(entry.IconItemName, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
+
+            Color nameColor = taken ? Palette.TextMuted : Palette.TextPrimary;
+            Raylib.DrawTextEx(font, entry.Name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
+
+            string statusStr = taken ? "TAKEN" : "FREE";
+            int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 17, 0.6f).X;
+            Color statusColor = taken ? Palette.TextMuted : new Color(140, 175, 130, 255);
+            Raylib.DrawTextEx(font, statusStr,
+                new Vector2(listX + listW - 10 - statusW, rowY + 8), 17, 0.6f, statusColor);
+        }
+
+        DrawGloveBoxDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
+
+        if (_gloveBoxFeedbackTimer > 0f && !string.IsNullOrEmpty(_gloveBoxFeedback))
+        {
+            int fbW = (int)Raylib.MeasureTextEx(font, _gloveBoxFeedback, 17, 0.5f).X;
+            Raylib.DrawTextEx(font, _gloveBoxFeedback,
+                new Vector2(detailX + (detailW - fbW) / 2, panelBottom - 48),
+                17, 0.5f, Palette.TextSecondary);
+        }
+
+        _gloveBoxCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
+        GameDialogUi.DrawDialogButton(_gloveBoxCloseRect, "CLOSE", _gloveBoxCloseHovered, font);
+    }
+
+    private void DrawGloveBoxDetailPanel(Font font, int x, int y, int w, int h)
+    {
+        if (_gloveBoxDetailIndex < 0)
+        {
+            string hint = "Select an item";
+            int hintSize = 20;
+            int hintW = (int)Raylib.MeasureTextEx(font, hint, hintSize, 0.6f).X;
+            Raylib.DrawTextEx(font, hint,
+                new Vector2(x + (w - hintW) / 2, y + h / 2 - 12),
+                hintSize, 0.6f, Palette.TextMuted);
+            _gloveBoxPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        var entry = GloveCompartmentCatalog.Entries[_gloveBoxDetailIndex];
+        bool taken = _gloveBoxLootTaken[_gloveBoxDetailIndex];
+        bool canTake = CanTakeGloveBoxItem(_gloveBoxDetailIndex);
+
+        const int iconSize = 64;
+        int iconX = x + (w - iconSize) / 2;
+        int iconY = y + 4;
+        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        DrawItemIcon(entry.IconItemName, new Rectangle(iconX, iconY, iconSize, iconSize),
+            taken ? new Color(100, 98, 92, 255) : Color.WHITE);
+
+        string title = entry.Name.ToUpperInvariant();
+        int titleW = (int)Raylib.MeasureTextEx(font, title, 22, 0.75f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
+            22, 0.75f, Palette.TextPrimary);
+
+        string statusStr = taken ? "Already taken" : "Free to take";
+        int statusW = (int)Raylib.MeasureTextEx(font, statusStr, 18, 0.6f).X;
+        Color statusColor = taken ? Palette.TextMuted : new Color(140, 175, 130, 255);
+        Raylib.DrawTextEx(font, statusStr,
+            new Vector2(x + (w - statusW) / 2, iconY + iconSize + 36),
+            18, 0.6f, statusColor);
+
+        int textY = iconY + iconSize + 62;
+        const int flavorSize = 16;
+        float flavorSpacing = 0.55f;
+        int flavorLineHeight = 22;
+        var (flavorLines, _) = GameTextLayout.WrapForBox(entry.Flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
+        foreach (string line in flavorLines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(x + 4, textY), flavorSize, flavorSpacing, Palette.TextSecondary);
+            textY += flavorLineHeight;
+        }
+
+        textY += 4;
+        Raylib.DrawTextEx(font, entry.EffectHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
+        textY += 22;
+
+        if (!canTake && !taken)
+        {
+            Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f,
+                new Color(200, 130, 110, 255));
+        }
+
+        int btnW = 108;
+        int btnH = 34;
+        int btnX = x + (w - btnW) / 2;
+        int btnY = y + h - btnH;
+        _gloveBoxPickupRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        if (canTake)
+            GameDialogUi.DrawDialogButton(_gloveBoxPickupRect, "TAKE", _gloveBoxPickupHovered, font);
+        else
+        {
+            Raylib.DrawRectangleRec(_gloveBoxPickupRect, new Color(24, 26, 30, 255));
+            Raylib.DrawRectangleLinesEx(_gloveBoxPickupRect, 1f, Palette.SubtleBorder);
+            int labelSize = 18;
+            int labelW = (int)Raylib.MeasureTextEx(font, "TAKE", labelSize, 0.55f).X;
+            Raylib.DrawTextEx(font, "TAKE",
+                new Vector2(btnX + (btnW - labelW) / 2f, btnY + 8),
+                labelSize, 0.55f, Palette.TextMuted);
+        }
+    }
+
     // --- Render ---
     private void Draw()
     {
@@ -4457,6 +4865,11 @@ public sealed class Game : IGame
         if (_showStoreBuyMenu)
         {
             DrawStoreBuyMenu();
+        }
+
+        if (_showGloveBoxMenu)
+        {
+            DrawGloveBoxMenu();
         }
 
         if (_showRegionMap)
@@ -5499,6 +5912,9 @@ public sealed class Game : IGame
         if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
 
+        if (_phase == Phase.DeliveryTruck)
+            DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
+
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))
         {
@@ -5618,9 +6034,46 @@ public sealed class Game : IGame
         DrawTopRightButtons();
     }
 
-    /// <summary>
-    /// Trash-bag A-frame shelter (trash-bag-tent.png) composited onto the outdoor scene.
-    /// </summary>
+    private static Rectangle ComputeDeliveryTruckGloveBoxClickRect(int artX, int artY, int artW, int artH)
+    {
+        // Driver's POV — glove compartment latch on the right side of the dashboard
+        int x = artX + (int)(artW * 0.58f);
+        int y = artY + (int)(artH * 0.50f);
+        int w = (int)(artW * 0.24f);
+        int h = (int)(artH * 0.20f);
+        return new Rectangle(x, y, w, h);
+    }
+
+    private void DrawDeliveryTruckGloveCompartmentHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (!GloveCompartmentHasRemainingLoot() || _gloveCompartmentClickRect.Width <= 0)
+            return;
+
+        Rectangle r = _gloveCompartmentClickRect;
+
+        Color fill = _gloveCompartmentHovered
+            ? new Color(200, 185, 120, 36)
+            : new Color(200, 185, 120, 14);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = _gloveCompartmentHovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, _gloveCompartmentHovered ? 2f : 1f, border);
+
+        if (_gloveCompartmentHovered)
+        {
+            const string label = "GLOVE COMPARTMENT";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawTrashBagTentOverlay(int artX, int artY, int artW, int artH)
     {
         if (_trashBagTentTexture.Id == 0)
