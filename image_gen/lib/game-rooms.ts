@@ -1,3 +1,5 @@
+import { getRoomPrompt, type PromptSource } from "./room-prompts";
+
 export type GameRoom = {
   phase: string;
   name: string;
@@ -52,4 +54,24 @@ export function roomHref(phase: string): string {
 
 export function getRoomByPhase(phase: string): GameRoom | undefined {
   return GAME_ROOMS.find((room) => room.phase === phase);
+}
+
+export type GameRoomWithPrompt = GameRoom & {
+  prompt: string;
+  promptSource: PromptSource;
+};
+
+export function getRoomWithPrompt(phase: string): GameRoomWithPrompt | undefined {
+  const room = getRoomByPhase(phase);
+  const promptInfo = getRoomPrompt(phase);
+
+  if (!room || !promptInfo) {
+    return undefined;
+  }
+
+  return {
+    ...room,
+    prompt: promptInfo.prompt,
+    promptSource: promptInfo.source,
+  };
 }

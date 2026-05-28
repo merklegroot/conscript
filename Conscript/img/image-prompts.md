@@ -11,6 +11,8 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 - **prompt**: exact `description` string passed to the tool
 - **notes**: install script / wiring details
 
+**Inferred prompts** for rooms without a log entry live in `image_gen/lib/room-prompts.ts` and appear on each room page in the image_gen app (`/rooms` → room → **Generate with Grok**).
+
 ---
 
 ## `warehouse-14-ambush.png`

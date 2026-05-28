@@ -21,9 +21,19 @@ const ASPECT_RATIOS: { value: AspectRatio | ""; label: string }[] = [
   { value: "auto", label: "Auto" },
 ];
 
-export default function ImageGenerator() {
-  const [prompt, setPrompt] = useState("");
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">("");
+type ImageGeneratorProps = {
+  initialPrompt?: string;
+  initialAspectRatio?: AspectRatio;
+};
+
+export default function ImageGenerator({
+  initialPrompt = "",
+  initialAspectRatio,
+}: ImageGeneratorProps) {
+  const [prompt, setPrompt] = useState(initialPrompt);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">(
+    initialAspectRatio ?? "",
+  );
   const [resolution, setResolution] = useState<ImageResolution | "">("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
