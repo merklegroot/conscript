@@ -3,20 +3,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import path from "path";
 import CopyPromptButton from "@/components/CopyPromptButton";
-import {
-  GAME_ROOMS,
-  gameImageUrl,
-  getRoomWithPrompt,
-} from "@/lib/game-rooms";
+import PasteRoomImage from "@/components/PasteRoomImage";
+import { gameImageUrl, getGameImageVersion } from "@/lib/game-image-cache";
+import { getRoomWithPrompt } from "@/lib/game-rooms";
 import { CONSCRIPT_IMG_DIR } from "@/lib/paths";
 
 type RoomPageProps = {
   params: Promise<{ phase: string }>;
 };
 
-export function generateStaticParams() {
-  return GAME_ROOMS.map((room) => ({ phase: room.phase }));
-}
+export const dynamic = "force-dynamic";
 
 async function imageExists(imageFile: string): Promise<boolean> {
   try {
@@ -37,6 +33,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
   }
 
   const hasImage = await imageExists(room.imageFile);
+  const imageVersion = await getGameImageVersion(room.imageFile);
   const regenerateHref = `/?room=${encodeURIComponent(room.phase)}`;
 
   return (
@@ -54,7 +51,7 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
         {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={gameImageUrl(room.imageFile)}
+            src={gameImageUrl(room.imageFile, imageVersion)}
             alt={room.name}
             className="w-full"
           />
@@ -63,6 +60,14 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
             Missing: {room.imageFile}
           </p>
         )}
+      </div>
+
+      <div className="mt-8">
+        <PasteRoomImage
+          phase={room.phase}
+          roomName={room.name}
+          imageFile={room.imageFile}
+        />
       </div>
 
       <section className="mt-10 space-y-4">

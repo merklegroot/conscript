@@ -1,13 +1,19 @@
 import Link from "next/link";
 import type { GameRoom } from "@/lib/game-rooms";
-import { gameImageUrl, roomHref } from "@/lib/game-rooms";
+import { roomHref } from "@/lib/game-rooms";
+import { gameImageUrl } from "@/lib/game-image-cache";
 
 type RoomCardProps = {
   room: GameRoom;
   imageExists: boolean;
+  imageVersion?: string;
 };
 
-export default function RoomCard({ room, imageExists }: RoomCardProps) {
+export default function RoomCard({
+  room,
+  imageExists,
+  imageVersion,
+}: RoomCardProps) {
   return (
     <Link
       href={roomHref(room.phase)}
@@ -17,7 +23,7 @@ export default function RoomCard({ room, imageExists }: RoomCardProps) {
         {imageExists ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={gameImageUrl(room.imageFile)}
+            src={gameImageUrl(room.imageFile, imageVersion)}
             alt={room.name}
             className="h-full w-full object-cover"
           />

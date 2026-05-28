@@ -1,8 +1,11 @@
 import { access } from "fs/promises";
 import path from "path";
 import RoomCard from "@/components/RoomCard";
+import { getGameImageVersion } from "@/lib/game-image-cache";
 import { GAME_ROOMS } from "@/lib/game-rooms";
 import { CONSCRIPT_IMG_DIR } from "@/lib/paths";
+
+export const dynamic = "force-dynamic";
 
 async function imageExists(imageFile: string): Promise<boolean> {
   try {
@@ -18,6 +21,7 @@ export default async function RoomsPage() {
     GAME_ROOMS.map(async (room) => ({
       room,
       imageExists: await imageExists(room.imageFile),
+      imageVersion: await getGameImageVersion(room.imageFile),
     })),
   );
 
@@ -32,9 +36,13 @@ export default async function RoomsPage() {
       </div>
 
       <ul className="grid list-none gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {roomsWithFiles.map(({ room, imageExists }) => (
+        {roomsWithFiles.map(({ room, imageExists, imageVersion }) => (
           <li key={room.phase}>
-            <RoomCard room={room} imageExists={imageExists} />
+            <RoomCard
+              room={room}
+              imageExists={imageExists}
+              imageVersion={imageVersion}
+            />
           </li>
         ))}
       </ul>

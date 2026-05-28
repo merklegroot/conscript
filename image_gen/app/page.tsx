@@ -1,4 +1,5 @@
 import ImageGenerator from "@/components/ImageGenerator";
+import PasteRoomImage from "@/components/PasteRoomImage";
 import { getRoomWithPrompt } from "@/lib/game-rooms";
 
 type HomeProps = {
@@ -26,18 +27,38 @@ export default async function Home({ searchParams }: HomeProps) {
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Prefilled for <strong>{room.name}</strong> (
             {room.promptSource === "verified" ? "verified" : "inferred"} prompt).
-            Install to{" "}
+            After generating, use <strong>Apply to {room.name}</strong> below, or
+            paste an image (Cmd+V) to install into{" "}
             <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-900">
               Conscript/img/{room.imageFile}
-            </code>{" "}
-            after generating.
+            </code>
+            .
           </p>
         ) : null}
       </div>
 
+      {room ? (
+        <div className="mb-8">
+          <PasteRoomImage
+            phase={room.phase}
+            roomName={room.name}
+            imageFile={room.imageFile}
+          />
+        </div>
+      ) : null}
+
       <ImageGenerator
         initialPrompt={room?.prompt}
         initialAspectRatio={room ? "3:2" : undefined}
+        targetRoom={
+          room
+            ? {
+                phase: room.phase,
+                name: room.name,
+                imageFile: room.imageFile,
+              }
+            : undefined
+        }
       />
     </main>
   );

@@ -44,10 +44,6 @@ export const GAME_ROOMS: GameRoom[] = [
   { phase: "Tent", name: "Trash Bag Tent", imageFile: "tent-interior.png" },
 ];
 
-export function gameImageUrl(imageFile: string): string {
-  return `/api/game-images/${encodeURIComponent(imageFile)}`;
-}
-
 export function roomHref(phase: string): string {
   return `/rooms/${encodeURIComponent(phase)}`;
 }

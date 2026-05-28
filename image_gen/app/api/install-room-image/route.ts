@@ -1,16 +1,8 @@
-import { execFile as execFileCallback } from "node:child_process";
 import path from "path";
-import { promisify } from "node:util";
 import { NextResponse } from "next/server";
-import { getRoomByPhase } from "@/lib/game-rooms";
 import { getGenerationById } from "@/lib/load-generations";
-import {
-  CONSCRIPT_IMG_DIR,
-  GENERATED_IMAGES_DIR,
-  INSTALL_SCENE_IMAGE_SCRIPT,
-} from "@/lib/paths";
-
-const execFile = promisify(execFileCallback);
+import { installRoomImageFromPath } from "@/lib/install-room-from-file";
+import { GENERATED_IMAGES_DIR } from "@/lib/paths";
 
 type InstallRequestBody = {
   generationId?: string;
@@ -39,12 +31,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const room = getRoomByPhase(phase);
   const generation = await getGenerationById(generationId);
-
-  if (!room) {
-    return NextResponse.json({ error: "Unknown room" }, { status: 400 });
-  }
 
   if (!generation) {
     return NextResponse.json(
@@ -61,22 +48,17 @@ export async function POST(request: Request) {
   }
 
   const sourcePath = path.join(GENERATED_IMAGES_DIR, generation.record.imageFile);
-  const destPath = path.join(CONSCRIPT_IMG_DIR, room.imageFile);
 
   try {
-    const { stdout, stderr } = await execFile(
-      "python3",
-      [INSTALL_SCENE_IMAGE_SCRIPT, sourcePath, destPath],
-      { encoding: "utf8" },
-    );
+    const result = await installRoomImageFromPath(sourcePath, phase);
 
     return NextResponse.json({
       ok: true,
-      phase: room.phase,
-      roomName: room.name,
-      imageFile: room.imageFile,
-      destPath: `Conscript/img/${room.imageFile}`,
-      message: (stdout || stderr).trim(),
+      phase: result.room.phase,
+      roomName: result.room.name,
+      imageFile: result.room.imageFile,
+      destPath: result.destPath,
+      message: result.message,
     });
   } catch (error) {
     const message =

@@ -1,8 +1,10 @@
-import { readFile } from "fs/promises";
+import { readFile, stat } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
 import { GAME_ROOMS } from "@/lib/game-rooms";
 import { CONSCRIPT_IMG_DIR } from "@/lib/paths";
+
+export const dynamic = "force-dynamic";
 
 const ALLOWED_FILES = new Set(GAME_ROOMS.map((room) => room.imageFile));
 
@@ -21,12 +23,16 @@ export async function GET(_request: Request, context: RouteContext) {
   const filePath = path.join(CONSCRIPT_IMG_DIR, decodedFilename);
 
   try {
-    const file = await readFile(filePath);
+    const [file, fileStat] = await Promise.all([
+      readFile(filePath),
+      stat(filePath),
+    ]);
 
     return new NextResponse(file, {
       headers: {
         "Content-Type": "image/png",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "no-store, must-revalidate",
+        ETag: `"${fileStat.mtimeMs}"`,
       },
     });
   } catch {

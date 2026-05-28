@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import AssignRoomImage from "@/components/AssignRoomImage";
+import { GAME_ROOMS } from "@/lib/game-rooms";
 import type { AspectRatio, GenerationRecord, ImageResolution } from "@/lib/generation-types";
 
 type GenerateSuccess = {
@@ -21,14 +23,22 @@ const ASPECT_RATIOS: { value: AspectRatio | ""; label: string }[] = [
   { value: "auto", label: "Auto" },
 ];
 
+export type ImageGeneratorTargetRoom = {
+  phase: string;
+  name: string;
+  imageFile: string;
+};
+
 type ImageGeneratorProps = {
   initialPrompt?: string;
   initialAspectRatio?: AspectRatio;
+  targetRoom?: ImageGeneratorTargetRoom;
 };
 
 export default function ImageGenerator({
   initialPrompt = "",
   initialAspectRatio,
+  targetRoom,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">(
@@ -180,6 +190,13 @@ export default function ImageGenerator({
             src={result.imageUrl}
             alt={result.record.grok.request.prompt}
             className="max-w-full rounded-lg border border-zinc-200 shadow-sm dark:border-zinc-800"
+          />
+
+          <AssignRoomImage
+            generationId={result.id}
+            rooms={GAME_ROOMS}
+            defaultPhase={targetRoom?.phase}
+            preferredPhase={targetRoom?.phase}
           />
 
           <details className="rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
