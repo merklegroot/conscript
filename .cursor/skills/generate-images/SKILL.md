@@ -44,6 +44,7 @@ Copy and complete:
 - [ ] 5. Install: scripts/install_scene_image.py <generated> <dest>
 - [ ] 6. Visually verify (Read tool on output PNG)
 - [ ] 7. dotnet build conscript.slnx — embedded textures require rebuild
+- [ ] 8. Log prompt + model in Conscript/img/image-prompts.md
 ```
 
 ### Step 1 — Target file
