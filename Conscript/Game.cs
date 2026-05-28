@@ -42,6 +42,7 @@ public sealed class Game : IGame
     private Texture2D _deliveryTruckBackground;
     private Texture2D _warehouseBackground;
     private Texture2D _warehouseAmbushBackground;
+    private Texture2D _warehouseAftermathBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -86,6 +87,7 @@ public sealed class Game : IGame
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
     private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
+    private const string ChoiceThrowLitMolotov = "THROW LIT MOLOTOV";
     private const string ChoiceFight = "FIGHT";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
@@ -146,6 +148,7 @@ public sealed class Game : IGame
         DeliveryTruck, // Behind the wheel on Boris's warehouse run
         WarehouseTruck,   // Warehouse 14 loading bay — still inside the truck cab
         WarehouseAmbush,  // Outside the cab — met by bratdvas; Boris betrayed you
+        WarehouseAftermath, // Molotov blast — bratdvas dead, bay scorched
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -158,6 +161,7 @@ public sealed class Game : IGame
     private Phase _phaseBeforeStore = Phase.Town;
     private Phase _phaseBeforeCafe = Phase.IndustrialDistrict;
     private bool _borisDeliveryJobActive;
+    private bool _warehouseAmbushersDead;
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
@@ -458,6 +462,12 @@ public sealed class Game : IGame
         "One of them smiles like you did him a favor.\n" +
         "Boris betrayed you. This wasn't a delivery.";
 
+    private const string WarehouseAftermathNarrative =
+        "The loading bay is choking on black smoke.\n" +
+        "Two figures lie motionless in the guttering flames — bratdvas.\n" +
+        "Whatever was in that bottle burned hotter than any vodka.\n" +
+        "Rain hisses on the embers. The roll-up door is scorched black.";
+
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
         "Foot traffic is thin, but every window might hide a watcher.\n" +
@@ -685,7 +695,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAmbush:
-                _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
+                SetWarehouseAmbushChoices();
                 _selectedIndex = 0;
                 ApplyEnvironmentOutside();
                 _day = 0;
@@ -695,6 +705,19 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 21;
+                break;
+
+            case Phase.WarehouseAftermath:
+                _choices = new[] { ChoiceGetBackInTruck, ChoiceWait };
+                _selectedIndex = 0;
+                ApplyEnvironmentOutside();
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 24;
                 break;
 
             case Phase.Tent:
@@ -717,6 +740,7 @@ public sealed class Game : IGame
             Phase.DeliveryTruck => _deliveryTruckBackground,
             Phase.WarehouseTruck    => _warehouseBackground,
             Phase.WarehouseAmbush   => _warehouseAmbushBackground,
+            Phase.WarehouseAftermath => _warehouseAftermathBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -920,7 +944,7 @@ public sealed class Game : IGame
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
         GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck
-        || _phase is Phase.WarehouseTruck or Phase.WarehouseAmbush;
+        || _phase is Phase.WarehouseTruck or Phase.WarehouseAmbush or Phase.WarehouseAftermath;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -1002,6 +1026,7 @@ public sealed class Game : IGame
         _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
         _warehouseAmbushBackground = LoadTextureOrFallback("warehouse-14-ambush.png", _warehouseBackground);
+        _warehouseAftermathBackground = LoadTextureOrFallback("warehouse-14-aftermath.png", _warehouseAmbushBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
@@ -1056,6 +1081,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _deliveryTruckBackground);
         UnloadTextureIfLoaded(ref _warehouseBackground);
         UnloadTextureIfLoaded(ref _warehouseAmbushBackground);
+        UnloadTextureIfLoaded(ref _warehouseAftermathBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
@@ -2141,6 +2167,10 @@ public sealed class Game : IGame
                 HandleWarehouseAmbushChoice(index);
                 break;
 
+            case Phase.WarehouseAftermath:
+                HandleWarehouseAftermathChoice(index);
+                break;
+
             case Phase.Tent:
                 HandleTentChoice(index);
                 break;
@@ -2582,7 +2612,7 @@ public sealed class Game : IGame
                 _actionMessageTimer = 2.1f;
                 AdvanceTime();
                 ApplyEnvironmentOnAction();
-                EnterPhase(Phase.WarehouseAmbush);
+                EnterPhase(_warehouseAmbushersDead ? Phase.WarehouseAftermath : Phase.WarehouseAmbush);
                 return;
 
             case ChoiceWait:
@@ -2594,6 +2624,14 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void SetWarehouseAmbushChoices()
+    {
+        if (HasBackpackItem(GameItems.LitMolotov))
+            _choices = new[] { ChoiceThrowLitMolotov, ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
+        else
+            _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
+    }
+
     private void HandleWarehouseAmbushChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -2601,6 +2639,10 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceThrowLitMolotov:
+                ThrowLitMolotovAtWarehouseAmbush();
+                return;
+
             case ChoiceGetBackInTruck:
                 _actionMessage = "You slide back into the cab and pull the door shut. The bratdvas haven't moved yet.";
                 _actionMessageTimer = 2.1f;
@@ -2613,6 +2655,51 @@ public sealed class Game : IGame
                 EnterDeath(
                     "You swung at the nearest bratdva.",
                     "Two against one in the rain. Boris sold you cheap.");
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void ThrowLitMolotovAtWarehouseAmbush()
+    {
+        int slot = FindBackpackSlotIndex(GameItems.LitMolotov);
+        if (slot < 0)
+        {
+            SetWarehouseAmbushChoices();
+            return;
+        }
+
+        RemoveBackpackItemAtSlot(slot);
+        _warehouseAmbushersDead = true;
+        _actionMessage =
+            "You hurl the bottle. It detonates like a gasoline bomb — a roiling fireball " +
+            "that lifts the bratdvas off their feet. This wasn't vodka.";
+        _actionMessageTimer = 3.4f;
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        ModifyStatFromAction(ref _health, ref _actionHealthDelta, -4);
+        EnterPhase(Phase.WarehouseAftermath);
+    }
+
+    private void HandleWarehouseAftermathChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceGetBackInTruck:
+                _actionMessage = "You slide back into the cab, coughing smoke. The yard is quiet except for the rain.";
+                _actionMessageTimer = 2.1f;
+                AdvanceTime();
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.WarehouseTruck);
                 return;
 
             case ChoiceWait:
@@ -2806,6 +2893,10 @@ public sealed class Game : IGame
                 _actionMessage = "You hold still, listening to the rain and the men breathing in the dark.";
                 ApplyEnvironmentOnAction();
                 break;
+            case Phase.WarehouseAftermath:
+                _actionMessage = "You stay low beside the truck. The fire crackles; the bratdvas don't move.";
+                ApplyEnvironmentOnAction();
+                break;
             case Phase.ForestEntry:
                 _actionMessage = "You hold still among the young pines. The city is still too close.";
                 break;
@@ -2885,6 +2976,7 @@ public sealed class Game : IGame
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
         _borisDeliveryJobActive = false;
+        _warehouseAmbushersDead = false;
         ResetGloveCompartmentLoot();
         _buildFeedback = "";
         ResetDeathLines();
@@ -2893,8 +2985,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot in Boris's delivery truck (glove box loot, drive to warehouse).
-    /// Resets stats, money, and backpack for delivery-run testing.
+    /// Jump to a reproducible debug snapshot at the warehouse ambush (vodka + rag in backpack).
+    /// Resets stats, money, and inventory for ambush/molotov testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -2910,14 +3002,15 @@ public sealed class Game : IGame
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { GameItems.TrashBags, GameItems.DuctTape, "Knife", "Lighter", "Phone", GameItems.EmptyBottle, null, null };
+        _backpack = new string?[] { "Knife", "Lighter", "Phone", GameItems.Vodka, GameItems.Rag, null, null, null };
         _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
 
         _borisDeliveryJobActive = true;
+        _warehouseAmbushersDead = false;
         ResetGloveCompartmentLoot();
-        EnterPhase(Phase.DeliveryTruck);
+        EnterPhase(Phase.WarehouseAmbush);
     }
 
     // --- Inventory & ground items ---
@@ -3647,6 +3740,9 @@ public sealed class Game : IGame
 
         _buildFeedback = $"Crafted {CraftLitMolotov}.";
         _buildFeedbackTimer = BuildFeedbackDuration;
+
+        if (_phase == Phase.WarehouseAmbush)
+            SetWarehouseAmbushChoices();
     }
 
     private void TryCraftMolotov()
@@ -5221,6 +5317,7 @@ public sealed class Game : IGame
             case Phase.DeliveryTruck:
             case Phase.WarehouseTruck:
             case Phase.WarehouseAmbush:
+            case Phase.WarehouseAftermath:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -6164,6 +6261,7 @@ public sealed class Game : IGame
             Phase.DeliveryTruck       => (RegionMapGeo.DeliveryTruckLon, RegionMapGeo.DeliveryTruckLat),
             Phase.WarehouseTruck      => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.WarehouseAmbush     => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
+            Phase.WarehouseAftermath  => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
@@ -6183,6 +6281,7 @@ public sealed class Game : IGame
             Phase.DeliveryTruck      => DeliveryTruckNarrative,
             Phase.WarehouseTruck     => WarehouseTruckNarrative,
             Phase.WarehouseAmbush    => WarehouseAmbushNarrative,
+            Phase.WarehouseAftermath => WarehouseAftermathNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,

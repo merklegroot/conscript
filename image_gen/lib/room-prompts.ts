@@ -70,6 +70,11 @@ export const ROOM_PROMPTS: Record<string, RoomPrompt> = {
     prompt:
       "Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Ground-level view on wet concrete near an old delivery truck (edge of open truck door and a sliver of cab interior framing the right side), looking toward a half-open corrugated roll-up door spilling warm industrial light. Floodlights cut through rain, long reflections in puddles, scattered pallets and metal barrels, chain-link fence and shadowy yard beyond. Ominous tension: two indistinct threatening silhouettes standing near the doorway in deep shadow (no clear faces, no readable patches, no logos). Moody gritty post-Soviet atmosphere, subtle film grain, warm/cool mixed lighting, deep shadows. Wide landscape 3:2. No readable text, no signage, no gore, no prominent weapons.",
   },
+  WarehouseAftermath: {
+    source: "verified",
+    prompt:
+      "Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Same composition as warehouse ambush: ground-level view on wet concrete near an old green delivery truck with open cab door on the right, corrugated roll-up door ahead — but showing violent explosion aftermath. Roiling orange fire and black smoke billowing from the doorway, scorched blackened metal door, shattered windows, burning pallets, charred barrels, rain hissing on embers. Two indistinct motionless silhouettes of men sprawled on wet concrete near the flames (no clear faces, no gore). Floodlights cutting through rain and smoke, long reflections in puddles, chain-link fence beyond. Moody gritty post-Soviet atmosphere, dramatic firelight vs cool rain, subtle film grain. Wide landscape 3:2. No readable text, no signage, no logos.",
+  },
   ForestEntry: {
     source: "inferred",
     prompt:

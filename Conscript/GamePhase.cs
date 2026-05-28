@@ -23,6 +23,6 @@ internal static class GamePhase
         phase is Game.Phase.Opening or Game.Phase.Outside or Game.Phase.Town
             or Game.Phase.IndustrialDistrict or Game.Phase.CommercialDistrict or Game.Phase.Store
             or Game.Phase.Cafe or Game.Phase.DeliveryTruck or Game.Phase.WarehouseTruck
-            or Game.Phase.WarehouseAmbush or Game.Phase.ForestEntry or Game.Phase.Forest
+            or Game.Phase.WarehouseAmbush or Game.Phase.WarehouseAftermath or Game.Phase.ForestEntry or Game.Phase.Forest
             or Game.Phase.ForestStream or Game.Phase.Tent;
 }

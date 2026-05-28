@@ -15,6 +15,23 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 
 ---
 
+## `warehouse-14-aftermath.png`
+
+- **asset**: `Conscript/img/warehouse-14-aftermath.png`
+- **date**: 2026-05-28
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage`
+- **source**: `warehouse-14-aftermath-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Same composition as a warehouse ambush scene: ground-level view on wet concrete near an old green delivery truck with open cab door on the right, corrugated roll-up door ahead — but NOW showing violent explosion aftermath. Roiling orange fire and black smoke billowing from the doorway, scorched and blackened metal door, shattered windows, burning pallets, charred barrels, rain hissing on embers. Two indistinct motionless silhouettes of men sprawled on the wet concrete near the flames (no clear faces, no gore). Floodlights still cutting through rain and smoke, long reflections in puddles, chain-link fence beyond. Moody gritty post-Soviet atmosphere, dramatic firelight vs cool rain, subtle film grain. Wide landscape 3:2, exactly 1536×1024. No readable text, no signage, no logos.
+```
+
+- **notes**:
+  - Installed via `scripts/install_scene_image.py`.
+  - Wired in `Conscript/Game.cs` as the background for `Phase.WarehouseAftermath` (fallback to `warehouse-14-ambush.png`).
+
 ## `warehouse-14-ambush.png`
 
 - **asset**: `Conscript/img/warehouse-14-ambush.png`

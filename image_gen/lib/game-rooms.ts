@@ -38,6 +38,11 @@ export const GAME_ROOMS: GameRoom[] = [
     name: "Warehouse 14 — Bay 3 (ambush)",
     imageFile: "warehouse-14-ambush.png",
   },
+  {
+    phase: "WarehouseAftermath",
+    name: "Warehouse 14 — Bay 3 (aftermath)",
+    imageFile: "warehouse-14-aftermath.png",
+  },
   { phase: "ForestEntry", name: "Forest Entry", imageFile: "forest-entry.png" },
   { phase: "ForestStream", name: "Forest Stream", imageFile: "forest-stream.png" },
   { phase: "Forest", name: "Deep Forest", imageFile: "trees.png" },
