@@ -1,10 +1,10 @@
-import { mkdir, writeFile } from "fs/promises";
+import { writeFile } from "fs/promises";
 import path from "path";
 import { randomBytes } from "crypto";
 import type { GenerateWithGrokResult } from "./grok";
 import { fileExtensionForMimeType } from "./grok";
 import type { GenerationRecord } from "./generation-types";
-import { GENERATED_IMAGES_DIR } from "./paths";
+import { ensureGeneratedImagesDir, GENERATED_IMAGES_DIR } from "./paths";
 
 function createGenerationId(): string {
   const timestamp = new Date()
@@ -34,7 +34,7 @@ function sanitizeResponseForMetadata(
 export async function saveGeneration(
   result: GenerateWithGrokResult,
 ): Promise<GenerationRecord> {
-  await mkdir(GENERATED_IMAGES_DIR, { recursive: true });
+  await ensureGeneratedImagesDir();
 
   const id = createGenerationId();
   const extension = fileExtensionForMimeType(result.mimeType);

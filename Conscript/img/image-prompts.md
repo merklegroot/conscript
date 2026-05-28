@@ -17,8 +17,9 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 
 - **asset**: `Conscript/img/warehouse-14-ambush.png`
 - **date**: 2026-05-28
-- **model**: Composer 2.5 Fast
-- **tool**: `GenerateImage`
+- **model**: `grok-imagine-image-quality`
+- **tool**: `Grok` (`image_gen` web app)
+- **source**: `generated_images/20260528-161231-d34e8d.jpg` (+ `20260528-161231-d34e8d.json`)
 - **prompt**:
 
 ```text
@@ -26,6 +27,6 @@ Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay i
 ```
 
 - **notes**:
-  - Installed via `scripts/install_scene_image.py` to enforce 1536×1024.
+  - Installed via `scripts/install_scene_image.py` (JPEG → 1536×1024 PNG).
   - Wired in `Conscript/Game.cs` as the background for `Phase.WarehouseAmbush` (fallback to `warehouse-14.png`).
 

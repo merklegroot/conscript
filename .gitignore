@@ -6,9 +6,8 @@
 # dotenv files
 .env
 
-# Grok image_gen output (keep folder)
-generated_images/*
-!generated_images/.gitkeep
+# Grok image_gen output (directory created by image_gen / generate_grok_image.sh)
+generated_images/
 
 # User-specific files
 *.rsuser
