@@ -124,6 +124,8 @@ public sealed class Game : IGame
     private bool _areaSelectHovered;
     private bool _controllerHovered;
 
+    private readonly SceneAreaSelect _sceneAreaSelect = new();
+
     // Controller debug overlay (opened from top-right gamepad button)
     private bool _showControllerDebug;
     private int _controllerDebugPadIndex;
@@ -1148,6 +1150,11 @@ public sealed class Game : IGame
                 CloseStatsHelp();
                 return;
             }
+            if (_sceneAreaSelect.IsActive)
+            {
+                _sceneAreaSelect.Close();
+                return;
+            }
             if (InputManager.IsCancelPressed())
             {
                 OpenQuitConfirm();
@@ -1322,12 +1329,58 @@ public sealed class Game : IGame
             DebugStartGame();
             return;
         }
+        if (leftClicked && _areaSelectHovered)
+        {
+            if (_sceneAreaSelect.IsActive)
+                _sceneAreaSelect.Close();
+            else if (CanUseSceneAreaSelect())
+                _sceneAreaSelect.Open();
+            else
+            {
+                _actionMessage = "No scene background available here.";
+                _actionMessageTimer = 2.5f;
+            }
+
+            return;
+        }
         if (leftClicked && _controllerHovered)
         {
             if (_showControllerDebug)
                 CloseControllerDebug();
             else
                 OpenControllerDebug();
+            return;
+        }
+
+        if (_sceneAreaSelect.IsActive)
+        {
+            GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
+            var artBounds = new Rectangle(artX, artY, artW, artH);
+            bool leftReleased = Raylib.IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON);
+            int texW = _backgroundTexture.Id != 0 ? _backgroundTexture.Width : 1;
+            int texH = _backgroundTexture.Id != 0 ? _backgroundTexture.Height : 1;
+
+            SceneAreaSelection? selection = _sceneAreaSelect.Update(
+                mouse,
+                artBounds,
+                _phase,
+                texW,
+                texH,
+                leftClicked,
+                leftReleased);
+
+            if (selection.HasValue)
+            {
+                Raylib.SetClipboardText(selection.Value.ClipboardText);
+                _actionMessage = selection.Value.DisplayMessage;
+                _actionMessageTimer = 4.5f;
+            }
+            else if (_sceneAreaSelect.SelectionTooSmall)
+            {
+                _actionMessage = "Selection too small — drag a larger region.";
+                _actionMessageTimer = 2.5f;
+            }
+
             return;
         }
 
@@ -2108,9 +2161,11 @@ public sealed class Game : IGame
             (_statsHelpCloseHovered || !Raylib.CheckCollisionPointRec(mouse, _statsHelpPanelRect)))
             overClickable = true;
 
-        Raylib.SetMouseCursor(overClickable
-            ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
-            : MouseCursor.MOUSE_CURSOR_DEFAULT);
+        Raylib.SetMouseCursor(_sceneAreaSelect.IsActive
+            ? MouseCursor.MOUSE_CURSOR_CROSSHAIR
+            : overClickable
+                ? MouseCursor.MOUSE_CURSOR_POINTING_HAND
+                : MouseCursor.MOUSE_CURSOR_DEFAULT);
     }
 
     // --- Choice handlers ---
@@ -2946,17 +3001,21 @@ public sealed class Game : IGame
         CloseControllerDebug();
         CloseQuitConfirm();
         CloseStatsHelp();
+        _sceneAreaSelect.Close();
     }
 
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBuildDialog
         || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm
-        || _showStatsHelp;
+        || _showStatsHelp || _sceneAreaSelect.IsActive;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showRegionMap
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog && !_showQuitConfirm
-        && !_showStatsHelp;
+        && !_showStatsHelp && !_sceneAreaSelect.IsActive;
+
+    private bool CanUseSceneAreaSelect() =>
+        _phase != Phase.Death && _backgroundTexture.Id != 0;
 
     private void RestartGame()
     {
@@ -4201,7 +4260,7 @@ public sealed class Game : IGame
     private void DrawAreaSelectButton() =>
         GameDialogUi.DrawToolbarIconButton(
             _areaSelectButtonRect,
-            _areaSelectHovered,
+            _sceneAreaSelect.IsActive || _areaSelectHovered,
             GameToolbarIcons.DrawReticle);
 
     private void DrawControllerButton() =>
@@ -4230,6 +4289,12 @@ public sealed class Game : IGame
         _controllerDebugCloseRect = layout.CloseRect;
         for (int i = 0; i < layout.TabRects.Length; i++)
             _controllerDebugTabRects[i] = layout.TabRects[i];
+    }
+
+    private void DrawSceneAreaSelectOverlay()
+    {
+        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
+        _sceneAreaSelect.Draw(_uiFont, new Rectangle(artX, artY, artW, artH));
     }
 
     private void DrawTopRightButtons()
@@ -5452,6 +5517,9 @@ public sealed class Game : IGame
             DrawControllerDebugScreen();
             DrawTopRightButtons();
         }
+
+        if (_sceneAreaSelect.IsActive)
+            DrawSceneAreaSelectOverlay();
 
         DrawBuildDateBottomRight();
 
