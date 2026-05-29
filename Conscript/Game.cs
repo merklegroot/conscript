@@ -117,9 +117,11 @@ public sealed class Game : IGame
     // --- Top-right utility buttons (restart, debug start, controller) ---
     private Rectangle _restartButtonRect;
     private Rectangle _debugStartButtonRect;
+    private Rectangle _areaSelectButtonRect;
     private Rectangle _controllerButtonRect;
     private bool _restartHovered;
     private bool _debugStartHovered;
+    private bool _areaSelectHovered;
     private bool _controllerHovered;
 
     // Controller debug overlay (opened from top-right gamepad button)
@@ -1308,6 +1310,7 @@ public sealed class Game : IGame
         UpdateTopRightButtonsLayout();
         _restartHovered = Raylib.CheckCollisionPointRec(mouse, _restartButtonRect);
         _debugStartHovered = Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect);
+        _areaSelectHovered = Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect);
         _controllerHovered = Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect);
         if (leftClicked && _restartHovered)
         {
@@ -1416,6 +1419,7 @@ public sealed class Game : IGame
             if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, panelRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect))
             {
                 CloseControllerDebug();
@@ -1967,6 +1971,7 @@ public sealed class Game : IGame
         // Top-right utility buttons (always available)
         if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
             (_showControllerDebug && (
                 Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect) ||
@@ -2912,7 +2917,8 @@ public sealed class Game : IGame
         float x = _screenWidth - margin - size;
         _restartButtonRect = new Rectangle(x, 10f, size, size);
         _debugStartButtonRect = new Rectangle(x, 10f + size + gap, size, size);
-        _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 2f, size, size);
+        _areaSelectButtonRect = new Rectangle(x, 10f + (size + gap) * 2f, size, size);
+        _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 3f, size, size);
     }
 
     private void ResetDeathLines()
@@ -2970,8 +2976,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot at the warehouse ambush (vodka + rag in backpack).
-    /// Resets stats, money, and inventory for ambush/molotov testing.
+    /// Jump to a reproducible debug snapshot just after the molotov detonates at the warehouse ambush.
+    /// Resets stats, money, and inventory for aftermath testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -2981,21 +2987,21 @@ public sealed class Game : IGame
         _buildFeedback = "";
         ResetDeathLines();
 
-        _health = 96;
+        _health = 92;
         _energy = 58;
         _satiation = 69;
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { "Knife", "Lighter", "Phone", GameItems.Vodka, GameItems.Rag, null, null, null };
+        _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
         _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
 
         _borisDeliveryJobActive = true;
-        _warehouseAmbushersDead = false;
+        _warehouseAmbushersDead = true;
         ResetGloveCompartmentLoot();
-        EnterPhase(Phase.WarehouseAmbush);
+        EnterPhase(Phase.WarehouseAftermath);
     }
 
     // --- Inventory & ground items ---
@@ -4192,6 +4198,12 @@ public sealed class Game : IGame
     private void DrawDebugStartButton() =>
         GameDialogUi.DrawToolbarTextButton(_debugStartButtonRect, _debugStartHovered, _uiFont, "DBG", 10f);
 
+    private void DrawAreaSelectButton() =>
+        GameDialogUi.DrawToolbarIconButton(
+            _areaSelectButtonRect,
+            _areaSelectHovered,
+            GameToolbarIcons.DrawReticle);
+
     private void DrawControllerButton() =>
         GameDialogUi.DrawToolbarIconButton(
             _controllerButtonRect,
@@ -4224,6 +4236,7 @@ public sealed class Game : IGame
     {
         DrawRestartButton();
         DrawDebugStartButton();
+        DrawAreaSelectButton();
         DrawControllerButton();
     }
 

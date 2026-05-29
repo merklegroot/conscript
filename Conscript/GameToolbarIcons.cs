@@ -48,6 +48,21 @@ internal static class GameToolbarIcons
             thick, color);
     }
 
+    public static void DrawReticle(float cx, float cy, float size, Color color)
+    {
+        float thick = Math.Max(1.4f, size * 0.11f);
+        float arm = size * 0.42f;
+        float gap = size * 0.12f;
+
+        Raylib.DrawLineEx(new Vector2(cx - arm, cy), new Vector2(cx - gap, cy), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx + gap, cy), new Vector2(cx + arm, cy), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy - arm), new Vector2(cx, cy - gap), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy + gap), new Vector2(cx, cy + arm), thick, color);
+
+        float r = size * 0.34f;
+        Raylib.DrawCircleLines((int)cx, (int)cy, r, color);
+    }
+
     public static void DrawController(float cx, float cy, float size, Color color)
     {
         float bodyW = size * 0.82f;
