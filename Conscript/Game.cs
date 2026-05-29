@@ -233,8 +233,6 @@ public sealed class Game : IGame
     private int _dialogItemIndex = -1;
     private int _dialogDroppedItemIndex = -1;
     private string _dialogItemName = "";
-    private Rectangle _dialogCloseRect;
-    private bool _dialogCloseHovered;
     private Rectangle _dialogActionRect;
     private bool _dialogActionHovered;
     private Rectangle _dialogSecondaryActionRect;
@@ -1717,12 +1715,6 @@ public sealed class Game : IGame
                 TryDropItemFromBackpack();
                 return;
             }
-
-            if (leftClicked && _dialogCloseHovered)
-            {
-                CloseItemDialog();
-                return;
-            }
         }
 
         if (_showStoreBuyMenu)
@@ -2208,7 +2200,7 @@ public sealed class Game : IGame
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
         {
-            if (_dialogCloseHovered || _dialogActionHovered || _dialogSecondaryActionHovered || _dialogDropHovered)
+            if (_dialogActionHovered || _dialogSecondaryActionHovered || _dialogDropHovered)
                 overClickable = true;
         }
 
@@ -3850,14 +3842,12 @@ public sealed class Game : IGame
 
     private void ResetItemDialogHover()
     {
-        _dialogCloseHovered = false;
         _dialogActionHovered = false;
         _dialogSecondaryActionHovered = false;
         _dialogDropHovered = false;
         _dialogActionRect = default;
         _dialogSecondaryActionRect = default;
         _dialogDropRect = default;
-        _dialogCloseRect = default;
     }
 
     private void CloseItemDialog()
@@ -5156,8 +5146,6 @@ public sealed class Game : IGame
             Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
         _dialogDropHovered = _dialogDropRect.Width > 0 &&
             Raylib.CheckCollisionPointRec(mouse, _dialogDropRect);
-        _dialogCloseHovered = _dialogCloseRect.Width > 0 &&
-            Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
     }
 
     private bool TryPerformItemPanelPrimaryAction()
@@ -5233,18 +5221,20 @@ public sealed class Game : IGame
         const int btnH = 36;
         const int btnGap = 6;
         int btnY = textY + 10;
-        int buttonCount = isGround ? 2
-            : canDrink && canFill ? 4
-            : canAct ? 3
-            : 2;
+        int buttonCount = isGround ? 1
+            : canDrink && canFill ? 3
+            : canAct ? 2
+            : 1;
         int panelBottom = btnY + buttonCount * btnH + (buttonCount - 1) * btnGap + panelPad;
         int panelH = panelBottom - startY;
+        var panelRect = new Rectangle(x, startY, available, panelH);
 
-        Raylib.DrawRectangle(x, startY, available, panelH, Palette.CardBg);
-        Raylib.DrawRectangleLinesEx(new Rectangle(x, startY, available, panelH), 1.5f, Palette.CardBorder);
+        Raylib.DrawRectangleRounded(panelRect, 0.06f, 8, Palette.CardBg);
+        Raylib.DrawRectangleRoundedLines(panelRect, 0.06f, 8, 1.5f, Palette.CardBorder);
 
-        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
-        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        var iconFrame = new Rectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4);
+        Raylib.DrawRectangleRounded(iconFrame, 0.12f, 8, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleRoundedLines(iconFrame, 0.12f, 8, 1f, Palette.SubtleBorder);
         DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE,
             GetDialogSlotIndex(), GetDialogChargesOverride());
 
@@ -5275,10 +5265,7 @@ public sealed class Game : IGame
         if (isGround)
         {
             _dialogActionRect = new Rectangle(innerX, btnY, innerW, btnH);
-            btnY += btnH + btnGap;
-            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, "PICK UP", _dialogActionHovered, font);
-            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else if (canDrink && canFill)
         {
@@ -5287,12 +5274,9 @@ public sealed class Game : IGame
             _dialogSecondaryActionRect = new Rectangle(innerX, btnY, innerW, btnH);
             btnY += btnH + btnGap;
             _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
-            btnY += btnH + btnGap;
-            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else if (canAct)
         {
@@ -5304,20 +5288,14 @@ public sealed class Game : IGame
             _dialogActionRect = new Rectangle(innerX, btnY, innerW, btnH);
             btnY += btnH + btnGap;
             _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
-            btnY += btnH + btnGap;
-            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
         {
             _dialogActionRect = new Rectangle(0, 0, 0, 0);
             _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
-            btnY += btnH + btnGap;
-            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
-            GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
 
         return panelBottom;
