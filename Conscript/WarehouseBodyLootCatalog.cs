@@ -38,7 +38,7 @@ internal static class WarehouseBodyLootCatalog
                     GameItems.FoldedPaper,
                     IsMoney: false,
                     MoneyAmount: 0,
-                    Flavor: "A grease-stained half-sheet folded into his breast pocket. Block numbers and slashes — someone's schedule, if you can read it.",
+                    Flavor: "A grease-stained half-sheet folded into his breast pocket. Handwriting in block letters — a note to someone named Vitya.",
                     EffectHint: "Goes in your backpack. Read it from your pack."),
                 new(
                     "Knife",

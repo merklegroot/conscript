@@ -33,9 +33,11 @@ internal static class GameItems
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
 
-    /// <summary>Letter-position cipher (A=01). INN | 00:30 | BAY | 14 | BURN | PHONES.</summary>
-    public const string FoldedPaperCodedMessage =
-        "09-14-14 | 00-30 | 02-01-25-14 | 14 | 02-21-18-14 | 16-08-15-14-05-19";
+    public const string FoldedPaperMessage =
+        "For the last time, Vitya,\n" +
+        "Tomorrow is the day.\n" +
+        "Treason or not, it will be done.\n" +
+        "Severe consequences will follow.";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -46,7 +48,7 @@ internal static class GameItems
         [Crowbar]         = "items.crowbar.png",
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
-        [FoldedPaper]     = "items.rag.png",
+        [FoldedPaper]     = "folded-paper-note.png",
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",

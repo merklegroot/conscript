@@ -166,6 +166,8 @@ public sealed class Game : IGame
     private bool _borisDeliveryJobActive;
     private bool _warehouseAmbushersDead;
     private bool _foldedPaperMessageRead;
+    private Texture2D _foldedPaperNoteTexture;
+    private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
@@ -1063,6 +1065,7 @@ public sealed class Game : IGame
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
+        _foldedPaperNoteTexture = EmbeddedTextureLoader.Load("folded-paper-note.png");
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1118,6 +1121,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _regionMapTexture);
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
         UnloadTextureIfLoaded(ref _titleLogoTexture);
+        UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
     }
 
     // --- Main loop ---
@@ -1151,6 +1155,11 @@ public sealed class Game : IGame
             if (_warehouseKeypad.IsOpen)
             {
                 CloseWarehouseLock();
+                return;
+            }
+            if (_foldedPaperReader.IsOpen)
+            {
+                CloseFoldedPaperReader();
                 return;
             }
             if (_showRegionMap)
@@ -1465,6 +1474,12 @@ public sealed class Game : IGame
                 _actionMessageTimer = 2.8f;
             }
 
+            return;
+        }
+
+        if (_foldedPaperReader.IsOpen)
+        {
+            _foldedPaperReader.Update(mouse, leftClicked);
             return;
         }
 
@@ -2373,6 +2388,9 @@ public sealed class Game : IGame
         }
 
         if (_warehouseKeypad.IsOpen)
+            overClickable = true;
+
+        if (_foldedPaperReader.IsOpen)
             overClickable = true;
 
         // Build dialog: close button + overlay
@@ -3533,6 +3551,7 @@ public sealed class Game : IGame
         CloseGloveBoxMenu();
         CloseBodyLootMenu();
         CloseWarehouseLock();
+        CloseFoldedPaperReader();
         CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
@@ -3546,12 +3565,14 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug
-        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen;
+        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen
+        || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen;
+        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen
+        && !_foldedPaperReader.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -4646,19 +4667,20 @@ public sealed class Game : IGame
             return;
 
         _foldedPaperMessageRead = true;
+        _foldedPaperReader.Open();
     }
+
+    private void CloseFoldedPaperReader() => _foldedPaperReader.Close();
 
     private string GetFoldedPaperDialogText()
     {
         if (!_foldedPaperMessageRead)
         {
-            return "A half-sheet torn from a ledger, folded twice. The ink is blocky — numbers grouped with slashes, like coordinates or a dead drop.\n\n" +
-                "Press READ to study it.";
+            return "A half-sheet torn from a ledger, creased and smudged. Someone wrote this in a hurry.\n\n" +
+                "Press READ to study the note.";
         }
 
-        return "You smooth the creases and copy it down:\n\n" +
-            GameItems.FoldedPaperCodedMessage +
-            "\n\n(Block numbers — A=01, B=02, and so on.)";
+        return "You've studied the note. Press READ again to look at it.";
     }
 
     private void TryLightMolotovFromItemDialog()
@@ -4936,8 +4958,7 @@ public sealed class Game : IGame
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
         bool canAct = canDrink || canFill || IsDialogPrimaryAction(itemAction);
 
-        bool isFoldedPaper = !isGround && GameItems.IsFoldedPaper(_dialogItemName);
-        int panelW = isGround ? 380 : canDrink && canFill ? 440 : isFoldedPaper && _foldedPaperMessageRead ? 460 : 400;
+        int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
         Font font = _uiFont;
 
         const float bodySpacing = 0.6f;
@@ -6335,6 +6356,11 @@ public sealed class Game : IGame
         if (_warehouseKeypad.IsOpen)
         {
             _warehouseKeypad.Draw(_uiFont, _screenWidth, _screenHeight);
+        }
+
+        if (_foldedPaperReader.IsOpen)
+        {
+            _foldedPaperReader.Draw(_uiFont, _foldedPaperNoteTexture, _screenWidth, _screenHeight);
         }
 
         if (_showRegionMap)

@@ -15,6 +15,29 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 
 ---
 
+## `folded-paper-note.png`
+
+- **asset**: `Conscript/img/folded-paper-note.png`
+- **date**: 2026-05-28
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage`
+- **prompt**:
+
+```text
+A worn half-sheet of ledger paper photographed flat on a dark surface, post-Soviet warehouse mood. Cream-yellowed paper with grease smudges, torn edge, folded crease lines. Handwritten block letters in dark ink, clearly legible, centered on the paper exactly as written:
+
+For the last time, Vitya,
+Tomorrow is the day.
+Treason or not, it will be done.
+Severe consequences will follow.
+
+No other text. Photorealistic, soft side lighting, subtle grain. Portrait orientation roughly 3:4 aspect ratio. No people, no hands, no UI frames.
+```
+
+- **notes**:
+  - Shown full-size in `FoldedPaperReaderDialog` when the player presses READ on Folded Paper.
+  - Also used as the backpack/item icon for `GameItems.FoldedPaper`.
+
 ## `warehouse-14-aftermath.png`
 
 - **asset**: `Conscript/img/warehouse-14-aftermath.png`
