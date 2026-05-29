@@ -1415,15 +1415,10 @@ public sealed class Game : IGame
             GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
             var artBounds = new Rectangle(artX, artY, artW, artH);
             bool leftReleased = Raylib.IsMouseButtonReleased(MouseButton.MOUSE_LEFT_BUTTON);
-            int texW = _backgroundTexture.Id != 0 ? _backgroundTexture.Width : 1;
-            int texH = _backgroundTexture.Id != 0 ? _backgroundTexture.Height : 1;
 
             SceneAreaSelection? selection = _sceneAreaSelect.Update(
                 mouse,
                 artBounds,
-                _phase,
-                texW,
-                texH,
                 leftClicked,
                 leftReleased);
 

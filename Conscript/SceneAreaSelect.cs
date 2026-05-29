@@ -14,28 +14,23 @@ internal sealed class SceneAreaSelect
 
     public bool IsActive { get; private set; }
 
-    public bool IsDragging => _dragging;
-
     public bool SelectionTooSmall { get; private set; }
 
     public void Open()
     {
         IsActive = true;
-        _dragging = false;
+        ResetDrag();
     }
 
     public void Close()
     {
         IsActive = false;
-        _dragging = false;
+        ResetDrag();
     }
 
     public SceneAreaSelection? Update(
         Vector2 mouse,
         Rectangle artBounds,
-        Game.Phase phase,
-        int textureWidth,
-        int textureHeight,
         bool leftPressed,
         bool leftReleased)
     {
@@ -59,7 +54,7 @@ internal sealed class SceneAreaSelect
             if (leftReleased)
             {
                 _dragging = false;
-                SceneAreaSelection? selection = BuildSelection(artBounds, phase, textureWidth, textureHeight);
+                SceneAreaSelection? selection = BuildSelection(artBounds);
                 if (selection.HasValue)
                 {
                     Close();
@@ -70,6 +65,7 @@ internal sealed class SceneAreaSelect
                 if (screenRect.Width > 1f || screenRect.Height > 1f)
                     SelectionTooSmall = true;
 
+                ResetDrag();
                 return null;
             }
         }
@@ -84,7 +80,7 @@ internal sealed class SceneAreaSelect
 
         Raylib.DrawRectangleRec(artBounds, new Color(0, 0, 0, 90));
 
-        if (_dragging || HasPendingSelection())
+        if (_dragging)
         {
             Rectangle screenRect = NormalizeDragRect(_start, _current);
             Raylib.DrawRectangle(
@@ -107,45 +103,26 @@ internal sealed class SceneAreaSelect
         Raylib.DrawTextEx(font, hint, new Vector2(hintX, hintY), hintSize, 0.55f, Palette.TextPrimary);
     }
 
-    private SceneAreaSelection? BuildSelection(
-        Rectangle artBounds,
-        Game.Phase phase,
-        int textureWidth,
-        int textureHeight)
+    private SceneAreaSelection? BuildSelection(Rectangle artBounds)
     {
         Rectangle screenRect = NormalizeDragRect(_start, _current);
         if (screenRect.Width < MinSelectionSize || screenRect.Height < MinSelectionSize)
             return null;
 
-        float nx = (screenRect.X - artBounds.X) / artBounds.Width;
-        float ny = (screenRect.Y - artBounds.Y) / artBounds.Height;
-        float nw = screenRect.Width / artBounds.Width;
-        float nh = screenRect.Height / artBounds.Height;
+        float x1 = Math.Clamp((screenRect.X - artBounds.X) / artBounds.Width, 0f, 1f);
+        float y1 = Math.Clamp((screenRect.Y - artBounds.Y) / artBounds.Height, 0f, 1f);
+        float x2 = Math.Clamp((screenRect.X + screenRect.Width - artBounds.X) / artBounds.Width, 0f, 1f);
+        float y2 = Math.Clamp((screenRect.Y + screenRect.Height - artBounds.Y) / artBounds.Height, 0f, 1f);
 
-        nx = Math.Clamp(nx, 0f, 1f);
-        ny = Math.Clamp(ny, 0f, 1f);
-        nw = Math.Clamp(nw, 0f, 1f - nx);
-        nh = Math.Clamp(nh, 0f, 1f - ny);
-
-        int px = (int)MathF.Round(nx * textureWidth);
-        int py = (int)MathF.Round(ny * textureHeight);
-        int pw = Math.Max(1, (int)MathF.Round(nw * textureWidth));
-        int ph = Math.Max(1, (int)MathF.Round(nh * textureHeight));
-
-        string imageFile = SceneBackgroundFiles.GetImageFile(phase);
-        string clipboard =
-            $"{phase}: x={nx:F3}, y={ny:F3}, w={nw:F3}, h={nh:F3} " +
-            $"({imageFile} {textureWidth}x{textureHeight}, px x={px} y={py} w={pw} h={ph})";
-        string display =
-            $"Region x={nx:F3} y={ny:F3} w={nw:F3} h={nh:F3} — copied to clipboard";
-
-        return new SceneAreaSelection(nx, ny, nw, nh, px, py, pw, ph, clipboard, display);
+        string text = $"({x1:F3}, {y1:F3}), ({x2:F3}, {y2:F3})";
+        return new SceneAreaSelection(x1, y1, x2, y2, text, $"{text} — copied to clipboard");
     }
 
-    private bool HasPendingSelection()
+    private void ResetDrag()
     {
-        Rectangle screenRect = NormalizeDragRect(_start, _current);
-        return screenRect.Width >= MinSelectionSize && screenRect.Height >= MinSelectionSize;
+        _dragging = false;
+        _start = Vector2.Zero;
+        _current = Vector2.Zero;
     }
 
     private static Vector2 ClampToBounds(Vector2 point, Rectangle bounds)
@@ -166,37 +143,9 @@ internal sealed class SceneAreaSelect
 }
 
 internal readonly record struct SceneAreaSelection(
-    float X,
-    float Y,
-    float W,
-    float H,
-    int Px,
-    int Py,
-    int Pw,
-    int Ph,
+    float X1,
+    float Y1,
+    float X2,
+    float Y2,
     string ClipboardText,
     string DisplayMessage);
-
-internal static class SceneBackgroundFiles
-{
-    public static string GetImageFile(Game.Phase phase) =>
-        phase switch
-        {
-            Game.Phase.Opening => "apartment-inside.png",
-            Game.Phase.Outside => "apartment-outside.png",
-            Game.Phase.Town => "town.png",
-            Game.Phase.IndustrialDistrict => "industrial.png",
-            Game.Phase.CommercialDistrict => "commercial.png",
-            Game.Phase.Store => "store.png",
-            Game.Phase.Cafe => "cafe.png",
-            Game.Phase.DeliveryTruck => "delivery-truck-cab.png",
-            Game.Phase.WarehouseTruck => "warehouse-14.png",
-            Game.Phase.WarehouseAmbush => "warehouse-14-ambush.png",
-            Game.Phase.WarehouseAftermath => "warehouse-14-aftermath.png",
-            Game.Phase.ForestEntry => "forest-entry.png",
-            Game.Phase.ForestStream => "forest-stream.png",
-            Game.Phase.Forest => "trees.png",
-            Game.Phase.Tent => "tent-interior.png",
-            _ => "unknown.png",
-        };
-}
