@@ -325,6 +325,17 @@ public sealed class Game : IGame
     private readonly NumericKeypadLockDialog _warehouseKeypad =
         new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
+    // Warehouse interior — sealed crate
+    private Rectangle _warehouseCrateClickRect;
+    private bool _warehouseCrateHotspotHovered;
+    private bool _warehouseCrateOpened;
+    private bool _showWarehouseCrateDialog;
+    private Rectangle _warehouseCratePanelRect;
+    private Rectangle _warehouseCrateCloseRect;
+    private bool _warehouseCrateCloseHovered;
+    private Rectangle _warehouseCrateActionRect;
+    private bool _warehouseCrateActionHovered;
+
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
     private bool _hasTrashBagTent;
@@ -1208,6 +1219,11 @@ public sealed class Game : IGame
                 CloseCafeOwnerDialog();
                 return;
             }
+            if (_showWarehouseCrateDialog)
+            {
+                CloseWarehouseCrateDialog();
+                return;
+            }
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
@@ -1375,6 +1391,13 @@ public sealed class Game : IGame
             else if (_showCafeOwnerDialog)
             {
                 SelectCafeOwnerOption(_cafeOwnerHighlightedIndex);
+            }
+            else if (_showWarehouseCrateDialog)
+            {
+                if (_warehouseCrateActionHovered)
+                    TryOpenWarehouseCrateWithCrowbar();
+                else
+                    CloseWarehouseCrateDialog();
             }
             else if (_showStoreBuyMenu)
             {
@@ -1779,6 +1802,34 @@ public sealed class Game : IGame
             }
         }
 
+        // === Warehouse crate dialog (modal) ===
+        if (_showWarehouseCrateDialog)
+        {
+            bool canPryOpen = !_warehouseCrateOpened && HasBackpackItem(GameItems.Crowbar);
+            _warehouseCrateActionHovered = canPryOpen &&
+                _warehouseCrateActionRect.Width > 0 &&
+                Raylib.CheckCollisionPointRec(mouse, _warehouseCrateActionRect);
+            _warehouseCrateCloseHovered = Raylib.CheckCollisionPointRec(mouse, _warehouseCrateCloseRect);
+
+            if (leftClicked && _warehouseCrateActionHovered)
+            {
+                TryOpenWarehouseCrateWithCrowbar();
+                return;
+            }
+
+            if (leftClicked && _warehouseCrateCloseHovered)
+            {
+                CloseWarehouseCrateDialog();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _warehouseCratePanelRect))
+            {
+                CloseWarehouseCrateDialog();
+                return;
+            }
+        }
+
         // === Café owner dialog (modal) ===
         if (_showCafeOwnerDialog)
         {
@@ -2079,6 +2130,36 @@ public sealed class Game : IGame
                 _warehouseLockClickRect = default;
             }
 
+            if (_phase == Phase.WarehouseInterior)
+            {
+                GetCinematicArtBounds(out int crateArtX, out int crateArtY, out int crateArtW, out int crateArtH);
+                var crateArtBounds = new Rectangle(crateArtX, crateArtY, crateArtW, crateArtH);
+                _warehouseCrateHotspotHovered = false;
+                float crateW = WarehouseInteriorHotspots.CrateX2 - WarehouseInteriorHotspots.CrateX1;
+                float crateH = WarehouseInteriorHotspots.CrateY2 - WarehouseInteriorHotspots.CrateY1;
+                _warehouseCrateClickRect = SceneRegion.ToScreenRect(
+                    WarehouseInteriorHotspots.CrateX1,
+                    WarehouseInteriorHotspots.CrateY1,
+                    crateW,
+                    crateH,
+                    crateArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _warehouseCrateClickRect))
+                {
+                    _warehouseCrateHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        OpenWarehouseCrateDialog();
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                _warehouseCrateHotspotHovered = false;
+                _warehouseCrateClickRect = default;
+            }
+
             _hoveredDroppedItemListIndex = -1;
             for (int i = 0; i < _droppedItemClickRects.Count; i++)
             {
@@ -2303,6 +2384,9 @@ public sealed class Game : IGame
             if (_warehouseLockHotspotHovered)
                 overClickable = true;
 
+            if (_warehouseCrateHotspotHovered)
+                overClickable = true;
+
             if (_narrativeCardHovered)
                 overClickable = true;
 
@@ -2431,6 +2515,13 @@ public sealed class Game : IGame
         {
             if (_cafeOwnerCloseHovered || _cafeOwnerOptionHovered.Any(h => h) ||
                 !Raylib.CheckCollisionPointRec(mouse, _cafeOwnerPanelRect))
+                overClickable = true;
+        }
+
+        if (_showWarehouseCrateDialog)
+        {
+            if (_warehouseCrateCloseHovered || _warehouseCrateActionHovered ||
+                !Raylib.CheckCollisionPointRec(mouse, _warehouseCratePanelRect))
                 overClickable = true;
         }
 
@@ -3345,6 +3436,41 @@ public sealed class Game : IGame
 
     private void CloseWarehouseLock() => _warehouseKeypad.Close();
 
+    private void OpenWarehouseCrateDialog()
+    {
+        if (_phase != Phase.WarehouseInterior)
+            return;
+
+        _showWarehouseCrateDialog = true;
+        _warehouseCrateCloseHovered = false;
+        _warehouseCrateActionHovered = false;
+    }
+
+    private void CloseWarehouseCrateDialog()
+    {
+        _showWarehouseCrateDialog = false;
+        _warehouseCrateCloseHovered = false;
+        _warehouseCrateActionHovered = false;
+    }
+
+    private void TryOpenWarehouseCrateWithCrowbar()
+    {
+        if (_phase != Phase.WarehouseInterior || _warehouseCrateOpened)
+            return;
+
+        if (!HasBackpackItem(GameItems.Crowbar))
+            return;
+
+        _warehouseCrateOpened = true;
+        _actionMessage =
+            "You work the crowbar under the lid. Nails shriek and splinter. The crate is empty — " +
+            "only packing straw and a chemical smell.";
+        _actionMessageTimer = 3.4f;
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        CloseWarehouseCrateDialog();
+    }
+
     private void EnterWarehouseInterior()
     {
         if (_phase != Phase.WarehouseAftermath)
@@ -3353,6 +3479,7 @@ public sealed class Game : IGame
         CloseWarehouseLock();
         CloseBodyLootMenu();
         CloseItemDialog();
+        CloseWarehouseCrateDialog();
         _actionMessage = "The door lifts. Smoke and rain roll over your boots as you step inside.";
         _actionMessageTimer = 3.2f;
         AdvanceTime();
@@ -3627,6 +3754,7 @@ public sealed class Game : IGame
         CloseBuildDialog();
         CloseForageDialog();
         CloseCafeOwnerDialog();
+        CloseWarehouseCrateDialog();
         CloseControllerDebug();
         CloseQuitConfirm();
         CloseStatsHelp();
@@ -3635,15 +3763,15 @@ public sealed class Game : IGame
 
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
-        || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug
-        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen
-        || _foldedPaperReader.IsOpen;
+        || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
+        || _showControllerDebug || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive
+        || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen
-        && !_foldedPaperReader.IsOpen;
+        && !_showWarehouseCrateDialog && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive
+        && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -3658,6 +3786,7 @@ public sealed class Game : IGame
         _tentBuiltInPhase = null;
         _borisDeliveryJobActive = false;
         _warehouseAmbushersDead = false;
+        _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
@@ -3693,6 +3822,7 @@ public sealed class Game : IGame
 
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
+        _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
@@ -6363,6 +6493,114 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseCrateHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float crateW = WarehouseInteriorHotspots.CrateX2 - WarehouseInteriorHotspots.CrateX1;
+        float crateH = WarehouseInteriorHotspots.CrateY2 - WarehouseInteriorHotspots.CrateY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseInteriorHotspots.CrateX1,
+            WarehouseInteriorHotspots.CrateY1,
+            crateW,
+            crateH,
+            artBounds);
+
+        bool hovered = _warehouseCrateHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            string label = _warehouseCrateOpened ? "OPENED" : "CRATE";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
+    private void DrawWarehouseCrateDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        GameDialogUi.DrawModalBackdrop(screenW, screenH);
+
+        bool hasCrowbar = HasBackpackItem(GameItems.Crowbar);
+        bool canPryOpen = !_warehouseCrateOpened && hasCrowbar;
+        string body = WarehouseCrateDialog.GetBodyText(hasCrowbar, _warehouseCrateOpened);
+
+        Font font = _uiFont;
+        int panelW = 440;
+        const float bodySpacing = 0.6f;
+        int bodySize = 16;
+        int bodyLineHeight = 22;
+        int textMaxW = panelW - 48;
+        var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
+        int panelH = Math.Max(220, 124 + bodyHeight + 60);
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 20;
+
+        _warehouseCratePanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        string title = WarehouseCrateDialog.Title;
+        int titleSize = 26;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
+            titleSize, 0.8f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 40, panelY + 52, panelX + panelW - 40, panelY + 52, Palette.SubtleBorder);
+
+        int textY = panelY + 64;
+        foreach (string line in bodyLines)
+        {
+            int lineW = (int)Raylib.MeasureTextEx(font, line, bodySize, bodySpacing).X;
+            Raylib.DrawTextEx(font, line,
+                new Vector2(panelX + (panelW - lineW) / 2, textY),
+                bodySize, bodySpacing, Palette.TextSecondary);
+            textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
+        }
+
+        int btnH = 36;
+        int btnY = panelY + panelH - 52;
+        int gap = 8;
+        int btnW = canPryOpen ? 120 : 100;
+        int totalW = canPryOpen ? btnW * 2 + gap : btnW;
+        int startX = panelX + (panelW - totalW) / 2;
+
+        if (canPryOpen)
+        {
+            _warehouseCrateActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _warehouseCrateCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            GameDialogUi.DrawDialogButton(
+                _warehouseCrateActionRect,
+                WarehouseCrateDialog.OpenActionLabel,
+                _warehouseCrateActionHovered,
+                font);
+            GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
+        }
+        else
+        {
+            _warehouseCrateActionRect = new Rectangle(0, 0, 0, 0);
+            _warehouseCrateCloseRect = new Rectangle(startX, btnY, btnW, btnH);
+            GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
+        }
+    }
+
     // --- Render ---
     private void Draw()
     {
@@ -6450,6 +6688,11 @@ public sealed class Game : IGame
         if (_showCafeOwnerDialog)
         {
             DrawCafeOwnerDialog();
+        }
+
+        if (_showWarehouseCrateDialog)
+        {
+            DrawWarehouseCrateDialog();
         }
 
         if (_showQuitConfirm)
@@ -7505,6 +7748,9 @@ public sealed class Game : IGame
             DrawWarehouseBodyHotspots(artX, artY, artW, artH);
             DrawWarehouseLockHotspot(artX, artY, artW, artH);
         }
+
+        if (_phase == Phase.WarehouseInterior)
+            DrawWarehouseCrateHotspot(artX, artY, artW, artH);
 
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))
