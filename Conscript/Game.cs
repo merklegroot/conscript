@@ -46,7 +46,6 @@ public sealed class Game : IGame
     private Texture2D _warehouseInteriorBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
-    private Texture2D _regionMapTexture;
     private Texture2D _trashBagTentTexture;
     private Texture2D _titleLogoTexture;
 
@@ -424,33 +423,6 @@ public sealed class Game : IGame
     private bool _narrativeCollapsed;
     private Rectangle _narrativeCardRect;
     private bool _narrativeCardHovered;
-
-    // Region map — sidebar thumbnail opens expanded view
-    private bool _showRegionMap;
-    private Rectangle _regionMapClickRect;
-    private bool _regionMapThumbHovered;
-    private Rectangle _regionMapPanelRect;
-    private Rectangle _regionMapViewRect;
-    private Rectangle _regionMapDrawRect;
-    private Rectangle _regionMapCloseRect;
-    private bool _regionMapCloseHovered;
-    private Rectangle _mapZoomInRect;
-    private Rectangle _mapZoomOutRect;
-    private bool _mapZoomInHovered;
-    private bool _mapZoomOutHovered;
-    private int _mapZoomLevelIndex;
-    private double _mapViewCenterLon;
-    private double _mapViewCenterLat;
-    private bool _mapPanning;
-    private Vector2 _mapPanStartMouse;
-    private double _mapPanStartCenterLon;
-    private double _mapPanStartCenterLat;
-    private float _expandedMapViewAspect;
-
-    private static readonly float[] MapZoomLevels = { 0.25f, 0.5f, 0.75f, 1f, 2f, 3f, 4f, 6f, 8f, 12f, 18f };
-
-    // Detail dialog viewport (width / height). Sidebar uses RegionMapGeo.LonLatAspect (~3.9) instead.
-    private const float ExpandedMapAspect = 0.78f;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[8];
@@ -1122,7 +1094,6 @@ public sealed class Game : IGame
         _warehouseInteriorBackground = LoadTextureOrFallback("warehouse-14-interior.png", _warehouseAftermathBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
-        _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
         _foldedPaperNoteTexture = EmbeddedTextureLoader.Load("folded-paper-note.png");
@@ -1179,7 +1150,6 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _warehouseInteriorBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
-        UnloadTextureIfLoaded(ref _regionMapTexture);
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
         UnloadTextureIfLoaded(ref _titleLogoTexture);
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
@@ -1221,11 +1191,6 @@ public sealed class Game : IGame
             if (_foldedPaperReader.IsOpen)
             {
                 CloseFoldedPaperReader();
-                return;
-            }
-            if (_showRegionMap)
-            {
-                CloseRegionMap();
                 return;
             }
             if (_showBuildDialog)
@@ -1400,10 +1365,6 @@ public sealed class Game : IGame
             if (_showControllerDebug)
             {
                 CloseControllerDebug();
-            }
-            else if (_showRegionMap)
-            {
-                CloseRegionMap();
             }
             else if (_showItemDialog)
             {
@@ -1671,71 +1632,6 @@ public sealed class Game : IGame
                 return;
             }
             return;
-        }
-
-        // === Expanded region map (modal) ===
-        if (_showRegionMap)
-        {
-            SyncExpandedMapLayout();
-            ComputeMapZoomButtonRects(_regionMapDrawRect, out _mapZoomInRect, out _mapZoomOutRect);
-
-            _regionMapCloseHovered = Raylib.CheckCollisionPointRec(mouse, _regionMapCloseRect);
-            _mapZoomInHovered = Raylib.CheckCollisionPointRec(mouse, _mapZoomInRect);
-            _mapZoomOutHovered = Raylib.CheckCollisionPointRec(mouse, _mapZoomOutRect);
-            bool overMap = _regionMapDrawRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _regionMapDrawRect);
-
-            if (leftClicked && _mapZoomInHovered && _mapZoomLevelIndex < MapZoomLevels.Length - 1)
-            {
-                ChangeMapZoom(1, _regionMapDrawRect);
-                return;
-            }
-
-            if (leftClicked && _mapZoomOutHovered && _mapZoomLevelIndex > 0)
-            {
-                ChangeMapZoom(-1, _regionMapDrawRect);
-                return;
-            }
-
-            if (leftClicked && overMap && !_regionMapCloseHovered && !_mapZoomInHovered && !_mapZoomOutHovered)
-            {
-                _mapPanning = true;
-                _mapPanStartMouse = mouse;
-                _mapPanStartCenterLon = _mapViewCenterLon;
-                _mapPanStartCenterLat = _mapViewCenterLat;
-            }
-
-            if (_mapPanning)
-            {
-                if (!Raylib.IsMouseButtonDown(MouseButton.MOUSE_LEFT_BUTTON))
-                    _mapPanning = false;
-                else
-                {
-                    GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
-                    double lonSpan = vMaxLon - vMinLon;
-                    double latSpan = vMaxLat - vMinLat;
-                    Vector2 delta = mouse - _mapPanStartMouse;
-                    _mapViewCenterLon = _mapPanStartCenterLon - delta.X / _regionMapDrawRect.Width * lonSpan;
-                    _mapViewCenterLat = _mapPanStartCenterLat + delta.Y / _regionMapDrawRect.Height * latSpan;
-                    ClampMapViewCenter();
-                }
-            }
-
-            if (leftClicked && _regionMapCloseHovered)
-            {
-                CloseRegionMap();
-                return;
-            }
-
-            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _regionMapPanelRect))
-            {
-                CloseRegionMap();
-                return;
-            }
-        }
-        else
-        {
-            _mapPanning = false;
         }
 
         // === Build dialog (modal) ===
@@ -2016,8 +1912,6 @@ public sealed class Game : IGame
         {
             _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _statsHelpIconRect);
-            _regionMapThumbHovered = _regionMapClickRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _regionMapClickRect);
             _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
             _huntSidebarButtonHovered = _huntSidebarButtonRect.Width > 0 &&
@@ -2055,12 +1949,6 @@ public sealed class Game : IGame
             if (leftClicked && _quitSidebarButtonHovered)
             {
                 OpenQuitConfirm();
-                return;
-            }
-
-            if (leftClicked && _regionMapThumbHovered)
-            {
-                OpenRegionMap();
                 return;
             }
 
@@ -2421,7 +2309,7 @@ public sealed class Game : IGame
 
         if (AllowsSidebarAndSceneInput())
         {
-            if (_statsHelpIconHovered || _regionMapThumbHovered || _buildSidebarButtonHovered ||
+            if (_statsHelpIconHovered || _buildSidebarButtonHovered ||
                 _huntSidebarButtonHovered || _forageSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
@@ -2470,15 +2358,6 @@ public sealed class Game : IGame
 
         if (_crowbarUseActive && _warehouseCrateHotspotHovered)
             overClickable = true;
-
-        if (_showRegionMap)
-        {
-            if (_regionMapCloseHovered || _mapZoomInHovered || _mapZoomOutHovered ||
-                Raylib.CheckCollisionPointRec(mouse, _regionMapPanelRect))
-            {
-                overClickable = true;
-            }
-        }
 
         // Item dialog: action + close buttons, or overlay dismiss
         if (_showItemDialog)
@@ -4016,7 +3895,6 @@ public sealed class Game : IGame
         CloseBodyLootMenu();
         CloseWarehouseLock();
         CloseFoldedPaperReader();
-        CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
         CloseCafeOwnerDialog();
@@ -4206,14 +4084,14 @@ public sealed class Game : IGame
     }
 
     private bool BlocksActionBarNavigation() =>
-        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
+        _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
         || _crowbarUseActive || _showControllerDebug || _showQuitConfirm || _showStatsHelp
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
-        && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
+        && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_crowbarUseActive && !_showQuitConfirm && !_showStatsHelp
         && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
 
@@ -7170,11 +7048,6 @@ public sealed class Game : IGame
             _foldedPaperReader.Draw(_uiFont, _foldedPaperNoteTexture, _screenWidth, _screenHeight);
         }
 
-        if (_showRegionMap)
-        {
-            DrawRegionMapModal();
-        }
-
         if (_showBuildDialog)
         {
             DrawBuildDialog();
@@ -7397,7 +7270,7 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // RIGHT PANEL — Region map
+    // RIGHT PANEL
     // =====================================================================
     private void DrawRightSidebar()
     {
@@ -7411,8 +7284,6 @@ public sealed class Game : IGame
 
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;
-        cy = DrawWorldMap(cy, tx);
-        cy += 16;
         DrawBuildSidebarButton(cy, tx);
         if (GamePhase.IsForestSurvival(_phase))
         {
@@ -7766,344 +7637,6 @@ public sealed class Game : IGame
 
         return packY + bodyH;
     }
-
-    private void OpenRegionMap()
-    {
-        (double lon, double lat) = GetMapPlayerGeoPosition();
-        _mapViewCenterLon = lon;
-        _mapViewCenterLat = lat;
-        _mapZoomLevelIndex = 6;   // start at 4× — local area; zoom out for wider context
-        _mapPanning = false;
-        _showRegionMap = true;
-        SyncExpandedMapLayout();
-    }
-
-    private void CloseRegionMap()
-    {
-        _showRegionMap = false;
-        _regionMapCloseHovered = false;
-        _mapPanning = false;
-        _mapZoomLevelIndex = 0;
-    }
-
-    private float CurrentMapZoom => MapZoomLevels[_mapZoomLevelIndex];
-
-    private static string FormatMapZoom(float zoom) =>
-        zoom >= 1f ? $"{zoom:F0}×" : $"{zoom:0.##}×";
-
-    private void ComputeExpandedMapLayout(out Rectangle panelRect, out Rectangle mapRect)
-    {
-        int screenW = _screenWidth;
-        int screenH = _screenHeight;
-
-        const int marginX = 12;
-        const int marginY = 8;
-        const int chromeTop = 44;
-        const int chromeBottom = 44;
-        const int panelPadX = 16;
-
-        int panelH = screenH - marginY * 2;
-        int mapAreaH = panelH - chromeTop - chromeBottom;
-        float maxMapW = screenW - marginX * 2 - panelPadX * 2;
-
-        // Height-first: tall portrait viewport, distinct from the wide sidebar thumbnail.
-        int mapH = mapAreaH;
-        int mapW = (int)Math.Min(maxMapW, Math.Max(1, MathF.Round(mapH * ExpandedMapAspect)));
-        int panelW = mapW + panelPadX * 2;
-        int panelX = (screenW - panelW) / 2;
-        int panelY = marginY;
-
-        panelRect = new Rectangle(panelX, panelY, panelW, panelH);
-        mapRect = new Rectangle(panelX + panelPadX, panelY + chromeTop, mapW, mapH);
-    }
-
-    private void SyncExpandedMapLayout()
-    {
-        ComputeExpandedMapLayout(out _, out Rectangle mapRect);
-        _regionMapViewRect = mapRect;
-        _regionMapDrawRect = mapRect;
-        _expandedMapViewAspect = mapRect.Width / mapRect.Height;
-    }
-
-    private Rectangle GetSidebarMapDrawRect(Rectangle mapArea)
-    {
-        float drawW = mapArea.Width;
-        float drawH = drawW / RegionMapGeo.LonLatAspect;
-        if (drawH > mapArea.Height)
-        {
-            drawH = mapArea.Height;
-            drawW = drawH * RegionMapGeo.LonLatAspect;
-        }
-
-        return new Rectangle(
-            mapArea.X + (mapArea.Width - drawW) * 0.5f,
-            mapArea.Y + (mapArea.Height - drawH) * 0.5f,
-            drawW,
-            drawH);
-    }
-
-    private void GetMapViewBounds(out double minLon, out double maxLon, out double minLat, out double maxLat)
-    {
-        double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
-        double viewLatSpan = fullLatSpan / CurrentMapZoom;
-        double viewLonSpan = viewLatSpan * _expandedMapViewAspect;
-
-        minLon = _mapViewCenterLon - viewLonSpan / 2;
-        maxLon = _mapViewCenterLon + viewLonSpan / 2;
-        minLat = _mapViewCenterLat - viewLatSpan / 2;
-        maxLat = _mapViewCenterLat + viewLatSpan / 2;
-    }
-
-    private void ClampMapViewCenter()
-    {
-        double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
-        double fullLonSpan = RegionMapGeo.MaxLon - RegionMapGeo.MinLon;
-        double halfLat = fullLatSpan / CurrentMapZoom / 2;
-        double halfLon = halfLat * _expandedMapViewAspect;
-
-        double latMin = RegionMapGeo.MinLat + Math.Min(halfLat, fullLatSpan / 2);
-        double latMax = RegionMapGeo.MaxLat - Math.Min(halfLat, fullLatSpan / 2);
-        _mapViewCenterLat = RegionMapGeo.SafeClamp(_mapViewCenterLat, latMin, latMax);
-
-        double lonMin = RegionMapGeo.MinLon + Math.Min(halfLon, fullLonSpan / 2);
-        double lonMax = RegionMapGeo.MaxLon - Math.Min(halfLon, fullLonSpan / 2);
-        _mapViewCenterLon = RegionMapGeo.SafeClamp(_mapViewCenterLon, lonMin, lonMax);
-    }
-
-    private void ChangeMapZoom(int direction, Rectangle mapRect)
-    {
-        int next = _mapZoomLevelIndex + direction;
-        if (next < 0 || next >= MapZoomLevels.Length)
-            return;
-
-        Vector2 focus = new(mapRect.X + mapRect.Width * 0.5f, mapRect.Y + mapRect.Height * 0.5f);
-        GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
-        float nx = (focus.X - mapRect.X) / mapRect.Width;
-        float ny = (focus.Y - mapRect.Y) / mapRect.Height;
-        double focusLon = vMinLon + nx * (vMaxLon - vMinLon);
-        double focusLat = vMaxLat - ny * (vMaxLat - vMinLat);
-
-        _mapZoomLevelIndex = next;
-
-        double newLatSpan = (RegionMapGeo.MaxLat - RegionMapGeo.MinLat) / CurrentMapZoom;
-        double newLonSpan = newLatSpan * _expandedMapViewAspect;
-        _mapViewCenterLon = focusLon + (0.5 - nx) * newLonSpan;
-        _mapViewCenterLat = focusLat + (ny - 0.5) * newLatSpan;
-        ClampMapViewCenter();
-    }
-
-    private static void ComputeMapZoomButtonRects(Rectangle mapRect, out Rectangle zoomIn, out Rectangle zoomOut)
-    {
-        const int size = 34;
-        int x = (int)mapRect.X + (int)mapRect.Width - size - 10;
-        int y = (int)mapRect.Y + 10;
-        zoomIn = new Rectangle(x, y, size, size);
-        zoomOut = new Rectangle(x, y + size + 6, size, size);
-    }
-
-    // =====================================================================
-    // WORLD MAP — real geography (Natural Earth via scripts/generate_region_map.py)
-    // =====================================================================
-    private int DrawWorldMap(int startY, int x)
-    {
-        Font font = _uiFont;
-        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
-        const int mapH = 100;
-        int sectionTop = startY;
-
-        Raylib.DrawTextEx(font, "REGION",
-            new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
-
-        string expandHint = "Click to expand";
-        int hintSize = 11;
-        int hintW = (int)Raylib.MeasureTextEx(font, expandHint, hintSize, 0.35f).X;
-        Raylib.DrawTextEx(font, expandHint,
-            new Vector2(x + available - hintW, startY + 2), hintSize, 0.35f, Palette.TextDim);
-
-        startY += 18;
-        Raylib.DrawLine(x, startY - 2, x + 42, startY - 2, Palette.SubtleBorder);
-        startY += 10;
-
-        Rectangle mapRect = new Rectangle(x, startY, available, mapH);
-        _regionMapClickRect = new Rectangle(x, sectionTop, available, startY + mapH - sectionTop);
-
-        DrawRegionMapInRect(GetSidebarMapDrawRect(mapRect), markerRadius: 3.5f, labelFontSize: 10f);
-
-        if (_regionMapThumbHovered)
-        {
-            Raylib.DrawRectangleLinesEx(mapRect, 1.5f, Palette.ButtonSelectedBorder);
-        }
-
-        return startY + mapH;
-    }
-
-    private void DrawRegionMapModal()
-    {
-        int screenW = _screenWidth;
-        int screenH = _screenHeight;
-
-        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 175));
-
-        Font font = _uiFont;
-
-        ComputeExpandedMapLayout(out Rectangle panelRect, out Rectangle mapRect);
-        int panelX = (int)panelRect.X;
-        int panelY = (int)panelRect.Y;
-        int panelW = (int)panelRect.Width;
-        int panelH = (int)panelRect.Height;
-
-        _regionMapPanelRect = panelRect;
-        SyncExpandedMapLayout();
-
-        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
-        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
-
-        Raylib.DrawRectangleRec(mapRect, new Color(10, 12, 16, 255));
-
-        string title = "REGION";
-        Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + 22, panelY + 16), 22, 0.75f, Palette.TextMuted);
-
-        string subtitle = "Russia — zoom out and pan to explore";
-        Raylib.DrawTextEx(font, subtitle,
-            new Vector2(panelX + 22, panelY + 38), 16, 0.6f, Palette.TextSecondary);
-
-        string controls = "Use + / - to zoom · drag to pan";
-        Raylib.DrawTextEx(font, controls,
-            new Vector2(panelX + panelW - 22 - (int)Raylib.MeasureTextEx(font, controls, 13, 0.45f).X, panelY + 20),
-            13, 0.45f, Palette.TextDim);
-
-        GetMapViewBounds(out double vMinLon, out double vMaxLon, out double vMinLat, out double vMaxLat);
-        DrawRegionMapInRect(_regionMapDrawRect, markerRadius: 8f, labelFontSize: 18f, vMinLon, vMaxLon, vMinLat, vMaxLat);
-
-        ComputeMapZoomButtonRects(_regionMapDrawRect, out _mapZoomInRect, out _mapZoomOutRect);
-        DrawMapZoomButton(_mapZoomInRect, "+", _mapZoomInHovered, _mapZoomLevelIndex < MapZoomLevels.Length - 1);
-        DrawMapZoomButton(_mapZoomOutRect, "-", _mapZoomOutHovered, _mapZoomLevelIndex > 0);
-
-        (double lon, double lat) = GetMapPlayerGeoPosition();
-        string coords = $"{lat:F2}°N, {lon:F2}°E · {FormatMapZoom(CurrentMapZoom)}";
-        Raylib.DrawTextEx(font, coords,
-            new Vector2(panelX + 22, panelY + panelH - 34),
-            14, 0.5f, Palette.TextDim);
-
-        int btnW = 120;
-        int btnH = 36;
-        int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - btnH - 10;
-        _regionMapCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        GameDialogUi.DrawDialogButton(_regionMapCloseRect, "CLOSE", _regionMapCloseHovered, font);
-    }
-
-    private void DrawMapZoomButton(Rectangle rect, string label, bool hovered, bool enabled)
-    {
-        Font font = _uiFont;
-        Color bg = !enabled
-            ? new Color(20, 22, 26, 200)
-            : hovered ? Palette.ButtonSelectedBg : new Color(28, 30, 36, 230);
-        Color border = !enabled
-            ? Palette.SubtleBorder
-            : hovered ? Palette.ButtonSelectedBorder : Palette.ButtonBorder;
-        Color text = enabled ? Palette.TextPrimary : Palette.TextDim;
-
-        Raylib.DrawRectangleRec(rect, bg);
-        Raylib.DrawRectangleLinesEx(rect, 1.5f, border);
-
-        int labelSize = 28;
-        int labelW = (int)Raylib.MeasureTextEx(font, label, labelSize, 0.7f).X;
-        Raylib.DrawTextEx(font, label,
-            new Vector2(rect.X + (rect.Width - labelW) / 2f, rect.Y + 4),
-            labelSize, 0.7f, text);
-    }
-
-    private void DrawRegionMapInRect(
-        Rectangle mapRect,
-        float markerRadius,
-        float labelFontSize,
-        double viewMinLon = RegionMapGeo.MinLon,
-        double viewMaxLon = RegionMapGeo.MaxLon,
-        double viewMinLat = RegionMapGeo.MinLat,
-        double viewMaxLat = RegionMapGeo.MaxLat)
-    {
-        Font font = _uiFont;
-
-        Raylib.DrawRectangleRec(mapRect, new Color(12, 14, 18, 255));
-
-        if (_regionMapTexture.Id != 0)
-        {
-            double fullLonSpan = RegionMapGeo.MaxLon - RegionMapGeo.MinLon;
-            double fullLatSpan = RegionMapGeo.MaxLat - RegionMapGeo.MinLat;
-            float texW = _regionMapTexture.Width;
-            float texH = _regionMapTexture.Height;
-
-            double viewLonSpan = viewMaxLon - viewMinLon;
-            double viewLatSpan = viewMaxLat - viewMinLat;
-
-            Raylib.BeginScissorMode((int)mapRect.X, (int)mapRect.Y, (int)mapRect.Width, (int)mapRect.Height);
-
-            if (viewLonSpan > 1e-9 && viewLatSpan > 1e-9)
-            {
-                double geoMinLon = Math.Max(viewMinLon, RegionMapGeo.MinLon);
-                double geoMaxLon = Math.Min(viewMaxLon, RegionMapGeo.MaxLon);
-                double geoMinLat = Math.Max(viewMinLat, RegionMapGeo.MinLat);
-                double geoMaxLat = Math.Min(viewMaxLat, RegionMapGeo.MaxLat);
-
-                if (geoMinLon < geoMaxLon && geoMinLat < geoMaxLat)
-                {
-                    float destX = mapRect.X + (float)((geoMinLon - viewMinLon) / viewLonSpan * mapRect.Width);
-                    float destY = mapRect.Y + (float)((viewMaxLat - geoMaxLat) / viewLatSpan * mapRect.Height);
-                    float destW = (float)((geoMaxLon - geoMinLon) / viewLonSpan * mapRect.Width);
-                    float destH = (float)((geoMaxLat - geoMinLat) / viewLatSpan * mapRect.Height);
-                    Rectangle dest = new Rectangle(destX, destY, destW, destH);
-
-                    Rectangle src = new Rectangle(
-                        (float)((geoMinLon - RegionMapGeo.MinLon) / fullLonSpan * texW),
-                        (float)((RegionMapGeo.MaxLat - geoMaxLat) / fullLatSpan * texH),
-                        (float)((geoMaxLon - geoMinLon) / fullLonSpan * texW),
-                        (float)((geoMaxLat - geoMinLat) / fullLatSpan * texH));
-
-                    Raylib.DrawTexturePro(_regionMapTexture, src, dest, Vector2.Zero, 0f, Color.WHITE);
-                }
-            }
-
-            Raylib.EndScissorMode();
-        }
-
-        Raylib.DrawRectangleLinesEx(mapRect, 1f, Palette.SubtleBorder);
-
-        (double lon, double lat) = GetMapPlayerGeoPosition();
-        Vector2 player = RegionMapGeo.LonLatToPixel(mapRect, lon, lat, viewMinLon, viewMaxLon, viewMinLat, viewMaxLat);
-
-        int px = (int)player.X;
-        int py = (int)player.Y;
-        float glowR = markerRadius + 2.5f;
-        Raylib.DrawCircle(px, py, glowR, new Color(195, 175, 105, 50));
-        Raylib.DrawCircle(px, py, markerRadius, Palette.ActionFlash);
-        Raylib.DrawCircleLines(px, py, (int)(markerRadius + 1.5f), Palette.TextPrimary);
-
-        string markerLabel = GamePhase.IsForestSurvival(_phase) ? "You" : "Ulan-Ude";
-        int labelW = (int)Raylib.MeasureTextEx(font, markerLabel, labelFontSize, 0.35f).X;
-        Raylib.DrawTextEx(font, markerLabel,
-            new Vector2(player.X - labelW / 2f, player.Y + markerRadius + 4),
-            labelFontSize, 0.35f, Palette.TextPrimary);
-    }
-
-    private (double lon, double lat) GetMapPlayerGeoPosition() =>
-        _phase switch
-        {
-            Phase.Town                => (RegionMapGeo.TownLon, RegionMapGeo.TownLat),
-            Phase.IndustrialDistrict  => (RegionMapGeo.IndustrialDistrictLon, RegionMapGeo.IndustrialDistrictLat),
-            Phase.Cafe                => (RegionMapGeo.CafeLon, RegionMapGeo.CafeLat),
-            Phase.DeliveryTruck       => (RegionMapGeo.DeliveryTruckLon, RegionMapGeo.DeliveryTruckLat),
-            Phase.WarehouseTruck      => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
-            Phase.WarehouseAmbush     => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
-            Phase.WarehouseAftermath  => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
-            Phase.WarehouseInterior   => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
-            Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
-            Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
-            Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
-            Phase.ForestStream => (RegionMapGeo.ForestStreamLon, RegionMapGeo.ForestStreamLat),
-            _                  => (RegionMapGeo.UlanUdeLon, RegionMapGeo.UlanUdeLat)
-        };
 
     private string GetSceneNarrative()
     {

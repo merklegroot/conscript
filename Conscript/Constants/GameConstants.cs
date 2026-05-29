@@ -17,7 +17,7 @@ public static class GameConstants
     public const int SidebarPadding = 22;
     public const int SidebarInternalGap = 16;
 
-    // === Right Panel (Region map) ===
+    // === Right Panel ===
     public const int RightPanelWidth = 292;
 
     // === Central Scene Area (the "stage") ===
