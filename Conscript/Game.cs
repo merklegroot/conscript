@@ -315,6 +315,10 @@ public sealed class Game : IGame
     private int _bodyLootVisibleCount;
     private readonly Rectangle[] _bodyClickRects = new Rectangle[WarehouseBodyLootCatalog.BodyCount];
     private int _hoveredBodyIndex = -1;
+    private Rectangle _warehouseLockClickRect;
+    private bool _warehouseLockHotspotHovered;
+    private readonly NumericKeypadLockDialog _warehouseKeypad =
+        new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
@@ -1144,6 +1148,11 @@ public sealed class Game : IGame
                 CloseBodyLootMenu();
                 return;
             }
+            if (_warehouseKeypad.IsOpen)
+            {
+                CloseWarehouseLock();
+                return;
+            }
             if (_showRegionMap)
             {
                 CloseRegionMap();
@@ -1441,6 +1450,19 @@ public sealed class Game : IGame
             {
                 _actionMessage = "Selection too small — drag a larger region.";
                 _actionMessageTimer = 2.5f;
+            }
+
+            return;
+        }
+
+        if (_warehouseKeypad.IsOpen)
+        {
+            bool wasUnlocked = _warehouseKeypad.IsUnlocked;
+            _warehouseKeypad.Update(dt, mouse, leftClicked);
+            if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
+            {
+                _actionMessage = "The latch clicks open.";
+                _actionMessageTimer = 2.8f;
             }
 
             return;
@@ -1990,11 +2012,38 @@ public sealed class Game : IGame
                         break;
                     }
                 }
+
+                _warehouseLockHotspotHovered = false;
+                if (!_warehouseKeypad.IsUnlocked)
+                {
+                    float lockW = WarehouseAftermathHotspots.LockX2 - WarehouseAftermathHotspots.LockX1;
+                    float lockH = WarehouseAftermathHotspots.LockY2 - WarehouseAftermathHotspots.LockY1;
+                    _warehouseLockClickRect = SceneRegion.ToScreenRect(
+                        WarehouseAftermathHotspots.LockX1,
+                        WarehouseAftermathHotspots.LockY1,
+                        lockW,
+                        lockH,
+                        bodyArtBounds);
+
+                    if (Raylib.CheckCollisionPointRec(mouse, _warehouseLockClickRect))
+                    {
+                        _warehouseLockHotspotHovered = true;
+                        if (leftClicked)
+                        {
+                            OpenWarehouseLock();
+                            return;
+                        }
+                    }
+                }
+                else
+                    _warehouseLockClickRect = default;
             }
             else
             {
                 _hoveredBodyIndex = -1;
                 Array.Clear(_bodyClickRects);
+                _warehouseLockHotspotHovered = false;
+                _warehouseLockClickRect = default;
             }
 
             _hoveredDroppedItemListIndex = -1;
@@ -2218,6 +2267,9 @@ public sealed class Game : IGame
             if (_hoveredBodyIndex >= 0)
                 overClickable = true;
 
+            if (_warehouseLockHotspotHovered)
+                overClickable = true;
+
             if (_narrativeCardHovered)
                 overClickable = true;
 
@@ -2319,6 +2371,9 @@ public sealed class Game : IGame
                 }
             }
         }
+
+        if (_warehouseKeypad.IsOpen)
+            overClickable = true;
 
         // Build dialog: close button + overlay
         if (_showBuildDialog)
@@ -3210,6 +3265,16 @@ public sealed class Game : IGame
         _bodyLootPickupHovered = false;
     }
 
+    private void OpenWarehouseLock()
+    {
+        if (_phase != Phase.WarehouseAftermath || _warehouseKeypad.IsUnlocked)
+            return;
+
+        _warehouseKeypad.Open();
+    }
+
+    private void CloseWarehouseLock() => _warehouseKeypad.Close();
+
     private bool CanTakeBodyLootItem(int itemIndex)
     {
         if (_activeBodyIndex < 0 || itemIndex < 0)
@@ -3467,6 +3532,7 @@ public sealed class Game : IGame
         CloseStoreBuyMenu();
         CloseGloveBoxMenu();
         CloseBodyLootMenu();
+        CloseWarehouseLock();
         CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
@@ -3480,12 +3546,12 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug
-        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive;
+        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive;
+        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -3503,6 +3569,7 @@ public sealed class Game : IGame
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
+        _warehouseKeypad.Reset();
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -3537,6 +3604,7 @@ public sealed class Game : IGame
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
+        _warehouseKeypad.Reset();
         EnterPhase(Phase.WarehouseAftermath);
     }
 
@@ -6167,6 +6235,45 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseLockHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_warehouseKeypad.IsUnlocked)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float lockW = WarehouseAftermathHotspots.LockX2 - WarehouseAftermathHotspots.LockX1;
+        float lockH = WarehouseAftermathHotspots.LockY2 - WarehouseAftermathHotspots.LockY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseAftermathHotspots.LockX1,
+            WarehouseAftermathHotspots.LockY1,
+            lockW,
+            lockH,
+            artBounds);
+
+        bool hovered = _warehouseLockHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "KEYPAD";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     // --- Render ---
     private void Draw()
     {
@@ -6223,6 +6330,11 @@ public sealed class Game : IGame
         if (_showBodyLootMenu)
         {
             DrawBodyLootMenu();
+        }
+
+        if (_warehouseKeypad.IsOpen)
+        {
+            _warehouseKeypad.Draw(_uiFont, _screenWidth, _screenHeight);
         }
 
         if (_showRegionMap)
@@ -7292,7 +7404,10 @@ public sealed class Game : IGame
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
 
         if (_phase == Phase.WarehouseAftermath)
+        {
             DrawWarehouseBodyHotspots(artX, artY, artW, artH);
+            DrawWarehouseLockHotspot(artX, artY, artW, artH);
+        }
 
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))
