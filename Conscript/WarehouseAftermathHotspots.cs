@@ -9,5 +9,5 @@ internal static class WarehouseAftermathHotspots
     public const float LockX2 = 0.175f;
     public const float LockY2 = 0.447f;
 
-    public const string LockCode = "1430";
+    public const string LockCode = "4237";
 }

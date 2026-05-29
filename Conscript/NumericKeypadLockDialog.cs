@@ -7,10 +7,11 @@ namespace Conscript;
 
 internal sealed class NumericKeypadLockDialog
 {
-    private const int KeyClear = 10;
-    private const int KeyZero = 11;
-    private const int KeyEnter = 12;
-    private const int KeyCount = 13;
+    private const int KeyClear = 9;
+    private const int KeyZero = 10;
+    private const int KeyEnter = 11;
+    private const int KeyClose = 12;
+    private const int KeyCount = 12;
 
     private readonly string _correctCode;
     private readonly int _maxDigits;
@@ -74,7 +75,7 @@ internal sealed class NumericKeypadLockDialog
 
         _hoveredKey = -1;
         if (Raylib.CheckCollisionPointRec(mouse, _closeRect))
-            _hoveredKey = KeyEnter + 1;
+            _hoveredKey = KeyClose;
         else
         {
             for (int i = 0; i < KeyCount; i++)
@@ -90,7 +91,7 @@ internal sealed class NumericKeypadLockDialog
         if (!leftClicked)
             return;
 
-        if (_hoveredKey == KeyEnter + 1)
+        if (_hoveredKey == KeyClose)
         {
             Close();
             return;
@@ -129,6 +130,9 @@ internal sealed class NumericKeypadLockDialog
 
         _entry.Append(digit);
         _feedback = "";
+
+        if (_entry.Length >= _maxDigits)
+            TrySubmit();
     }
 
     public void Draw(Font font, int screenWidth, int screenHeight)
@@ -208,7 +212,7 @@ internal sealed class NumericKeypadLockDialog
         int closeY = panelY + panelH - closeH - 16;
         int closeX = panelX + (panelW - closeW) / 2;
         _closeRect = new Rectangle(closeX, closeY, closeW, closeH);
-        bool closeHovered = _hoveredKey == KeyEnter + 1;
+        bool closeHovered = _hoveredKey == KeyClose;
         GameDialogUi.DrawDialogButton(_closeRect, "CLOSE", closeHovered, font);
     }
 

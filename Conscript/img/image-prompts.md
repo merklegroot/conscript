@@ -15,6 +15,22 @@ This file tracks the exact prompts used to generate `Conscript/img/*.png` so we 
 
 ---
 
+## `warehouse-14-interior.png`
+
+- **asset**: `Conscript/img/warehouse-14-interior.png`
+- **date**: 2026-05-28
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage` + `scripts/install_scene_image.py`
+- **source**: `warehouse-14-interior-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic interior of a Soviet-era warehouse hangar at night, Ulan-Ude industrial yard, early autumn. View from inside looking down a concrete aisle between tall metal shelving and stacked wooden pallets, shrink-wrapped cargo, rusted forklift in shadow. Cold fluorescent tubes overhead, one flickering, deep shadows, wet floor reflecting light. At the far end, a partially open corrugated roll-up door with rain and orange firelight glow from outside (aftermath of explosion beyond). Moody gritty post-Soviet atmosphere, subtle film grain. Wide landscape 3:2, exactly 1536×1024. No readable text, no people, no logos.
+```
+
+- **notes**:
+  - `Phase.WarehouseInterior` — entered after keypad code `4237` on the aftermath bay lock.
+
 ## `folded-paper-note.png`
 
 - **asset**: `Conscript/img/folded-paper-note.png`

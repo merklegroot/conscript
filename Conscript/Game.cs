@@ -43,6 +43,7 @@ public sealed class Game : IGame
     private Texture2D _warehouseBackground;
     private Texture2D _warehouseAmbushBackground;
     private Texture2D _warehouseAftermathBackground;
+    private Texture2D _warehouseInteriorBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _regionMapTexture;
@@ -88,6 +89,7 @@ public sealed class Game : IGame
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
     private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
     private const string ChoiceFight = "FIGHT";
+    private const string ChoiceBackToLoadingBay = "BACK TO THE BAY";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
     private const string ChoiceOpenDoor = "Open the door";
@@ -152,6 +154,7 @@ public sealed class Game : IGame
         WarehouseTruck,   // Warehouse 14 loading bay — still inside the truck cab
         WarehouseAmbush,  // Outside the cab — met by bratdvas; Boris betrayed you
         WarehouseAftermath, // Molotov blast — bratdvas dead, bay scorched
+        WarehouseInterior, // Inside the hangar — entered via bay keypad
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -501,6 +504,12 @@ public sealed class Game : IGame
         "Whatever was in that bottle burned hotter than any vodka.\n" +
         "Rain hisses on the embers. The roll-up door is scorched black.";
 
+    private const string WarehouseInteriorNarrative =
+        "Fluorescents buzz overhead. Pallets and shrink-wrapped crates line the aisles.\n" +
+        "The air smells of diesel, cardboard, and something chemical.\n" +
+        "Through the cracked roll-up door, rain and distant firelight stain the wet concrete.\n" +
+        "Whoever ran this bay left in a hurry — or never left at all.";
+
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
         "Foot traffic is thin, but every window might hide a watcher.\n" +
@@ -753,6 +762,19 @@ public sealed class Game : IGame
                 _temperatureF = 24;
                 break;
 
+            case Phase.WarehouseInterior:
+                _choices = new[] { ChoiceBackToLoadingBay, ChoiceWait };
+                _selectedIndex = 0;
+                ApplyEnvironmentOutside();
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = $"{CafeOwnerDialog.WarehouseName} — Inside";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _status = "On the Run";
+                _season = "Early Autumn";
+                _temperatureF = 22;
+                break;
+
             case Phase.Tent:
                 _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, ChoiceWait };
                 ApplyEnvironmentTentInterior();
@@ -774,6 +796,7 @@ public sealed class Game : IGame
             Phase.WarehouseTruck    => _warehouseBackground,
             Phase.WarehouseAmbush   => _warehouseAmbushBackground,
             Phase.WarehouseAftermath => _warehouseAftermathBackground,
+            Phase.WarehouseInterior => _warehouseInteriorBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -977,7 +1000,8 @@ public sealed class Game : IGame
     /// <summary>Outdoor scenes and the trash-bag tent interior (light leaks through the plastic).</summary>
     private bool SceneUsesTimeOfDayLighting() =>
         GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck
-        || _phase is Phase.WarehouseTruck or Phase.WarehouseAmbush or Phase.WarehouseAftermath;
+        || _phase is Phase.WarehouseTruck or Phase.WarehouseAmbush or Phase.WarehouseAftermath
+        or Phase.WarehouseInterior;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -1060,6 +1084,7 @@ public sealed class Game : IGame
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
         _warehouseAmbushBackground = LoadTextureOrFallback("warehouse-14-ambush.png", _warehouseBackground);
         _warehouseAftermathBackground = LoadTextureOrFallback("warehouse-14-aftermath.png", _warehouseAmbushBackground);
+        _warehouseInteriorBackground = LoadTextureOrFallback("warehouse-14-interior.png", _warehouseAftermathBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _regionMapTexture    = EmbeddedTextureLoader.Load("region-map.png");
@@ -1116,6 +1141,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _warehouseBackground);
         UnloadTextureIfLoaded(ref _warehouseAmbushBackground);
         UnloadTextureIfLoaded(ref _warehouseAftermathBackground);
+        UnloadTextureIfLoaded(ref _warehouseInteriorBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _regionMapTexture);
@@ -1469,10 +1495,7 @@ public sealed class Game : IGame
             bool wasUnlocked = _warehouseKeypad.IsUnlocked;
             _warehouseKeypad.Update(dt, mouse, leftClicked);
             if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
-            {
-                _actionMessage = "The latch clicks open.";
-                _actionMessageTimer = 2.8f;
-            }
+                EnterWarehouseInterior();
 
             return;
         }
@@ -2029,29 +2052,24 @@ public sealed class Game : IGame
                 }
 
                 _warehouseLockHotspotHovered = false;
-                if (!_warehouseKeypad.IsUnlocked)
-                {
-                    float lockW = WarehouseAftermathHotspots.LockX2 - WarehouseAftermathHotspots.LockX1;
-                    float lockH = WarehouseAftermathHotspots.LockY2 - WarehouseAftermathHotspots.LockY1;
-                    _warehouseLockClickRect = SceneRegion.ToScreenRect(
-                        WarehouseAftermathHotspots.LockX1,
-                        WarehouseAftermathHotspots.LockY1,
-                        lockW,
-                        lockH,
-                        bodyArtBounds);
+                float lockW = WarehouseAftermathHotspots.LockX2 - WarehouseAftermathHotspots.LockX1;
+                float lockH = WarehouseAftermathHotspots.LockY2 - WarehouseAftermathHotspots.LockY1;
+                _warehouseLockClickRect = SceneRegion.ToScreenRect(
+                    WarehouseAftermathHotspots.LockX1,
+                    WarehouseAftermathHotspots.LockY1,
+                    lockW,
+                    lockH,
+                    bodyArtBounds);
 
-                    if (Raylib.CheckCollisionPointRec(mouse, _warehouseLockClickRect))
+                if (Raylib.CheckCollisionPointRec(mouse, _warehouseLockClickRect))
+                {
+                    _warehouseLockHotspotHovered = true;
+                    if (leftClicked)
                     {
-                        _warehouseLockHotspotHovered = true;
-                        if (leftClicked)
-                        {
-                            OpenWarehouseLock();
-                            return;
-                        }
+                        OpenWarehouseLock();
+                        return;
                     }
                 }
-                else
-                    _warehouseLockClickRect = default;
             }
             else
             {
@@ -2491,6 +2509,10 @@ public sealed class Game : IGame
 
             case Phase.WarehouseAftermath:
                 HandleWarehouseAftermathChoice(index);
+                break;
+
+            case Phase.WarehouseInterior:
+                HandleWarehouseInteriorChoice(index);
                 break;
 
             case Phase.Tent:
@@ -3019,6 +3041,30 @@ public sealed class Game : IGame
         _actionMessageTimer = ActionMessageDuration;
     }
 
+    private void HandleWarehouseInteriorChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceBackToLoadingBay:
+                _actionMessage = "You duck back out into the smoking bay.";
+                _actionMessageTimer = 2.2f;
+                AdvanceTime();
+                ApplyEnvironmentOnAction();
+                EnterPhase(Phase.WarehouseAftermath);
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
     private bool GloveCompartmentHasRemainingLoot()
     {
         for (int i = 0; i < _gloveBoxLootTaken.Length; i++)
@@ -3285,13 +3331,34 @@ public sealed class Game : IGame
 
     private void OpenWarehouseLock()
     {
-        if (_phase != Phase.WarehouseAftermath || _warehouseKeypad.IsUnlocked)
+        if (_phase != Phase.WarehouseAftermath)
             return;
+
+        if (_warehouseKeypad.IsUnlocked)
+        {
+            EnterWarehouseInterior();
+            return;
+        }
 
         _warehouseKeypad.Open();
     }
 
     private void CloseWarehouseLock() => _warehouseKeypad.Close();
+
+    private void EnterWarehouseInterior()
+    {
+        if (_phase != Phase.WarehouseAftermath)
+            return;
+
+        CloseWarehouseLock();
+        CloseBodyLootMenu();
+        CloseItemDialog();
+        _actionMessage = "The door lifts. Smoke and rain roll over your boots as you step inside.";
+        _actionMessageTimer = 3.2f;
+        AdvanceTime();
+        ApplyEnvironmentOnAction();
+        EnterPhase(Phase.WarehouseInterior);
+    }
 
     private bool CanTakeBodyLootItem(int itemIndex)
     {
@@ -3495,6 +3562,10 @@ public sealed class Game : IGame
                 break;
             case Phase.WarehouseAftermath:
                 _actionMessage = "You stay low beside the truck. The fire crackles; the bratdvas don't move.";
+                ApplyEnvironmentOnAction();
+                break;
+            case Phase.WarehouseInterior:
+                _actionMessage = "You stand in the aisle between the pallets, listening to rain on the roof.";
                 ApplyEnvironmentOnAction();
                 break;
             case Phase.ForestEntry:
@@ -6258,9 +6329,6 @@ public sealed class Game : IGame
 
     private void DrawWarehouseLockHotspot(int artX, int artY, int artW, int artH)
     {
-        if (_warehouseKeypad.IsUnlocked)
-            return;
-
         var artBounds = new Rectangle(artX, artY, artW, artH);
         float lockW = WarehouseAftermathHotspots.LockX2 - WarehouseAftermathHotspots.LockX1;
         float lockH = WarehouseAftermathHotspots.LockY2 - WarehouseAftermathHotspots.LockY1;
@@ -6283,7 +6351,7 @@ public sealed class Game : IGame
 
         if (hovered)
         {
-            const string label = "KEYPAD";
+            string label = _warehouseKeypad.IsUnlocked ? "ENTER" : "KEYPAD";
             Font font = _uiFont;
             float fontSize = 13f;
             Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
@@ -6317,6 +6385,7 @@ public sealed class Game : IGame
             case Phase.WarehouseTruck:
             case Phase.WarehouseAmbush:
             case Phase.WarehouseAftermath:
+            case Phase.WarehouseInterior:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -7279,6 +7348,7 @@ public sealed class Game : IGame
             Phase.WarehouseTruck      => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.WarehouseAmbush     => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.WarehouseAftermath  => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
+            Phase.WarehouseInterior   => (RegionMapGeo.WarehouseLon, RegionMapGeo.WarehouseLat),
             Phase.CommercialDistrict  => (RegionMapGeo.CommercialDistrictLon, RegionMapGeo.CommercialDistrictLat),
             Phase.ForestEntry  => (RegionMapGeo.ForestEntryLon, RegionMapGeo.ForestEntryLat),
             Phase.Forest       => (RegionMapGeo.ForestCampLon, RegionMapGeo.ForestCampLat),
@@ -7299,6 +7369,7 @@ public sealed class Game : IGame
             Phase.WarehouseTruck     => WarehouseTruckNarrative,
             Phase.WarehouseAmbush    => WarehouseAmbushNarrative,
             Phase.WarehouseAftermath => WarehouseAftermathNarrative,
+            Phase.WarehouseInterior  => WarehouseInteriorNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,

@@ -30,6 +30,7 @@ internal static class SurvivalEnvironment
         Game.Phase.WarehouseTruck => 8,
         Game.Phase.WarehouseAmbush => 8,
         Game.Phase.WarehouseAftermath => 6,
+        Game.Phase.WarehouseInterior => 18,
         Game.Phase.ForestEntry => 42,
         Game.Phase.Forest => 78,
         Game.Phase.ForestStream => 68,
