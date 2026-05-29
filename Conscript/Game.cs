@@ -228,8 +228,7 @@ public sealed class Game : IGame
     private readonly List<int> _droppedItemVisibleIndices = new(); // parallel to click rects → _droppedItems index
     private int _hoveredDroppedItemListIndex = -1; // index into visible/click lists
 
-    // --- Modal overlays (dialogs & menus) ---
-    // Item interaction dialog (simple modal for now)
+    // Item detail panel (right sidebar when backpack or ground item is selected)
     private bool _showItemDialog;
     private int _dialogItemIndex = -1;
     private int _dialogDroppedItemIndex = -1;
@@ -242,7 +241,6 @@ public sealed class Game : IGame
     private bool _dialogSecondaryActionHovered;
     private Rectangle _dialogDropRect;
     private bool _dialogDropHovered;
-    private Rectangle _dialogPanelRect;
 
     // Convenience store buy menu (modal) — list left, item detail + buy right
     private bool _showStoreBuyMenu;
@@ -1269,6 +1267,8 @@ public sealed class Game : IGame
             }
             else if (_showItemDialog)
             {
+                if (TryPerformItemPanelPrimaryAction())
+                    return;
                 CloseItemDialog();
             }
             else if (_showBuildDialog)
@@ -1692,56 +1692,33 @@ public sealed class Game : IGame
             }
         }
 
-        // === Item dialog (highest priority when visible) ===
-        if (_showItemDialog)
+        // === Item panel (right sidebar) ===
+        if (_showItemDialog && AllowsSidebarAndSceneInput())
         {
-            bool isGround = IsDroppedItemDialog;
-            bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
-            bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-            DialogItemAction itemAction = isGround
-                ? DialogItemAction.None
-                : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
-            bool canAct = !isGround && (canDrink || canFill || IsDialogPrimaryAction(itemAction));
-
-            _dialogActionHovered = _dialogActionRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
-                (isGround || canDrink || (canFill && !canDrink) || IsDialogPrimaryAction(itemAction));
-            _dialogSecondaryActionHovered = _dialogSecondaryActionRect.Width > 0 &&
-                canDrink && canFill &&
-                Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
-            _dialogDropHovered = _dialogDropRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _dialogDropRect);
-            _dialogCloseHovered = Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
+            UpdateItemPanelHover(mouse);
 
             if (leftClicked && _dialogActionHovered)
             {
-                if (isGround)
+                if (IsDroppedItemDialog)
                     TryPickupDroppedItem();
-                else if (canDrink)
-                    TryPerformDialogItemAction(DialogItemAction.DrinkWater);
-                else if (canFill)
-                    TryPerformDialogItemAction(DialogItemAction.FillBottle);
-                else if (IsDialogPrimaryAction(itemAction))
-                    TryPerformDialogItemAction(itemAction);
+                else
+                    TryPerformItemPanelPrimaryAction();
                 return;
             }
+
             if (leftClicked && _dialogSecondaryActionHovered)
             {
                 TryPerformDialogItemAction(DialogItemAction.FillBottle);
                 return;
             }
+
             if (leftClicked && _dialogDropHovered)
             {
                 TryDropItemFromBackpack();
                 return;
             }
+
             if (leftClicked && _dialogCloseHovered)
-            {
-                CloseItemDialog();
-                return;
-            }
-            // Clicking the dark overlay outside the panel closes the dialog
-            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
             {
                 CloseItemDialog();
                 return;
@@ -1800,6 +1777,9 @@ public sealed class Game : IGame
                 Raylib.CheckCollisionPointRec(mouse, _forageSidebarButtonRect);
             _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
+
+            if (_showItemDialog)
+                UpdateItemPanelHover(mouse);
 
             if (leftClicked && _buildSidebarButtonHovered)
             {
@@ -2001,7 +1981,7 @@ public sealed class Game : IGame
                 }
             }
 
-            // === Backpack item click (opens simple interaction dialog) ===
+            // === Backpack item click (shows detail in right panel) ===
             for (int i = 0; i < _backpackSlotRects.Length; i++)
             {
                 if (!string.IsNullOrEmpty(_backpack[i]) &&
@@ -2226,17 +2206,10 @@ public sealed class Game : IGame
         if (_crowbarUseActive && _warehouseCrateHotspotHovered)
             overClickable = true;
 
-        // Item dialog: action + close buttons, or overlay dismiss
-        if (_showItemDialog)
+        if (_showItemDialog && AllowsSidebarAndSceneInput())
         {
-            if (Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect) ||
-                Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) ||
-                Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect) ||
-                Raylib.CheckCollisionPointRec(mouse, _dialogDropRect) ||
-                !Raylib.CheckCollisionPointRec(mouse, _dialogPanelRect))
-            {
+            if (_dialogCloseHovered || _dialogActionHovered || _dialogSecondaryActionHovered || _dialogDropHovered)
                 overClickable = true;
-            }
         }
 
         // Store buy menu: list rows, buy/close buttons, or overlay
@@ -3613,7 +3586,7 @@ public sealed class Game : IGame
 
     private void CloseAllOverlays()
     {
-        _showItemDialog = false;
+        CloseItemDialog();
         CloseStoreBuyMenu();
         CloseGloveBoxMenu();
         CloseBodyLootMenu();
@@ -3770,13 +3743,13 @@ public sealed class Game : IGame
     }
 
     private bool BlocksActionBarNavigation() =>
-        _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
+        _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
         || _crowbarUseActive || _showControllerDebug || _showQuitConfirm
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
-        !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
+        !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_crowbarUseActive && !_showQuitConfirm
         && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
@@ -3843,6 +3816,12 @@ public sealed class Game : IGame
         string? item = _backpack[slotIndex];
         if (string.IsNullOrEmpty(item)) return;
 
+        if (_showItemDialog && _dialogItemIndex == slotIndex && _dialogDroppedItemIndex < 0)
+        {
+            CloseItemDialog();
+            return;
+        }
+
         _dialogItemIndex = slotIndex;
         _dialogDroppedItemIndex = -1;
         _dialogItemName = item;
@@ -3855,6 +3834,12 @@ public sealed class Game : IGame
         if (droppedIndex < 0 || droppedIndex >= _droppedItems.Count) return;
         DroppedItem dropped = _droppedItems[droppedIndex];
         if (dropped.Room != _phase || dropped.TurnsRemaining <= 0) return;
+
+        if (_showItemDialog && _dialogDroppedItemIndex == droppedIndex)
+        {
+            CloseItemDialog();
+            return;
+        }
 
         _dialogItemIndex = -1;
         _dialogDroppedItemIndex = droppedIndex;
@@ -3869,6 +3854,10 @@ public sealed class Game : IGame
         _dialogActionHovered = false;
         _dialogSecondaryActionHovered = false;
         _dialogDropHovered = false;
+        _dialogActionRect = default;
+        _dialogSecondaryActionRect = default;
+        _dialogDropRect = default;
+        _dialogCloseRect = default;
     }
 
     private void CloseItemDialog()
@@ -5150,12 +5139,68 @@ public sealed class Game : IGame
         };
     }
 
-    private void DrawItemDialog()
+    private void UpdateItemPanelHover(Vector2 mouse)
     {
-        int screenW = _screenWidth;
-        int screenH = _screenHeight;
+        bool isGround = IsDroppedItemDialog;
+        bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
+        bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
+        DialogItemAction itemAction = isGround
+            ? DialogItemAction.None
+            : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
 
-        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 170));
+        _dialogActionHovered = _dialogActionRect.Width > 0 &&
+            Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
+            (isGround || canDrink || (canFill && !canDrink) || IsDialogPrimaryAction(itemAction));
+        _dialogSecondaryActionHovered = _dialogSecondaryActionRect.Width > 0 &&
+            canDrink && canFill &&
+            Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
+        _dialogDropHovered = _dialogDropRect.Width > 0 &&
+            Raylib.CheckCollisionPointRec(mouse, _dialogDropRect);
+        _dialogCloseHovered = _dialogCloseRect.Width > 0 &&
+            Raylib.CheckCollisionPointRec(mouse, _dialogCloseRect);
+    }
+
+    private bool TryPerformItemPanelPrimaryAction()
+    {
+        if (IsDroppedItemDialog)
+        {
+            TryPickupDroppedItem();
+            return true;
+        }
+
+        bool canDrink = CanDrinkFromDialogSlot(_dialogItemIndex);
+        bool canFill = CanFillBottleAtStream(_dialogItemIndex);
+        DialogItemAction itemAction = GetDialogItemAction(_dialogItemName, _dialogItemIndex);
+
+        if (canDrink)
+        {
+            TryPerformDialogItemAction(DialogItemAction.DrinkWater);
+            return true;
+        }
+
+        if (canFill)
+        {
+            TryPerformDialogItemAction(DialogItemAction.FillBottle);
+            return true;
+        }
+
+        if (IsDialogPrimaryAction(itemAction))
+        {
+            TryPerformDialogItemAction(itemAction);
+            return true;
+        }
+
+        return false;
+    }
+
+    private int DrawItemPanel(int startY, int x)
+    {
+        Font font = _uiFont;
+        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        const int panelPad = 12;
+        int innerX = x + panelPad;
+        int innerW = available - panelPad * 2;
+        int contentY = startY + panelPad;
 
         bool isGround = IsDroppedItemDialog;
         DialogItemAction itemAction = isGround
@@ -5163,94 +5208,87 @@ public sealed class Game : IGame
             : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
         bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-        bool canAct = canDrink || canFill || IsDialogPrimaryAction(itemAction);
+        bool canAct = !isGround && (canDrink || canFill || IsDialogPrimaryAction(itemAction));
 
-        int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
-        Font font = _uiFont;
+        const int iconSize = 72;
+        int iconX = innerX + (innerW - iconSize) / 2;
+        int iconY = contentY;
 
-        const float bodySpacing = 0.6f;
-        int bodySize = 16;
-        int bodyLineHeight = 22;
-        int textMaxW = panelW - 48;
+        string title = _dialogItemName.ToUpperInvariant();
+        int titleSize = 20;
+        int titleY = iconY + iconSize + 12;
+
+        const float bodySpacing = 0.55f;
+        int bodySize = 15;
+        int bodyLineHeight = 20;
+        int textY = titleY + 26;
         string body = GetItemDialogBody(isGround, itemAction, canDrink, canFill);
-        var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
-        bool showBuildingTag = GameItems.IsBuildingMaterial(_dialogItemName);
-        string? buildingTag = showBuildingTag
-            ? StoreCatalog.FormatItemHint(_dialogItemName)
-            : null;
-        int tagHeight = buildingTag != null ? 20 : 0;
-        int tagGap = buildingTag != null ? 4 : 0;
+        var (bodyLines, _) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, innerW, bodyLineHeight);
+        foreach (string line in bodyLines)
+            textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
 
-        int panelH = Math.Max(240, 124 + bodyHeight + tagGap + tagHeight + 60);
-        int panelX = (screenW - panelW) / 2;
-        int panelY = (screenH - panelH) / 2 - 20;
+        if (GameItems.IsBuildingMaterial(_dialogItemName))
+            textY += 22;
 
-        _dialogPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+        const int btnH = 36;
+        const int btnGap = 6;
+        int btnY = textY + 10;
+        int buttonCount = isGround ? 2
+            : canDrink && canFill ? 4
+            : canAct ? 3
+            : 2;
+        int panelBottom = btnY + buttonCount * btnH + (buttonCount - 1) * btnGap + panelPad;
+        int panelH = panelBottom - startY;
 
-        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
-        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+        Raylib.DrawRectangle(x, startY, available, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLinesEx(new Rectangle(x, startY, available, panelH), 1.5f, Palette.CardBorder);
 
-        const int iconSize = 56;
-        int iconX = panelX + (panelW - iconSize) / 2;
-        int iconY = panelY + 16;
         Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
         Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
         DrawItemIcon(_dialogItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE,
             GetDialogSlotIndex(), GetDialogChargesOverride());
 
-        string title = _dialogItemName.ToUpperInvariant();
-        int titleSize = 28;
-        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.7f).X;
         Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + (panelW - titleW) / 2, panelY + 82),
-            titleSize, 0.8f, Palette.TextPrimary);
+            new Vector2(innerX + (innerW - titleW) / 2, titleY),
+            titleSize, 0.7f, Palette.TextPrimary);
 
-        Raylib.DrawLine(panelX + 40, panelY + 112, panelX + panelW - 40, panelY + 112, Palette.SubtleBorder);
-
-        int textY = panelY + 124;
+        textY = titleY + 26;
         foreach (string line in bodyLines)
         {
-            int lineW = (int)Raylib.MeasureTextEx(font, line, bodySize, bodySpacing).X;
-            Raylib.DrawTextEx(font, line,
-                new Vector2(panelX + (panelW - lineW) / 2, textY),
-                bodySize, bodySpacing, Palette.TextSecondary);
+            Raylib.DrawTextEx(font, line, new Vector2(innerX, textY), bodySize, bodySpacing, Palette.TextSecondary);
             textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
         }
 
-        if (buildingTag != null)
+        if (GameItems.IsBuildingMaterial(_dialogItemName))
         {
-            textY += tagGap;
-            int tagW = (int)Raylib.MeasureTextEx(font, buildingTag, 15, 0.5f).X;
-            Raylib.DrawTextEx(font, buildingTag,
-                new Vector2(panelX + (panelW - tagW) / 2, textY),
-                15, 0.5f, Palette.TextDim);
+            textY += 4;
+            string buildingTag = StoreCatalog.FormatItemHint(_dialogItemName);
+            Raylib.DrawTextEx(font, buildingTag, new Vector2(innerX, textY), 13, 0.45f, Palette.TextDim);
+            textY += 18;
         }
 
-        int btnH = 36;
-        int btnY = panelY + panelH - 52;
-        int gap = 8;
+        btnY = textY + 10;
         _dialogSecondaryActionRect = new Rectangle(0, 0, 0, 0);
         _dialogDropRect = new Rectangle(0, 0, 0, 0);
 
         if (isGround)
         {
-            int btnW = 120;
-            int totalW = btnW * 2 + gap;
-            int startX = panelX + (panelW - totalW) / 2;
-            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            _dialogActionRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, "PICK UP", _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else if (canDrink && canFill)
         {
-            int btnW = 78;
-            int totalW = btnW * 4 + gap * 3;
-            int startX = panelX + (panelW - totalW) / 2;
-            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogSecondaryActionRect = new Rectangle(startX + (btnW + gap), btnY, btnW, btnH);
-            _dialogDropRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
-            _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 3, btnY, btnW, btnH);
+            _dialogActionRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogSecondaryActionRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, "DRINK", _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogSecondaryActionRect, "FILL", _dialogSecondaryActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
@@ -5258,38 +5296,32 @@ public sealed class Game : IGame
         }
         else if (canAct)
         {
-            int btnW = 88;
-            int totalW = btnW * 3 + gap * 2;
-            int startX = panelX + (panelW - totalW) / 2;
-            _dialogActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogDropRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
-            _dialogCloseRect = new Rectangle(startX + (btnW + gap) * 2, btnY, btnW, btnH);
             string actionLabel = canDrink
                 ? "DRINK"
                 : canFill
                     ? "FILL"
                     : GetDialogItemActionLabel(itemAction);
+            _dialogActionRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogActionRect, actionLabel, _dialogActionHovered, font);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
             GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
         else
         {
-            int btnW = 100;
-            int totalW = btnW * 2 + gap;
-            int startX = panelX + (panelW - totalW) / 2;
             _dialogActionRect = new Rectangle(0, 0, 0, 0);
-            _dialogDropRect = new Rectangle(startX, btnY, btnW, btnH);
-            _dialogCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
+            _dialogDropRect = new Rectangle(innerX, btnY, innerW, btnH);
+            btnY += btnH + btnGap;
+            _dialogCloseRect = new Rectangle(innerX, btnY, innerW, btnH);
             GameDialogUi.DrawDialogButton(_dialogDropRect, "DROP", _dialogDropHovered, font);
             GameDialogUi.DrawDialogButton(_dialogCloseRect, "CLOSE", _dialogCloseHovered, font);
         }
+
+        return panelBottom;
     }
-
-    // =====================================================================
-    // STATS HELP (modal) — explains sidebar status values
-    // =====================================================================
-
 
     // =====================================================================
     // BUILD DIALOG (modal) — crafting and construction
@@ -6536,11 +6568,6 @@ public sealed class Game : IGame
                 break;
         }
 
-        if (_showItemDialog)
-        {
-            DrawItemDialog();
-        }
-
         if (_showStoreBuyMenu)
         {
             DrawStoreBuyMenu();
@@ -6782,12 +6809,14 @@ public sealed class Game : IGame
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;
         DrawBuildSidebarButton(cy, tx);
+        cy += 44;
+
         if (GamePhase.IsForestSurvival(_phase))
         {
-            cy += 44;
             DrawHuntSidebarButton(cy, tx);
             cy += 44;
             DrawForageSidebarButton(cy, tx);
+            cy += 44;
         }
         else
         {
@@ -6795,6 +6824,12 @@ public sealed class Game : IGame
             _huntSidebarButtonHovered = false;
             _forageSidebarButtonRect = default;
             _forageSidebarButtonHovered = false;
+        }
+
+        if (_showItemDialog)
+        {
+            cy += 8;
+            cy = DrawItemPanel(cy, tx);
         }
 
         const int btnH = 36;
@@ -6983,6 +7018,7 @@ public sealed class Game : IGame
 
                 string? item = _backpack[idx];
                 bool occupied = !string.IsNullOrEmpty(item);
+                bool selected = _showItemDialog && !IsDroppedItemDialog && _dialogItemIndex == idx;
 
                 // Pocket background
                 var pocket = occupied
@@ -6991,8 +7027,12 @@ public sealed class Game : IGame
                 Raylib.DrawRectangle(sx, sy, slot, slot, pocket);
 
                 // Inner border (pocket stitching)
-                var pocketBorder = occupied ? new Color(75, 62, 48, 255) : Palette.SubtleBorder;
+                var pocketBorder = selected
+                    ? Palette.ButtonSelectedBorder
+                    : occupied ? new Color(75, 62, 48, 255) : Palette.SubtleBorder;
                 Raylib.DrawRectangleLines(sx + 1, sy + 1, slot - 2, slot - 2, pocketBorder);
+                if (selected)
+                    Raylib.DrawRectangleLinesEx(new Rectangle(sx, sy, slot, slot), 1.5f, Palette.ButtonSelectedBorder);
 
                 if (occupied)
                 {
