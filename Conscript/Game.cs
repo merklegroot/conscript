@@ -292,6 +292,25 @@ public sealed class Game : IGame
     private readonly int[] _gloveBoxVisibleCatalogIndices = new int[GloveCompartmentCatalog.EntryCount];
     private int _gloveBoxVisibleCount;
 
+    // Warehouse aftermath — searchable bratdva bodies
+    private bool _showBodyLootMenu;
+    private int _activeBodyIndex = -1;
+    private readonly bool[] _bodyLootTaken = new bool[WarehouseBodyLootCatalog.TotalLootCount];
+    private int _bodyLootHighlightedIndex;
+    private int _bodyLootDetailIndex = -1;
+    private string _bodyLootFeedback = "";
+    private float _bodyLootFeedbackTimer;
+    private readonly Rectangle[] _bodyLootItemRects = new Rectangle[WarehouseBodyLootCatalog.MaxItemsPerBody];
+    private Rectangle _bodyLootPanelRect;
+    private Rectangle _bodyLootCloseRect;
+    private bool _bodyLootCloseHovered;
+    private Rectangle _bodyLootPickupRect;
+    private bool _bodyLootPickupHovered;
+    private readonly int[] _bodyLootVisibleCatalogIndices = new int[WarehouseBodyLootCatalog.MaxItemsPerBody];
+    private int _bodyLootVisibleCount;
+    private readonly Rectangle[] _bodyClickRects = new Rectangle[WarehouseBodyLootCatalog.BodyCount];
+    private int _hoveredBodyIndex = -1;
+
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
     private bool _hasTrashBagTent;
@@ -1115,6 +1134,11 @@ public sealed class Game : IGame
                 CloseGloveBoxMenu();
                 return;
             }
+            if (_showBodyLootMenu)
+            {
+                CloseBodyLootMenu();
+                return;
+            }
             if (_showRegionMap)
             {
                 CloseRegionMap();
@@ -1229,6 +1253,28 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showBodyLootMenu)
+        {
+            RefreshBodyLootVisibleList();
+
+            if (InputManager.IsVerticalNavUpPressed())
+            {
+                if (_bodyLootVisibleCount > 0)
+                {
+                    _bodyLootHighlightedIndex = (_bodyLootHighlightedIndex - 1 + _bodyLootVisibleCount) % _bodyLootVisibleCount;
+                    _bodyLootDetailIndex = _bodyLootHighlightedIndex;
+                }
+            }
+            if (InputManager.IsVerticalNavDownPressed())
+            {
+                if (_bodyLootVisibleCount > 0)
+                {
+                    _bodyLootHighlightedIndex = (_bodyLootHighlightedIndex + 1) % _bodyLootVisibleCount;
+                    _bodyLootDetailIndex = _bodyLootHighlightedIndex;
+                }
+            }
+        }
+
         if (_showForageDialog)
         {
             if (InputManager.IsVerticalNavUpPressed())
@@ -1301,6 +1347,18 @@ public sealed class Game : IGame
                     TryTakeGloveBoxItem(highlightedCatalogIndex);
                 else
                     _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+            }
+            else if (_showBodyLootMenu)
+            {
+                int itemIndex = GetBodyLootItemIndexFromVisibleIndex(_bodyLootDetailIndex);
+                int highlightedItemIndex = GetBodyLootItemIndexFromVisibleIndex(_bodyLootHighlightedIndex);
+
+                if (_bodyLootPickupHovered && itemIndex >= 0)
+                    TryTakeBodyLootItem(itemIndex);
+                else if (_bodyLootDetailIndex == _bodyLootHighlightedIndex && highlightedItemIndex >= 0)
+                    TryTakeBodyLootItem(highlightedItemIndex);
+                else
+                    _bodyLootDetailIndex = _bodyLootHighlightedIndex;
             }
             else
             {
@@ -1773,6 +1831,17 @@ public sealed class Game : IGame
             _gloveBoxPickupHovered = false;
         }
 
+        if (_showBodyLootMenu)
+        {
+            _bodyLootCloseHovered = Raylib.CheckCollisionPointRec(mouse, _bodyLootCloseRect);
+            _bodyLootPickupHovered = Raylib.CheckCollisionPointRec(mouse, _bodyLootPickupRect);
+        }
+        else
+        {
+            _bodyLootCloseHovered = false;
+            _bodyLootPickupHovered = false;
+        }
+
         if (AllowsSidebarAndSceneInput())
         {
             _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
@@ -1877,6 +1946,47 @@ public sealed class Game : IGame
             {
                 _gloveCompartmentClickRect = default;
                 _gloveCompartmentHovered = false;
+            }
+
+            if (_phase == Phase.WarehouseAftermath)
+            {
+                GetCinematicArtBounds(out int bodyArtX, out int bodyArtY, out int bodyArtW, out int bodyArtH);
+                var bodyArtBounds = new Rectangle(bodyArtX, bodyArtY, bodyArtW, bodyArtH);
+                _hoveredBodyIndex = -1;
+
+                for (int i = 0; i < WarehouseBodyLootCatalog.BodyCount; i++)
+                {
+                    if (!BodyHasRemainingLoot(i))
+                    {
+                        _bodyClickRects[i] = default;
+                        continue;
+                    }
+
+                    var body = WarehouseBodyLootCatalog.Bodies[i];
+                    _bodyClickRects[i] = SceneRegion.ToScreenRect(
+                        body.RegionX,
+                        body.RegionY,
+                        body.RegionW,
+                        body.RegionH,
+                        bodyArtBounds);
+
+                    if (Raylib.CheckCollisionPointRec(mouse, _bodyClickRects[i]))
+                    {
+                        _hoveredBodyIndex = i;
+                        if (leftClicked)
+                        {
+                            OpenBodyLootMenu(i);
+                            return;
+                        }
+
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                _hoveredBodyIndex = -1;
+                Array.Clear(_bodyClickRects);
             }
 
             _hoveredDroppedItemListIndex = -1;
@@ -1993,6 +2103,43 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showBodyLootMenu)
+        {
+            RefreshBodyLootVisibleList();
+
+            for (int i = 0; i < _bodyLootVisibleCount; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _bodyLootItemRects[i]))
+                {
+                    _bodyLootHighlightedIndex = i;
+                    if (leftClicked)
+                        _bodyLootDetailIndex = i;
+                    break;
+                }
+            }
+
+            if (leftClicked && _bodyLootDetailIndex >= 0 &&
+                (_bodyLootPickupHovered || Raylib.CheckCollisionPointRec(mouse, _bodyLootPickupRect)))
+            {
+                int itemIndex = GetBodyLootItemIndexFromVisibleIndex(_bodyLootDetailIndex);
+                if (itemIndex >= 0)
+                    TryTakeBodyLootItem(itemIndex);
+                return;
+            }
+
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _bodyLootCloseRect))
+            {
+                CloseBodyLootMenu();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _bodyLootPanelRect))
+            {
+                CloseBodyLootMenu();
+                return;
+            }
+        }
+
         if (_actionMessageTimer > 0f)
         {
             _actionMessageTimer -= dt;
@@ -2014,6 +2161,9 @@ public sealed class Game : IGame
 
         if (_showGloveBoxMenu)
             GameStatMath.TickTimedMessage(ref _gloveBoxFeedbackTimer, ref _gloveBoxFeedback, dt);
+
+        if (_showBodyLootMenu)
+            GameStatMath.TickTimedMessage(ref _bodyLootFeedbackTimer, ref _bodyLootFeedback, dt);
 
         if (_showBuildDialog)
             GameStatMath.TickTimedMessage(ref _buildFeedbackTimer, ref _buildFeedback, dt);
@@ -2043,6 +2193,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_gloveCompartmentHovered)
+                overClickable = true;
+
+            if (_hoveredBodyIndex >= 0)
                 overClickable = true;
 
             if (_narrativeCardHovered)
@@ -2123,6 +2276,23 @@ public sealed class Game : IGame
             for (int i = 0; i < _gloveBoxItemRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _gloveBoxItemRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
+            }
+        }
+
+        if (_showBodyLootMenu)
+        {
+            if (_bodyLootCloseHovered || _bodyLootPickupHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _bodyLootPanelRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _bodyLootPanelRect))
+                overClickable = true;
+
+            for (int i = 0; i < _bodyLootItemRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _bodyLootItemRects[i]))
                 {
                     overClickable = true;
                     break;
@@ -2870,6 +3040,151 @@ public sealed class Game : IGame
             CloseGloveBoxMenu();
     }
 
+    private void ResetBodyLoot() => Array.Clear(_bodyLootTaken);
+
+    private bool BodyHasRemainingLoot(int bodyIndex)
+    {
+        if (bodyIndex < 0 || bodyIndex >= WarehouseBodyLootCatalog.BodyCount)
+            return false;
+
+        var items = WarehouseBodyLootCatalog.Bodies[bodyIndex].Items;
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (!_bodyLootTaken[WarehouseBodyLootCatalog.ToGlobalIndex(bodyIndex, i)])
+                return true;
+        }
+
+        return false;
+    }
+
+    private void RefreshBodyLootVisibleList()
+    {
+        if (_activeBodyIndex < 0 || _activeBodyIndex >= WarehouseBodyLootCatalog.BodyCount)
+        {
+            _bodyLootVisibleCount = 0;
+            _bodyLootHighlightedIndex = 0;
+            _bodyLootDetailIndex = -1;
+            return;
+        }
+
+        int count = 0;
+        var items = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items;
+        for (int i = 0; i < items.Length; i++)
+        {
+            if (!_bodyLootTaken[WarehouseBodyLootCatalog.ToGlobalIndex(_activeBodyIndex, i)])
+                _bodyLootVisibleCatalogIndices[count++] = i;
+        }
+
+        _bodyLootVisibleCount = count;
+
+        if (_bodyLootVisibleCount <= 0)
+        {
+            _bodyLootHighlightedIndex = 0;
+            _bodyLootDetailIndex = -1;
+            return;
+        }
+
+        _bodyLootHighlightedIndex = Math.Clamp(_bodyLootHighlightedIndex, 0, _bodyLootVisibleCount - 1);
+        if (_bodyLootDetailIndex >= _bodyLootVisibleCount)
+            _bodyLootDetailIndex = _bodyLootHighlightedIndex;
+    }
+
+    private int GetBodyLootItemIndexFromVisibleIndex(int visibleIndex) =>
+        visibleIndex < 0 || visibleIndex >= _bodyLootVisibleCount
+            ? -1
+            : _bodyLootVisibleCatalogIndices[visibleIndex];
+
+    private void OpenBodyLootMenu(int bodyIndex)
+    {
+        if (_phase != Phase.WarehouseAftermath || !BodyHasRemainingLoot(bodyIndex))
+            return;
+
+        _showBodyLootMenu = true;
+        _activeBodyIndex = bodyIndex;
+        _bodyLootHighlightedIndex = 0;
+        _bodyLootDetailIndex = -1;
+        _bodyLootFeedback = "";
+        _bodyLootFeedbackTimer = 0f;
+        _bodyLootCloseHovered = false;
+        _bodyLootPickupHovered = false;
+        RefreshBodyLootVisibleList();
+    }
+
+    private void CloseBodyLootMenu()
+    {
+        _showBodyLootMenu = false;
+        _activeBodyIndex = -1;
+        _bodyLootDetailIndex = -1;
+        _bodyLootFeedback = "";
+        _bodyLootFeedbackTimer = 0f;
+        _bodyLootCloseHovered = false;
+        _bodyLootPickupHovered = false;
+    }
+
+    private bool CanTakeBodyLootItem(int itemIndex)
+    {
+        if (_activeBodyIndex < 0 || itemIndex < 0)
+            return false;
+
+        var items = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items;
+        if (itemIndex >= items.Length)
+            return false;
+
+        int globalIndex = WarehouseBodyLootCatalog.ToGlobalIndex(_activeBodyIndex, itemIndex);
+        if (_bodyLootTaken[globalIndex])
+            return false;
+
+        var entry = items[itemIndex];
+        return entry.IsMoney || _backpack.Any(s => string.IsNullOrEmpty(s));
+    }
+
+    private void TryTakeBodyLootItem(int itemIndex)
+    {
+        if (_activeBodyIndex < 0 || itemIndex < 0)
+            return;
+
+        var items = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items;
+        if (itemIndex >= items.Length)
+            return;
+
+        int globalIndex = WarehouseBodyLootCatalog.ToGlobalIndex(_activeBodyIndex, itemIndex);
+        if (_bodyLootTaken[globalIndex])
+        {
+            _bodyLootFeedback = "Already taken.";
+            _bodyLootFeedbackTimer = 1.6f;
+            return;
+        }
+
+        var entry = items[itemIndex];
+
+        if (entry.IsMoney)
+        {
+            _money += entry.MoneyAmount;
+            _bodyLootTaken[globalIndex] = true;
+            ClearActionDeltas();
+            MarkActionChanged();
+            _bodyLootFeedback = $"Took {entry.Name} (+{entry.MoneyAmount:N0} ₽)";
+            _bodyLootFeedbackTimer = 1.4f;
+        }
+        else
+        {
+            if (!TryAddToBackpack(entry.Name))
+            {
+                _bodyLootFeedback = "Backpack is full.";
+                _bodyLootFeedbackTimer = 1.6f;
+                return;
+            }
+
+            _bodyLootTaken[globalIndex] = true;
+            _bodyLootFeedback = $"Took {entry.Name}";
+            _bodyLootFeedbackTimer = 1.2f;
+        }
+
+        RefreshBodyLootVisibleList();
+        if (_bodyLootVisibleCount <= 0)
+            CloseBodyLootMenu();
+    }
+
     private void HandleCafeChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -2994,6 +3309,7 @@ public sealed class Game : IGame
         _showItemDialog = false;
         CloseStoreBuyMenu();
         CloseGloveBoxMenu();
+        CloseBodyLootMenu();
         CloseRegionMap();
         CloseBuildDialog();
         CloseForageDialog();
@@ -3005,14 +3321,14 @@ public sealed class Game : IGame
     }
 
     private bool BlocksActionBarNavigation() =>
-        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBuildDialog
-        || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug || _showQuitConfirm
-        || _showStatsHelp || _sceneAreaSelect.IsActive;
+        _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
+        || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showControllerDebug
+        || _showQuitConfirm || _showStatsHelp || _sceneAreaSelect.IsActive;
 
     private bool AllowsSidebarAndSceneInput() =>
-        !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showRegionMap
-        && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog && !_showQuitConfirm
-        && !_showStatsHelp && !_sceneAreaSelect.IsActive;
+        !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
+        && !_showRegionMap && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
+        && !_showQuitConfirm && !_showStatsHelp && !_sceneAreaSelect.IsActive;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -3028,6 +3344,7 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = false;
         _warehouseAmbushersDead = false;
         ResetGloveCompartmentLoot();
+        ResetBodyLoot();
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -3060,6 +3377,7 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
         ResetGloveCompartmentLoot();
+        ResetBodyLoot();
         EnterPhase(Phase.WarehouseAftermath);
     }
 
@@ -5429,6 +5747,223 @@ public sealed class Game : IGame
         }
     }
 
+    // =====================================================================
+    // WAREHOUSE BODY LOOT (modal — search bratdvas, glove-box layout)
+    // =====================================================================
+    private void DrawBodyLootMenu()
+    {
+        if (_activeBodyIndex < 0 || _activeBodyIndex >= WarehouseBodyLootCatalog.BodyCount)
+            return;
+
+        RefreshBodyLootVisibleList();
+
+        var body = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex];
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 160));
+
+        int panelW = 720;
+        int panelH = 360;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _bodyLootPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, body.Title,
+            new Vector2(panelX + 24, panelY + 18), 28, 0.8f, Palette.TextPrimary);
+
+        int hintW = (int)Raylib.MeasureTextEx(font, body.SearchHint, 18, 0.55f).X;
+        Raylib.DrawTextEx(font, body.SearchHint,
+            new Vector2(panelX + panelW - 24 - hintW, panelY + 22),
+            18, 0.55f, Palette.TextSecondary);
+
+        int headerBottom = panelY + 50;
+        Raylib.DrawLine(panelX + 20, headerBottom, panelX + panelW - 20, headerBottom, Palette.SubtleBorder);
+
+        int listX = panelX + 16;
+        int listW = 268;
+        int contentTop = headerBottom + 10;
+        int panelBottom = panelY + panelH - 12;
+        int closeH = 32;
+        int closeW = 100;
+        int closeY = panelBottom - closeH;
+        int closeX = listX + (listW - closeW) / 2;
+        int dividerX = listX + listW + 8;
+        int detailX = dividerX + 9;
+        int detailW = panelX + panelW - 20 - detailX;
+
+        Raylib.DrawLine(dividerX, contentTop, dividerX, panelBottom, Palette.SubtleBorder);
+        Raylib.DrawLine(listX, closeY - 6, listX + listW, closeY - 6, Palette.SubtleBorder);
+
+        int rowHeight = 44;
+        const int iconSize = 28;
+
+        for (int i = 0; i < _bodyLootVisibleCount; i++)
+        {
+            int itemIndex = _bodyLootVisibleCatalogIndices[i];
+            var entry = body.Items[itemIndex];
+            bool canTake = CanTakeBodyLootItem(itemIndex);
+
+            int rowY = contentTop + i * rowHeight;
+            _bodyLootItemRects[i] = new Rectangle(listX, rowY, listW, rowHeight - 4);
+            bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _bodyLootItemRects[i]);
+            bool rowHighlighted = i == _bodyLootHighlightedIndex;
+            bool rowConfirmed = _bodyLootDetailIndex >= 0 && i == _bodyLootDetailIndex;
+
+            if (rowConfirmed)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(62, 58, 48, 200));
+            else if (rowHovered || rowHighlighted)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
+
+            Color tint = canTake ? Color.WHITE : new Color(120, 118, 112, 255);
+            int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
+            Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
+            DrawItemIcon(entry.IconItemName, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
+
+            Raylib.DrawTextEx(font, entry.Name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, Palette.TextPrimary);
+        }
+
+        DrawBodyLootDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
+
+        if (_bodyLootFeedbackTimer > 0f && !string.IsNullOrEmpty(_bodyLootFeedback))
+        {
+            int fbW = (int)Raylib.MeasureTextEx(font, _bodyLootFeedback, 17, 0.5f).X;
+            Raylib.DrawTextEx(font, _bodyLootFeedback,
+                new Vector2(detailX + (detailW - fbW) / 2, panelBottom - 48),
+                17, 0.5f, Palette.TextSecondary);
+        }
+
+        _bodyLootCloseRect = new Rectangle(closeX, closeY, closeW, closeH);
+        GameDialogUi.DrawDialogButton(_bodyLootCloseRect, "CLOSE", _bodyLootCloseHovered, font);
+    }
+
+    private void DrawBodyLootDetailPanel(Font font, int x, int y, int w, int h)
+    {
+        if (_activeBodyIndex < 0 || _bodyLootDetailIndex < 0)
+        {
+            string hint = "Select an item";
+            int hintSize = 20;
+            int hintW = (int)Raylib.MeasureTextEx(font, hint, hintSize, 0.6f).X;
+            Raylib.DrawTextEx(font, hint,
+                new Vector2(x + (w - hintW) / 2, y + h / 2 - 12),
+                hintSize, 0.6f, Palette.TextMuted);
+            _bodyLootPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        int itemIndex = GetBodyLootItemIndexFromVisibleIndex(_bodyLootDetailIndex);
+        if (itemIndex < 0)
+        {
+            _bodyLootDetailIndex = -1;
+            _bodyLootPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        var entry = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items[itemIndex];
+        bool canTake = CanTakeBodyLootItem(itemIndex);
+
+        const int iconSize = 64;
+        int iconX = x + (w - iconSize) / 2;
+        int iconY = y + 4;
+        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        DrawItemIcon(entry.IconItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
+
+        string title = entry.Name.ToUpperInvariant();
+        int titleW = (int)Raylib.MeasureTextEx(font, title, 22, 0.75f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
+            22, 0.75f, Palette.TextPrimary);
+
+        int textY = iconY + iconSize + 36;
+        const int flavorSize = 16;
+        float flavorSpacing = 0.55f;
+        int flavorLineHeight = 22;
+        var (flavorLines, _) = GameTextLayout.WrapForBox(entry.Flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
+        foreach (string line in flavorLines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(x + 4, textY), flavorSize, flavorSpacing, Palette.TextSecondary);
+            textY += flavorLineHeight;
+        }
+
+        textY += 4;
+        Raylib.DrawTextEx(font, entry.EffectHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
+        textY += 22;
+
+        if (!canTake)
+        {
+            Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f,
+                new Color(200, 130, 110, 255));
+        }
+
+        int btnW = 108;
+        int btnH = 34;
+        int btnX = x + (w - btnW) / 2;
+        int btnY = y + h - btnH;
+        _bodyLootPickupRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        if (canTake)
+            GameDialogUi.DrawDialogButton(_bodyLootPickupRect, "TAKE", _bodyLootPickupHovered, font);
+        else
+        {
+            Raylib.DrawRectangleRec(_bodyLootPickupRect, new Color(24, 26, 30, 255));
+            Raylib.DrawRectangleLinesEx(_bodyLootPickupRect, 1f, Palette.SubtleBorder);
+            int labelSize = 18;
+            int labelW = (int)Raylib.MeasureTextEx(font, "TAKE", labelSize, 0.55f).X;
+            Raylib.DrawTextEx(font, "TAKE",
+                new Vector2(btnX + (btnW - labelW) / 2f, btnY + 8),
+                labelSize, 0.55f, Palette.TextMuted);
+        }
+    }
+
+    private void DrawWarehouseBodyHotspots(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+
+        for (int i = 0; i < WarehouseBodyLootCatalog.BodyCount; i++)
+        {
+            if (!BodyHasRemainingLoot(i))
+                continue;
+
+            var body = WarehouseBodyLootCatalog.Bodies[i];
+            Rectangle r = SceneRegion.ToScreenRect(
+                body.RegionX,
+                body.RegionY,
+                body.RegionW,
+                body.RegionH,
+                artBounds);
+
+            bool hovered = _hoveredBodyIndex == i;
+            Color fill = hovered
+                ? new Color(200, 185, 120, 36)
+                : new Color(200, 185, 120, 14);
+            Raylib.DrawRectangleRec(r, fill);
+            Color border = hovered
+                ? new Color(220, 200, 130, 200)
+                : new Color(180, 165, 110, 90);
+            Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+            if (hovered)
+            {
+                const string label = "SEARCH BODY";
+                Font font = _uiFont;
+                float fontSize = 13f;
+                Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+                float lx = r.X + (r.Width - size.X) / 2f;
+                float ly = r.Y - size.Y - 4f;
+                Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                    new Color(8, 10, 14, 210));
+                Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+            }
+        }
+    }
+
     // --- Render ---
     private void Draw()
     {
@@ -5480,6 +6015,11 @@ public sealed class Game : IGame
         if (_showGloveBoxMenu)
         {
             DrawGloveBoxMenu();
+        }
+
+        if (_showBodyLootMenu)
+        {
+            DrawBodyLootMenu();
         }
 
         if (_showRegionMap)
@@ -6547,6 +7087,9 @@ public sealed class Game : IGame
 
         if (GamePhase.IsInTruckCab(_phase))
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
+
+        if (_phase == Phase.WarehouseAftermath)
+            DrawWarehouseBodyHotspots(artX, artY, artW, artH);
 
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))

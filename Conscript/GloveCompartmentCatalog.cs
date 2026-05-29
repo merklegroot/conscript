@@ -7,31 +7,23 @@ internal static class GloveCompartmentCatalog
     public const string Vodka = GameItems.Vodka;
     public const string Rag = GameItems.Rag;
 
-    public readonly record struct Entry(
-        string Name,
-        string IconItemName,
-        bool IsMoney,
-        int MoneyAmount,
-        string Flavor,
-        string EffectHint);
-
-    public static readonly Entry[] Entries =
+    public static readonly LootCatalogEntry[] Entries =
     [
-        new(
+        new LootCatalogEntry(
             Crowbar,
             Crowbar,
             IsMoney: false,
             MoneyAmount: 0,
             Flavor: "A short steel crowbar with old paint on the curve. Heavy enough to count as an argument.",
             EffectHint: "Goes in your backpack."),
-        new(
+        new LootCatalogEntry(
             Vodka,
             Vodka,
             IsMoney: false,
             MoneyAmount: 0,
             Flavor: "A half-liter bottle, label torn, cap re-seated crooked. It burns just looking at it.",
             EffectHint: "Goes in your backpack."),
-        new(
+        new LootCatalogEntry(
             Rag,
             Rag,
             IsMoney: false,
