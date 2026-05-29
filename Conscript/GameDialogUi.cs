@@ -51,18 +51,28 @@ internal static class GameDialogUi
             labelSize, 0.5f, textColor);
     }
 
-    public static void DrawToolbarIconButton(Rectangle rect, bool active, Action<float, float, float, Color> drawIcon)
+    public static void DrawToolbarIconButton(
+        Rectangle rect,
+        bool active,
+        Action<float, float, float, Color> drawIcon,
+        bool enabled = true)
     {
         if (rect.Width <= 0)
             return;
 
-        Color bg = active ? ToolbarBgActive : ToolbarBgIdle;
-        Color border = active ? ToolbarBorderActive : Palette.SubtleBorder;
+        Color bg = !enabled
+            ? new Color(24, 26, 30, 255)
+            : active ? ToolbarBgActive : ToolbarBgIdle;
+        Color border = !enabled
+            ? new Color(42, 45, 52, 255)
+            : active ? ToolbarBorderActive : Palette.SubtleBorder;
 
         Raylib.DrawRectangleRec(rect, bg);
         Raylib.DrawRectangleLinesEx(rect, 1.0f, border);
 
-        Color iconColor = active ? Palette.TextPrimary : Palette.TextSecondary;
+        Color iconColor = !enabled
+            ? new Color(72, 76, 84, 255)
+            : active ? Palette.TextPrimary : Palette.TextSecondary;
         float cx = rect.X + rect.Width / 2f;
         float cy = rect.Y + rect.Height / 2f;
         float iconSize = rect.Width * 0.72f;

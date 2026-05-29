@@ -63,6 +63,28 @@ internal static class GameToolbarIcons
         Raylib.DrawCircleLines((int)cx, (int)cy, r, color);
     }
 
+    public static void DrawBack(float cx, float cy, float size, Color color)
+    {
+        float thick = Math.Max(1.4f, size * 0.11f);
+        float arm = size * 0.34f;
+        float head = size * 0.22f;
+
+        Raylib.DrawLineEx(new Vector2(cx + arm * 0.35f, cy), new Vector2(cx - arm, cy), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx - arm, cy), new Vector2(cx - arm + head, cy - head), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx - arm, cy), new Vector2(cx - arm + head, cy + head), thick, color);
+    }
+
+    public static void DrawForward(float cx, float cy, float size, Color color)
+    {
+        float thick = Math.Max(1.4f, size * 0.11f);
+        float arm = size * 0.34f;
+        float head = size * 0.22f;
+
+        Raylib.DrawLineEx(new Vector2(cx - arm * 0.35f, cy), new Vector2(cx + arm, cy), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx + arm, cy), new Vector2(cx + arm - head, cy - head), thick, color);
+        Raylib.DrawLineEx(new Vector2(cx + arm, cy), new Vector2(cx + arm - head, cy + head), thick, color);
+    }
+
     public static void DrawController(float cx, float cy, float size, Color color)
     {
         float bodyW = size * 0.82f;

@@ -10,7 +10,7 @@ public static class GameConstants
     public const int ScreenHeight = 720;
 
     // === Top Header Bar ===
-    public const int TopBarHeight = 88;   // extra height for 45pt title + two-row layout
+    public const int TopBarHeight = 100;   // title logo + history buttons on the lower row
 
     // === Left Sidebar (Stats + Flavor) ===
     public const int SidebarWidth = 292;  // wider for clean list + long status text

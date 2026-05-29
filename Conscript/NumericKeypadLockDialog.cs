@@ -61,6 +61,15 @@ internal sealed class NumericKeypadLockDialog
         _feedbackTimer = 0f;
     }
 
+    public void RestoreUnlockedState(bool unlocked)
+    {
+        IsUnlocked = unlocked;
+        Close();
+        _entry.Clear();
+        _feedback = "";
+        _feedbackTimer = 0f;
+    }
+
     public void Update(float dt, Vector2 mouse, bool leftClicked)
     {
         if (!IsOpen)

@@ -117,14 +117,24 @@ public sealed class Game : IGame
     private readonly Dictionary<string, Texture2D> _itemIcons = new(StringComparer.OrdinalIgnoreCase);
 
     // --- Top-right utility buttons (restart, debug start, controller) ---
+    private Rectangle _undoButtonRect;
+    private Rectangle _redoButtonRect;
     private Rectangle _restartButtonRect;
     private Rectangle _debugStartButtonRect;
     private Rectangle _areaSelectButtonRect;
     private Rectangle _controllerButtonRect;
+    private bool _undoHovered;
+    private bool _redoHovered;
     private bool _restartHovered;
     private bool _debugStartHovered;
     private bool _areaSelectHovered;
     private bool _controllerHovered;
+
+    private readonly List<GameStateSnapshot> _undoStack = new();
+    private readonly List<GameStateSnapshot> _redoStack = new();
+    private bool _isRestoringHistory;
+    private int _historyRecordSuppression;
+    private const int MaxHistoryDepth = 50;
 
     private readonly SceneAreaSelect _sceneAreaSelect = new();
 
@@ -794,6 +804,15 @@ public sealed class Game : IGame
         }
 
         // Swap the background image for the new phase
+        ApplyBackgroundForCurrentPhase();
+
+        RefreshConcealment();
+        if (newPhase == Phase.Opening)
+            ClearDroppedItems();
+    }
+
+    private void ApplyBackgroundForCurrentPhase()
+    {
         _backgroundTexture = _phase switch
         {
             Phase.Opening      => _apartmentBackground,
@@ -814,10 +833,6 @@ public sealed class Game : IGame
             Phase.Tent         => _tentBackground,
             _                  => _forestBackground
         };
-
-        RefreshConcealment();
-        if (newPhase == Phase.Opening)
-            ClearDroppedItems();
     }
 
     /// <summary>
@@ -1449,10 +1464,23 @@ public sealed class Game : IGame
 
         // Top-right utility buttons
         UpdateTopRightButtonsLayout();
+        UpdateHistoryButtonsLayout();
+        _undoHovered = CanUndoAction() && Raylib.CheckCollisionPointRec(mouse, _undoButtonRect);
+        _redoHovered = CanRedoAction() && Raylib.CheckCollisionPointRec(mouse, _redoButtonRect);
         _restartHovered = Raylib.CheckCollisionPointRec(mouse, _restartButtonRect);
         _debugStartHovered = Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect);
         _areaSelectHovered = Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect);
         _controllerHovered = Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect);
+        if (leftClicked && _undoHovered)
+        {
+            UndoLastAction();
+            return;
+        }
+        if (leftClicked && _redoHovered)
+        {
+            RedoLastAction();
+            return;
+        }
         if (leftClicked && _restartHovered)
         {
             RestartGame();
@@ -1518,7 +1546,10 @@ public sealed class Game : IGame
             bool wasUnlocked = _warehouseKeypad.IsUnlocked;
             _warehouseKeypad.Update(dt, mouse, leftClicked);
             if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
+            {
+                RecordHistorySnapshot();
                 EnterWarehouseInterior();
+            }
 
             return;
         }
@@ -1615,6 +1646,8 @@ public sealed class Game : IGame
                 }
             }
             if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, panelRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _undoButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _redoButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) &&
@@ -2355,7 +2388,9 @@ public sealed class Game : IGame
         bool overClickable = false;
 
         // Top-right utility buttons (always available)
-        if (Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
+        if (Raylib.CheckCollisionPointRec(mouse, _undoButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _redoButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
@@ -2543,77 +2578,87 @@ public sealed class Game : IGame
     // --- Choice handlers ---
     private void PerformChoice(int index)
     {
-        ClearActionDeltas();
-        switch (_phase)
+        RecordHistorySnapshot();
+        _historyRecordSuppression++;
+
+        try
         {
-            case Phase.Opening:
-                HandleOpeningChoice(index);
-                break;
+            ClearActionDeltas();
+            switch (_phase)
+            {
+                case Phase.Opening:
+                    HandleOpeningChoice(index);
+                    break;
 
-            case Phase.ForestEntry:
-                HandleForestEntryChoice(index);
-                break;
+                case Phase.ForestEntry:
+                    HandleForestEntryChoice(index);
+                    break;
 
-            case Phase.Forest:
-                HandleForestChoice(index);
-                break;
+                case Phase.Forest:
+                    HandleForestChoice(index);
+                    break;
 
-            case Phase.ForestStream:
-                HandleForestStreamChoice(index);
-                break;
+                case Phase.ForestStream:
+                    HandleForestStreamChoice(index);
+                    break;
 
-            case Phase.Outside:
-                HandleOutsideChoice(index);
-                break;
+                case Phase.Outside:
+                    HandleOutsideChoice(index);
+                    break;
 
-            case Phase.Town:
-                HandleTownChoice(index);
-                break;
+                case Phase.Town:
+                    HandleTownChoice(index);
+                    break;
 
-            case Phase.IndustrialDistrict:
-                HandleIndustrialDistrictChoice(index);
-                break;
+                case Phase.IndustrialDistrict:
+                    HandleIndustrialDistrictChoice(index);
+                    break;
 
-            case Phase.CommercialDistrict:
-                HandleCommercialDistrictChoice(index);
-                break;
+                case Phase.CommercialDistrict:
+                    HandleCommercialDistrictChoice(index);
+                    break;
 
-            case Phase.Store:
-                HandleStoreChoice(index);
-                break;
+                case Phase.Store:
+                    HandleStoreChoice(index);
+                    break;
 
-            case Phase.Cafe:
-                HandleCafeChoice(index);
-                break;
+                case Phase.Cafe:
+                    HandleCafeChoice(index);
+                    break;
 
-            case Phase.DeliveryTruck:
-                HandleDeliveryTruckChoice(index);
-                break;
+                case Phase.DeliveryTruck:
+                    HandleDeliveryTruckChoice(index);
+                    break;
 
-            case Phase.WarehouseTruck:
-                HandleWarehouseTruckChoice(index);
-                break;
+                case Phase.WarehouseTruck:
+                    HandleWarehouseTruckChoice(index);
+                    break;
 
-            case Phase.WarehouseAmbush:
-                HandleWarehouseAmbushChoice(index);
-                break;
+                case Phase.WarehouseAmbush:
+                    HandleWarehouseAmbushChoice(index);
+                    break;
 
-            case Phase.WarehouseAftermath:
-                HandleWarehouseAftermathChoice(index);
-                break;
+                case Phase.WarehouseAftermath:
+                    HandleWarehouseAftermathChoice(index);
+                    break;
 
-            case Phase.WarehouseInterior:
-                HandleWarehouseInteriorChoice(index);
-                break;
+                case Phase.WarehouseInterior:
+                    HandleWarehouseInteriorChoice(index);
+                    break;
 
-            case Phase.Tent:
-                HandleTentChoice(index);
-                break;
+                case Phase.Tent:
+                    HandleTentChoice(index);
+                    break;
 
-            case Phase.Death:
-                if (index >= 0 && index < _choices.Length && _choices[index] == ChoiceTryAgain)
-                    EnterPhase(Phase.Opening);
-                break;
+                case Phase.Death:
+                    if (index >= 0 && index < _choices.Length && _choices[index] == ChoiceTryAgain)
+                        EnterPhase(Phase.Opening);
+                    break;
+            }
+        }
+        finally
+        {
+            _historyRecordSuppression--;
         }
     }
 
@@ -3247,6 +3292,7 @@ public sealed class Game : IGame
 
         if (entry.IsMoney)
         {
+            RecordHistorySnapshot();
             _money += entry.MoneyAmount;
             _gloveBoxLootTaken[index] = true;
             ClearActionDeltas();
@@ -3263,6 +3309,7 @@ public sealed class Game : IGame
             return;
         }
 
+        RecordHistorySnapshot();
         _gloveBoxLootTaken[index] = true;
         _gloveBoxFeedback = $"Took {entry.Name}";
         _gloveBoxFeedbackTimer = 1.2f;
@@ -3277,6 +3324,7 @@ public sealed class Game : IGame
         if (_gloveBoxVisibleCount <= 0)
             return;
 
+        RecordHistorySnapshot();
         int takenCount = 0;
         bool backpackFull = false;
         bool tookMoney = false;
@@ -3427,6 +3475,7 @@ public sealed class Game : IGame
 
         if (_warehouseKeypad.IsUnlocked)
         {
+            RecordHistorySnapshot();
             EnterWarehouseInterior();
             return;
         }
@@ -3461,6 +3510,7 @@ public sealed class Game : IGame
         if (!HasBackpackItem(GameItems.Crowbar))
             return;
 
+        RecordHistorySnapshot();
         _warehouseCrateOpened = true;
         _actionMessage =
             "You work the crowbar under the lid. Nails shriek and splinter. The crate is empty — " +
@@ -3525,6 +3575,7 @@ public sealed class Game : IGame
 
         if (entry.IsMoney)
         {
+            RecordHistorySnapshot();
             _money += entry.MoneyAmount;
             _bodyLootTaken[globalIndex] = true;
             ClearActionDeltas();
@@ -3541,6 +3592,7 @@ public sealed class Game : IGame
                 return;
             }
 
+            RecordHistorySnapshot();
             _bodyLootTaken[globalIndex] = true;
             _bodyLootFeedback = $"Took {entry.Name}";
             _bodyLootFeedbackTimer = 1.2f;
@@ -3556,6 +3608,7 @@ public sealed class Game : IGame
         if (_activeBodyIndex < 0 || _bodyLootVisibleCount <= 0)
             return;
 
+        RecordHistorySnapshot();
         var items = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items;
         int takenCount = 0;
         bool backpackFull = false;
@@ -3729,6 +3782,19 @@ public sealed class Game : IGame
         _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 3f, size, size);
     }
 
+    private void UpdateHistoryButtonsLayout()
+    {
+        const float size = 36f;
+        const float gap = 8f;
+        const float leftX = 26f;
+        const float titleRowY = 14f;
+        const float titleLogoHeight = 38f;
+        float y = titleRowY + titleLogoHeight + 6f;
+
+        _undoButtonRect = new Rectangle(leftX, y, size, size);
+        _redoButtonRect = new Rectangle(leftX + size + gap, y, size, size);
+    }
+
     private void ResetDeathLines()
     {
         _deathLine1 = DefaultDeathLine1;
@@ -3761,6 +3827,183 @@ public sealed class Game : IGame
         _sceneAreaSelect.Close();
     }
 
+    private void ClearActionHistory()
+    {
+        _undoStack.Clear();
+        _redoStack.Clear();
+    }
+
+    private bool CanUndoAction() => _undoStack.Count > 0;
+
+    private bool CanRedoAction() => _redoStack.Count > 0;
+
+    private static List<DroppedItem> CloneDroppedItems(IEnumerable<DroppedItem> items) =>
+        items.Select(d => new DroppedItem
+        {
+            Name = d.Name,
+            Charges = d.Charges,
+            Room = d.Room,
+            TurnsRemaining = d.TurnsRemaining,
+            AnchorIndex = d.AnchorIndex
+        }).ToList();
+
+    private GameStateSnapshot CaptureStateSnapshot() => new()
+    {
+        Phase = _phase,
+        PhaseOutdoorBeforeTent = _phaseOutdoorBeforeTent,
+        PhaseBeforeStore = _phaseBeforeStore,
+        PhaseBeforeCafe = _phaseBeforeCafe,
+        BorisDeliveryJobActive = _borisDeliveryJobActive,
+        WarehouseAmbushersDead = _warehouseAmbushersDead,
+        FoldedPaperMessageRead = _foldedPaperMessageRead,
+        WarehouseCrateOpened = _warehouseCrateOpened,
+        WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
+        HasTrashBagTent = _hasTrashBagTent,
+        TentBuiltInPhase = _tentBuiltInPhase,
+        CafeOwnerDialogStage = _cafeOwnerDialogStage,
+        Day = _day,
+        TimeOfDay = _timeOfDay,
+        Location = _location,
+        City = _city,
+        Season = _season,
+        TemperatureF = _temperatureF,
+        Money = _money,
+        Health = _health,
+        Energy = _energy,
+        Satiation = _satiation,
+        Hydration = _hydration,
+        Status = _status,
+        Comfort = _comfort,
+        Concealment = _concealment,
+        EnvHealthDelta = _envHealthDelta,
+        EnvEnergyDelta = _envEnergyDelta,
+        EnvSatiationDelta = _envSatiationDelta,
+        EnvHydrationDelta = _envHydrationDelta,
+        EnvComfortDelta = _envComfortDelta,
+        ActionHealthDelta = _actionHealthDelta,
+        ActionEnergyDelta = _actionEnergyDelta,
+        ActionSatiationDelta = _actionSatiationDelta,
+        ActionHydrationDelta = _actionHydrationDelta,
+        ActionComfortDelta = _actionComfortDelta,
+        ActionDeltaTimer = _actionDeltaTimer,
+        Backpack = (string?[])_backpack.Clone(),
+        BackpackItemCharges = (int?[])_backpackItemCharges.Clone(),
+        DroppedItems = CloneDroppedItems(_droppedItems),
+        GloveBoxLootTaken = (bool[])_gloveBoxLootTaken.Clone(),
+        BodyLootTaken = (bool[])_bodyLootTaken.Clone(),
+        Choices = (string[])_choices.Clone(),
+        SelectedIndex = _selectedIndex,
+        NarrativeCollapsed = _narrativeCollapsed,
+        ActionMessage = _actionMessage,
+        ActionMessageTimer = _actionMessageTimer,
+        DeathLine1 = _deathLine1,
+        DeathLine2 = _deathLine2
+    };
+
+    private void RestoreStateSnapshot(GameStateSnapshot snapshot)
+    {
+        _isRestoringHistory = true;
+
+        try
+        {
+            CloseAllOverlays();
+
+            _phase = snapshot.Phase;
+            _phaseOutdoorBeforeTent = snapshot.PhaseOutdoorBeforeTent;
+            _phaseBeforeStore = snapshot.PhaseBeforeStore;
+            _phaseBeforeCafe = snapshot.PhaseBeforeCafe;
+            _borisDeliveryJobActive = snapshot.BorisDeliveryJobActive;
+            _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
+            _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
+            _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
+            _hasTrashBagTent = snapshot.HasTrashBagTent;
+            _tentBuiltInPhase = snapshot.TentBuiltInPhase;
+            _cafeOwnerDialogStage = snapshot.CafeOwnerDialogStage;
+            _day = snapshot.Day;
+            _timeOfDay = snapshot.TimeOfDay;
+            _location = snapshot.Location;
+            _city = snapshot.City;
+            _season = snapshot.Season;
+            _temperatureF = snapshot.TemperatureF;
+            _money = snapshot.Money;
+            _health = snapshot.Health;
+            _energy = snapshot.Energy;
+            _satiation = snapshot.Satiation;
+            _hydration = snapshot.Hydration;
+            _status = snapshot.Status;
+            _comfort = snapshot.Comfort;
+            _concealment = snapshot.Concealment;
+            _envHealthDelta = snapshot.EnvHealthDelta;
+            _envEnergyDelta = snapshot.EnvEnergyDelta;
+            _envSatiationDelta = snapshot.EnvSatiationDelta;
+            _envHydrationDelta = snapshot.EnvHydrationDelta;
+            _envComfortDelta = snapshot.EnvComfortDelta;
+            _actionHealthDelta = snapshot.ActionHealthDelta;
+            _actionEnergyDelta = snapshot.ActionEnergyDelta;
+            _actionSatiationDelta = snapshot.ActionSatiationDelta;
+            _actionHydrationDelta = snapshot.ActionHydrationDelta;
+            _actionComfortDelta = snapshot.ActionComfortDelta;
+            _actionDeltaTimer = snapshot.ActionDeltaTimer;
+            _backpack = (string?[])snapshot.Backpack.Clone();
+            _backpackItemCharges = (int?[])snapshot.BackpackItemCharges.Clone();
+            _droppedItems.Clear();
+            _droppedItems.AddRange(CloneDroppedItems(snapshot.DroppedItems));
+            Array.Copy(snapshot.GloveBoxLootTaken, _gloveBoxLootTaken, _gloveBoxLootTaken.Length);
+            Array.Copy(snapshot.BodyLootTaken, _bodyLootTaken, _bodyLootTaken.Length);
+            _choices = (string[])snapshot.Choices.Clone();
+            _selectedIndex = snapshot.SelectedIndex;
+            _narrativeCollapsed = snapshot.NarrativeCollapsed;
+            _actionMessage = snapshot.ActionMessage;
+            _actionMessageTimer = snapshot.ActionMessageTimer;
+            _deathLine1 = snapshot.DeathLine1;
+            _deathLine2 = snapshot.DeathLine2;
+
+            _warehouseKeypad.RestoreUnlockedState(snapshot.WarehouseKeypadUnlocked);
+            ApplyBackgroundForCurrentPhase();
+            RefreshConcealment();
+
+            if (_choices.Length == 0)
+                _selectedIndex = 0;
+            else
+                _selectedIndex = Math.Clamp(_selectedIndex, 0, _choices.Length - 1);
+        }
+        finally
+        {
+            _isRestoringHistory = false;
+        }
+    }
+
+    private void RecordHistorySnapshot()
+    {
+        if (_isRestoringHistory || _historyRecordSuppression > 0)
+            return;
+
+        _undoStack.Add(CaptureStateSnapshot());
+        if (_undoStack.Count > MaxHistoryDepth)
+            _undoStack.RemoveAt(0);
+        _redoStack.Clear();
+    }
+
+    private void UndoLastAction()
+    {
+        if (!CanUndoAction())
+            return;
+
+        _redoStack.Add(CaptureStateSnapshot());
+        RestoreStateSnapshot(_undoStack[^1]);
+        _undoStack.RemoveAt(_undoStack.Count - 1);
+    }
+
+    private void RedoLastAction()
+    {
+        if (!CanRedoAction())
+            return;
+
+        _undoStack.Add(CaptureStateSnapshot());
+        RestoreStateSnapshot(_redoStack[^1]);
+        _redoStack.RemoveAt(_redoStack.Count - 1);
+    }
+
     private bool BlocksActionBarNavigation() =>
         _showRegionMap || _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
@@ -3778,6 +4021,7 @@ public sealed class Game : IGame
 
     private void RestartGame()
     {
+        ClearActionHistory();
         _actionMessage = "";
         _actionMessageTimer = 0f;
         _selectedIndex = 0;
@@ -3803,6 +4047,7 @@ public sealed class Game : IGame
     /// </summary>
     private void DebugStartGame()
     {
+        ClearActionHistory();
         CloseAllOverlays();
         _hasTrashBagTent = false;
         _tentBuiltInPhase = null;
@@ -3942,6 +4187,8 @@ public sealed class Game : IGame
             return;
         }
 
+        RecordHistorySnapshot();
+
         int anchor = CountDroppedItemsInRoom(_phase);
         _droppedItems.Add(new DroppedItem
         {
@@ -3973,6 +4220,8 @@ public sealed class Game : IGame
             CloseItemDialog();
             return;
         }
+
+        RecordHistorySnapshot();
 
         if (!TryAddToBackpack(dropped.Name, dropped.Charges))
         {
@@ -4076,6 +4325,7 @@ public sealed class Game : IGame
 
     private void AcceptBorisDeliveryJob()
     {
+        RecordHistorySnapshot();
         CloseCafeOwnerDialog();
         _borisDeliveryJobActive = true;
         ResetGloveCompartmentLoot();
@@ -4089,6 +4339,7 @@ public sealed class Game : IGame
 
     private void DeclineBorisDeliveryJob()
     {
+        RecordHistorySnapshot();
         CloseCafeOwnerDialog();
         _actionMessage = "Boris turns back to the samovar. \"Then don't waste my time.\"";
         _actionMessageTimer = ActionMessageDuration;
@@ -4101,6 +4352,7 @@ public sealed class Game : IGame
         if (optionIndex < 0 || optionIndex >= ForageOptionCount)
             return;
 
+        RecordHistorySnapshot();
         CloseForageDialog();
         ClearActionDeltas();
 
@@ -4350,6 +4602,7 @@ public sealed class Game : IGame
         if (!GamePhase.IsForestSurvival(_phase))
             return;
 
+        RecordHistorySnapshot();
         ApplyEnvironmentOnAction();
         AdvanceTime();
         ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostHunt);
@@ -4551,6 +4804,7 @@ public sealed class Game : IGame
         if (molotovSlot < 0)
             return;
 
+        RecordHistorySnapshot();
         RemoveBackpackItemAtSlot(molotovSlot);
         CompactBackpack();
         TryAddToBackpack(GameItems.LitMolotov);
@@ -4573,6 +4827,7 @@ public sealed class Game : IGame
         if (vodkaSlot < 0 || ragSlot < 0)
             return;
 
+        RecordHistorySnapshot();
         RemoveBackpackItemAtSlot(vodkaSlot);
         if (ragSlot == vodkaSlot)
             ragSlot = FindBackpackSlotIndex(GameItems.Rag);
@@ -4627,6 +4882,7 @@ public sealed class Game : IGame
         if (!TryUseBackpackItemCharge(GameItems.TrashBags) || !TryUseBackpackItemCharge(GameItems.DuctTape))
             return;
 
+        RecordHistorySnapshot();
         _hasTrashBagTent = true;
         _tentBuiltInPhase = _phase;
         RefreshOutdoorComfortEnvironment();
@@ -4727,6 +4983,7 @@ public sealed class Game : IGame
             }
         }
 
+        RecordHistorySnapshot();
         _droppedItems.RemoveAll(d => d.Room == Phase.Tent);
 
         if (!TryRestoreBackpackMaterial(GameItems.TrashBags) || !TryRestoreBackpackMaterial(GameItems.DuctTape))
@@ -4837,6 +5094,7 @@ public sealed class Game : IGame
     private void TryPerformDialogItemAction(DialogItemAction action)
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
+        RecordHistorySnapshot();
         switch (action)
         {
             case DialogItemAction.DrinkWater:
@@ -5039,6 +5297,8 @@ public sealed class Game : IGame
             return;
         }
 
+        RecordHistorySnapshot();
+
         _money -= price;
         ClearActionDeltas();
         ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, satiationDelta);
@@ -5048,6 +5308,20 @@ public sealed class Game : IGame
         _storeBuyFeedback = $"Bought {name}";
         _storeBuyFeedbackTimer = 1.2f;
     }
+
+    private void DrawUndoButton() =>
+        GameDialogUi.DrawToolbarIconButton(
+            _undoButtonRect,
+            _undoHovered,
+            GameToolbarIcons.DrawBack,
+            CanUndoAction());
+
+    private void DrawRedoButton() =>
+        GameDialogUi.DrawToolbarIconButton(
+            _redoButtonRect,
+            _redoHovered,
+            GameToolbarIcons.DrawForward,
+            CanRedoAction());
 
     private void DrawRestartButton() =>
         GameDialogUi.DrawToolbarIconButton(_restartButtonRect, _restartHovered, GameToolbarIcons.DrawRestart);
@@ -5101,6 +5375,12 @@ public sealed class Game : IGame
         DrawDebugStartButton();
         DrawAreaSelectButton();
         DrawControllerButton();
+    }
+
+    private void DrawHistoryButtons()
+    {
+        DrawUndoButton();
+        DrawRedoButton();
     }
 
     // =====================================================================
@@ -6708,6 +6988,7 @@ public sealed class Game : IGame
         if (_showControllerDebug)
         {
             DrawControllerDebugScreen();
+            DrawHistoryButtons();
             DrawTopRightButtons();
         }
 
@@ -6778,6 +7059,8 @@ public sealed class Game : IGame
             titleW = (int)Raylib.MeasureTextEx(font, "CONSCRIPT", LayoutConstants.TitleFontSize, 0.85f).X;
             Raylib.DrawLine(leftX, row1Y + 34, leftX + titleW, row1Y + 34, Palette.StrongBorder);
         }
+
+        DrawHistoryButtons();
 
         // CENTER ZONE — Day/Time (upper) + City • Specific Location (lower)
         string dayLine = $"Day {_day} — {GetTimeOfDayDisplay()}";
@@ -7868,6 +8151,7 @@ public sealed class Game : IGame
         // The single try-again button is drawn by DrawActionBar (we set _choices to ChoiceTryAgain)
         DrawActionBar();
 
+        DrawHistoryButtons();
         DrawTopRightButtons();
     }
 
