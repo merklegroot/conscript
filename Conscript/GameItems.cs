@@ -29,8 +29,13 @@ internal static class GameItems
     public const string Crowbar = "Crowbar";
     public const string Vodka = "Vodka";
     public const string Rag = "Rag";
+    public const string FoldedPaper = "Folded Paper";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
+
+    /// <summary>Letter-position cipher (A=01). INN | 00:30 | BAY | 14 | BURN | PHONES.</summary>
+    public const string FoldedPaperCodedMessage =
+        "09-14-14 | 00-30 | 02-01-25-14 | 14 | 02-21-18-14 | 16-08-15-14-05-19";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -41,6 +46,7 @@ internal static class GameItems
         [Crowbar]         = "items.crowbar.png",
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
+        [FoldedPaper]     = "items.rag.png",
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
@@ -72,4 +78,7 @@ internal static class GameItems
     public static bool IsBuildingMaterial(string name) =>
         string.Equals(name, TrashBags, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, DuctTape, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsFoldedPaper(string name) =>
+        string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase);
 }

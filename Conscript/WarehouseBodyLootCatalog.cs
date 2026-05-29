@@ -34,6 +34,13 @@ internal static class WarehouseBodyLootCatalog
                     Flavor: "A cheap burner, screen spiderwebbed from the heat. Two missed calls from a number with no name.",
                     EffectHint: "Goes in your backpack."),
                 new(
+                    GameItems.FoldedPaper,
+                    GameItems.FoldedPaper,
+                    IsMoney: false,
+                    MoneyAmount: 0,
+                    Flavor: "A grease-stained half-sheet folded into his breast pocket. Block numbers and slashes — someone's schedule, if you can read it.",
+                    EffectHint: "Goes in your backpack. Read it from your pack."),
+                new(
                     "Knife",
                     "Knife",
                     IsMoney: false,

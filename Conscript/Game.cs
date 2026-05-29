@@ -165,6 +165,7 @@ public sealed class Game : IGame
     private Phase _phaseBeforeCafe = Phase.IndustrialDistrict;
     private bool _borisDeliveryJobActive;
     private bool _warehouseAmbushersDead;
+    private bool _foldedPaperMessageRead;
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
@@ -3501,6 +3502,7 @@ public sealed class Game : IGame
         _warehouseAmbushersDead = false;
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
+        _foldedPaperMessageRead = false;
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -3534,6 +3536,7 @@ public sealed class Game : IGame
         _warehouseAmbushersDead = true;
         ResetGloveCompartmentLoot();
         ResetBodyLoot();
+        _foldedPaperMessageRead = false;
         EnterPhase(Phase.WarehouseAftermath);
     }
 
@@ -4478,7 +4481,8 @@ public sealed class Game : IGame
         EatSoup,
         FillBottle,
         LightMolotov,
-        ThrowLitMolotov
+        ThrowLitMolotov,
+        ReadPaper
     }
 
     private bool CanThrowLitMolotovAtAmbush() => _phase == Phase.WarehouseAmbush;
@@ -4515,6 +4519,9 @@ public sealed class Game : IGame
             _phase == Phase.ForestStream)
             return DialogItemAction.FillBottle;
 
+        if (GameItems.IsFoldedPaper(itemName))
+            return DialogItemAction.ReadPaper;
+
         return DialogItemAction.None;
     }
 
@@ -4529,11 +4536,13 @@ public sealed class Game : IGame
             DialogItemAction.FillBottle => "FILL",
             DialogItemAction.LightMolotov => "LIGHT",
             DialogItemAction.ThrowLitMolotov => "THROW",
+            DialogItemAction.ReadPaper => "READ",
             _ => ""
         };
 
     private static bool IsDialogPrimaryAction(DialogItemAction action) =>
-        action is DialogItemAction.EatSoup or DialogItemAction.LightMolotov or DialogItemAction.ThrowLitMolotov;
+        action is DialogItemAction.EatSoup or DialogItemAction.LightMolotov or DialogItemAction.ThrowLitMolotov
+            or DialogItemAction.ReadPaper;
 
     private void TryPerformDialogItemAction(DialogItemAction action)
     {
@@ -4555,9 +4564,33 @@ public sealed class Game : IGame
             case DialogItemAction.ThrowLitMolotov:
                 TryThrowLitMolotovFromItemDialog();
                 return;
+            case DialogItemAction.ReadPaper:
+                TryReadFoldedPaper();
+                return;
             default:
                 return;
         }
+    }
+
+    private void TryReadFoldedPaper()
+    {
+        if (!GameItems.IsFoldedPaper(_dialogItemName))
+            return;
+
+        _foldedPaperMessageRead = true;
+    }
+
+    private string GetFoldedPaperDialogText()
+    {
+        if (!_foldedPaperMessageRead)
+        {
+            return "A half-sheet torn from a ledger, folded twice. The ink is blocky — numbers grouped with slashes, like coordinates or a dead drop.\n\n" +
+                "Press READ to study it.";
+        }
+
+        return "You smooth the creases and copy it down:\n\n" +
+            GameItems.FoldedPaperCodedMessage +
+            "\n\n(Block numbers — A=01, B=02, and so on.)";
     }
 
     private void TryLightMolotovFromItemDialog()
@@ -4798,6 +4831,9 @@ public sealed class Game : IGame
         if (GameItems.IsBuildingMaterial(_dialogItemName))
             return StoreCatalog.GetFlavorText(_dialogItemName);
 
+        if (GameItems.IsFoldedPaper(_dialogItemName))
+            return GetFoldedPaperDialogText();
+
         int slot = _dialogItemIndex;
         return itemAction switch
         {
@@ -4832,7 +4868,8 @@ public sealed class Game : IGame
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
         bool canAct = canDrink || canFill || IsDialogPrimaryAction(itemAction);
 
-        int panelW = isGround ? 380 : canDrink && canFill ? 440 : 400;
+        bool isFoldedPaper = !isGround && GameItems.IsFoldedPaper(_dialogItemName);
+        int panelW = isGround ? 380 : canDrink && canFill ? 440 : isFoldedPaper && _foldedPaperMessageRead ? 460 : 400;
         Font font = _uiFont;
 
         const float bodySpacing = 0.6f;
