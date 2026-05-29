@@ -214,10 +214,13 @@ public sealed class Game : IGame
     // Sergei fled wearing his winter jacket (on his body, not in the backpack grid).
 
     // --- Backpack & ground items ---
-    // Backpack inventory grid (prototype: 8 slots = 2×4)
-    private string?[] _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+    private const int BackpackColumns = 4;
+    private const int BackpackRows = 3;
+    private const int BackpackSlotCount = BackpackColumns * BackpackRows;
+
+    private string?[] _backpack = new string?[BackpackSlotCount] { "Knife", "Lighter", "Phone", null, null, null, null, null, null, null, null, null };
     // Remaining uses per slot (null = full/default for that item type)
-    private int?[] _backpackItemCharges = new int?[8];
+    private int?[] _backpackItemCharges = new int?[BackpackSlotCount];
 
     // Items dropped in the current scene (per-room, expire after several turns)
     private readonly List<DroppedItem> _droppedItems = new();
@@ -379,7 +382,7 @@ public sealed class Game : IGame
     private bool _narrativeCardHovered;
 
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
-    private Rectangle[] _backpackSlotRects = new Rectangle[8];
+    private Rectangle[] _backpackSlotRects = new Rectangle[BackpackSlotCount];
 
     private const string DefaultDeathLine1 = "You died.";
     private const string DefaultDeathLine2 = "The war took you on the first day.";
@@ -526,8 +529,8 @@ public sealed class Game : IGame
                 _season = "Early Autumn";
                 _temperatureF = 34;   // tense night outside the apartment
                 // Reset backpack to starting gear (knife, lighter, phone)
-                _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
-                _backpackItemCharges = new int?[8];
+                _backpack = new string?[BackpackSlotCount] { "Knife", "Lighter", "Phone", null, null, null, null, null, null, null, null, null };
+                _backpackItemCharges = new int?[BackpackSlotCount];
                 _hasTrashBagTent = false;
                 _tentBuiltInPhase = null;
                 break;
@@ -3815,11 +3818,11 @@ public sealed class Game : IGame
         _tentBuiltInPhase = null;
         _buildFeedback = "";
         ResetDeathLines();
-        _backpack = new string?[]
+        _backpack = new string?[BackpackSlotCount]
         {
-            "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null
+            "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null, null, null, null, null
         };
-        _backpackItemCharges = new int?[8];
+        _backpackItemCharges = new int?[BackpackSlotCount];
 
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
@@ -6915,7 +6918,7 @@ public sealed class Game : IGame
             new Vector2(x, startY), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
 
         int filled = _backpack.Count(i => !string.IsNullOrEmpty(i));
-        string cap = $"{filled}/8";
+        string cap = $"{filled}/{BackpackSlotCount}";
         int capW = (int)Raylib.MeasureTextEx(font, cap, 14, 0.5f).X;
         Raylib.DrawTextEx(font, cap,
             new Vector2(x + available - capW, startY + 1), 14, 0.5f, Palette.TextDim);
@@ -6927,8 +6930,8 @@ public sealed class Game : IGame
         startY += 8;
 
         // === Visual backpack body ===
-        const int cols = 4;
-        const int rows = 2;
+        const int cols = BackpackColumns;
+        const int rows = BackpackRows;
         const int slot = 46;
         const int gap = 5;
 
