@@ -4042,8 +4042,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot just after the molotov detonates at the warehouse ambush.
-    /// Resets stats, money, and inventory for aftermath testing.
+    /// Jump to a reproducible debug snapshot inside the warehouse hangar with the crowbar.
+    /// Resets stats, money, and inventory for interior/crate testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -4060,7 +4060,10 @@ public sealed class Game : IGame
         _hydration = 76;
         _comfort = 50;
         _money = 10000;
-        _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
+        _backpack = new string?[]
+        {
+            "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null
+        };
         _backpackItemCharges = new int?[8];
         ClearEnvDeltas();
         ClearActionDeltas();
@@ -4069,10 +4072,12 @@ public sealed class Game : IGame
         _warehouseAmbushersDead = true;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
+        _gloveBoxLootTaken[0] = true;
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.WarehouseAftermath);
+        _warehouseKeypad.RestoreUnlockedState(true);
+        EnterPhase(Phase.WarehouseInterior);
     }
 
     // --- Inventory & ground items ---
