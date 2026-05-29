@@ -2,13 +2,13 @@ namespace Conscript;
 
 internal static class StoreCatalog
 {
-    public static readonly (string name, int price, int satiationDelta, int hydrationDelta, int healthDelta)[] Entries =
+    public static readonly string[] Entries =
     [
-        (GameItems.BottledWater,  65,   0, +18, +2),
-        (GameItems.LoafOfBread, 140, +22,  +2, +3),
-        (GameItems.CannedSoup,  195, +28,  +8, +5),
-        (GameItems.TrashBags,    85,   0,   0,  0),
-        (GameItems.DuctTape,    120,   0,   0,  0),
+        GameItems.BottledWater,
+        GameItems.LoafOfBread,
+        GameItems.CannedSoup,
+        GameItems.TrashBags,
+        GameItems.DuctTape,
     ];
 
     public static string GetFlavorText(string name) => name switch
@@ -21,18 +21,6 @@ internal static class StoreCatalog
         _ => "Standard kiosk stock."
     };
 
-    public static string FormatEffects(string name, int satiation, int hydration, int health)
-    {
-        if (GameItems.IsBuildingMaterial(name))
-            return "Building material.";
-
-        var parts = new List<string>();
-        if (satiation > 0)
-            parts.Add($"Food +{satiation}");
-        if (hydration > 0)
-            parts.Add($"Hydration +{hydration}");
-        if (health > 0)
-            parts.Add($"Health +{health}");
-        return parts.Count > 0 ? string.Join("  ·  ", parts) : "No immediate stat effect.";
-    }
+    public static string FormatItemHint(string name) =>
+        GameItems.IsBuildingMaterial(name) ? "Building material." : "Goes in your backpack.";
 }

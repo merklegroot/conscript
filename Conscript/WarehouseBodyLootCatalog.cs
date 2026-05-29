@@ -29,31 +29,18 @@ internal static class WarehouseBodyLootCatalog
                 new(
                     GameItems.BurnerPhone,
                     GameItems.BurnerPhone,
-                    IsMoney: false,
-                    MoneyAmount: 0,
-                    Flavor: "A cheap burner, screen spiderwebbed from the heat. Two missed calls from a number with no name.",
-                    EffectHint: "Goes in your backpack."),
+                    "A cheap burner, screen spiderwebbed from the heat. Two missed calls from a number with no name.",
+                    "Goes in your backpack."),
                 new(
                     GameItems.FoldedPaper,
                     GameItems.FoldedPaper,
-                    IsMoney: false,
-                    MoneyAmount: 0,
-                    Flavor: "A grease-stained half-sheet folded into his breast pocket. Handwriting in block letters — a note to someone named Vitya.",
-                    EffectHint: "Goes in your backpack. Read it from your pack."),
+                    "A grease-stained half-sheet folded into his breast pocket. Handwriting in block letters — a note to someone named Vitya.",
+                    "Goes in your backpack. Read it from your pack."),
                 new(
                     "Knife",
                     "Knife",
-                    IsMoney: false,
-                    MoneyAmount: 0,
-                    Flavor: "A kitchen knife with a taped handle. The blade is nicked but still sharp enough.",
-                    EffectHint: "Goes in your backpack."),
-                new(
-                    "Cash",
-                    "Knife",
-                    IsMoney: true,
-                    MoneyAmount: 12_000,
-                    Flavor: "A roll of damp hundreds stuffed in the inside pocket of a scorched jacket.",
-                    EffectHint: "Added to your money."),
+                    "A kitchen knife with a taped handle. The blade is nicked but still sharp enough.",
+                    "Goes in your backpack."),
             ]),
         new(
             Title: "BRATDVA ON THE CONCRETE",
@@ -67,17 +54,8 @@ internal static class WarehouseBodyLootCatalog
                 new(
                     "Lighter",
                     "Lighter",
-                    IsMoney: false,
-                    MoneyAmount: 0,
-                    Flavor: "A steel lighter, still warm. Someone scratched initials into the bottom plate.",
-                    EffectHint: "Goes in your backpack."),
-                new(
-                    "Cash",
-                    "Knife",
-                    IsMoney: true,
-                    MoneyAmount: 8_500,
-                    Flavor: "Folded bills in a clip, half-charred at the edges. Enough to hurt if you drop it.",
-                    EffectHint: "Added to your money."),
+                    "A steel lighter, still warm. Someone scratched initials into the bottom plate.",
+                    "Goes in your backpack."),
             ]),
     ];
 

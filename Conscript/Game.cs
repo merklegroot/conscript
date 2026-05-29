@@ -95,21 +95,12 @@ public sealed class Game : IGame
     private const string ChoiceFleeOutWindow = "Flee out the window";
     private const string ChoiceBarDoorAndFight = "Bar the door and fight";
 
-    private const int EnergyCostHunt = 6; // in addition to time passing drain
-    private const int EnergyCostForage = 4;
-    private const int EnergyCostFillBottle = 2;
 
-    // Resting: sleeping should be a meaningful time-skip with a strong energy restore.
     private const int TentSleepTimeSteps = 3;      // ~9 hours (8 slots/day ≈ 3 hours each)
-    private const int TentSleepSatiationCost = -8;
-    private const int TentSleepHydrationCost = -8;
-    private const int TentSleepHealthGain = 2;
 
     // Items left on the ground in a room (location = phase)
     private const int DroppedItemLifetimeTurns = 5;
     private const int MaxDroppedItemsPerRoom = 6;
-    private const int ConcealmentPenaltyPerDroppedItem = 7;
-    private const int ConcealmentPenaltyForTent = 18;
     private const int DroppedItemSceneIconSize = 54;
     private const int DroppedItemScenePlatePad = 5;
 
@@ -195,11 +186,6 @@ public sealed class Game : IGame
         "Late Night"
     };
 
-    // Passive drain rises through the day (Morning 2 → Late Night 9 per slot).
-    private const int EnergyDrainBasePerTimeSlot = 2;
-    private const int EnergyDrainIncreasePerSlot = 1;
-    private const int EnergyCostTravel = 4;        // longer moves (yard ↔ forest, store exit)
-    private const int EnergyCostTravelShort = 2;   // tent flap, nearby kiosk
 
     // Player-facing time text (clock + mood); index matches _timeSlots.
     private static readonly string[] TimeOfDayDisplay =
@@ -222,32 +208,9 @@ public sealed class Game : IGame
     private string _season = "Early Autumn";
     private int _temperatureF = 34;   // default Fahrenheit ( Buryatia autumn nights are cold )
 
-    // === Core stats (values from the reference) ===
-    private int _money = 10000;   // Starting money in Russian Rubles (₽)
-    private int _health = 81;
-    private int _energy = 70;    // how rested you are (higher = better; low energy will eventually force sleep)
-    private int _satiation = 63;   // how fed you are (higher = better)
-    private int _hydration = 72;   // how hydrated you are (higher = better)
     private string _status = "Fugitive";
-    private int _comfort = 62;   // protection from the elements (higher = better)
-    private int _concealment = 35;   // how hard you are to find (higher = better); location-driven for now
 
-    // --- Stat deltas (environment vs. last action) ---
-    // Environment-driven stat changes (persistent while in that location)
-    private int _envHealthDelta;
-    private int _envEnergyDelta;
-    private int _envSatiationDelta;
-    private int _envHydrationDelta;
-    private int _envComfortDelta;
 
-    // Action-driven stat changes (temporary feedback)
-    private int _actionHealthDelta;
-    private int _actionEnergyDelta;
-    private int _actionSatiationDelta;
-    private int _actionHydrationDelta;
-    private int _actionComfortDelta;
-    private float _actionDeltaTimer;
-    private const float ActionDeltaDisplayDuration = 2f;
     // Sergei fled wearing his winter jacket (on his body, not in the backpack grid).
 
     // --- Backpack & ground items ---
@@ -363,13 +326,6 @@ public sealed class Game : IGame
     private Rectangle _forageSidebarButtonRect;
     private bool _forageSidebarButtonHovered;
 
-    // Stats help (left sidebar info icon + modal)
-    private Rectangle _statsHelpIconRect;
-    private bool _statsHelpIconHovered;
-    private bool _showStatsHelp;
-    private Rectangle _statsHelpPanelRect;
-    private Rectangle _statsHelpCloseRect;
-    private bool _statsHelpCloseHovered;
 
     // Quit (right panel + confirmation)
     private Rectangle _quitSidebarButtonRect;
@@ -412,8 +368,6 @@ public sealed class Game : IGame
     private readonly bool[] _cafeOwnerOptionHovered = new bool[CafeOwnerDialog.MainOptionCount];
     private int _cafeOwnerHighlightedIndex;
     private int _cafeOwnerSelectedOption = -1;
-    private const int TrashBagTentComfortBonus = 8;
-    private const int TentInteriorComfortBonus = 14;
     private Rectangle _trashBagTentClickRect;
     private bool _trashBagTentHovered;
     private Rectangle _gloveCompartmentClickRect;
@@ -571,20 +525,11 @@ public sealed class Game : IGame
                 _status = "At Home";
                 _season = "Early Autumn";
                 _temperatureF = 34;   // tense night outside the apartment
-                _health = 96;
-                _energy = 85;   // tense evening, but still rested from a day at home
-                _satiation = 78;   // just ate at home
-                _hydration = 80;
-                _comfort = 98;   // warm and dry inside the apartment
-                _money = 10000;   // Starting with 10,000 ₽
-
                 // Reset backpack to starting gear (knife, lighter, phone)
                 _backpack = new string?[] { "Knife", "Lighter", "Phone", null, null, null, null, null };
                 _backpackItemCharges = new int?[8];
                 _hasTrashBagTent = false;
                 _tentBuiltInPhase = null;
-                ClearEnvDeltas();
-                ClearActionDeltas();
                 break;
 
             case Phase.ForestEntry:
@@ -595,14 +540,10 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 22;
-                ClearEnvDeltas();
-                RefreshOutdoorComfortEnvironment();
                 RefreshOutdoorActionChoices();
                 break;
 
             case Phase.Forest:
-                ClearEnvDeltas();
-                RefreshOutdoorComfortEnvironment();
                 _day = 3;
                 _timeOfDay = "Morning";
                 _location = "Deep Forest";
@@ -610,13 +551,10 @@ public sealed class Game : IGame
                 _status = "Fugitive";
                 _season = "Early Autumn";
                 _temperatureF = 19;   // colder the deeper you go
-                // _money carries over from the Opening phase (starts at 10,000 ₽)
                 RefreshOutdoorActionChoices();
                 break;
 
             case Phase.ForestStream:
-                ClearEnvDeltas();
-                RefreshOutdoorComfortEnvironment();
                 _day = 3;
                 _timeOfDay = "Morning";
                 _location = "Forest Stream";
@@ -639,7 +577,6 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
-                ApplyEnvironmentOutside();
                 RefreshOutdoorActionChoices();
                 break;
 
@@ -651,7 +588,6 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 26;
-                ApplyEnvironmentOutside();
                 RefreshOutdoorActionChoices();
                 break;
 
@@ -663,7 +599,6 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 24;
-                ApplyEnvironmentOutside();
                 RefreshOutdoorActionChoices();
                 break;
 
@@ -675,7 +610,6 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 26;
-                ApplyEnvironmentOutside();
                 RefreshOutdoorActionChoices();
                 break;
 
@@ -686,7 +620,6 @@ public sealed class Game : IGame
                     ChoiceLeaveStore,
                     ChoiceWait
                 };
-                ApplyEnvironmentHeatedBuilding();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Convenience Store";
@@ -694,7 +627,6 @@ public sealed class Game : IGame
                 _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 24;   // slightly warmer inside
-                // other stats carry over
                 break;
 
             case Phase.Cafe:
@@ -704,7 +636,6 @@ public sealed class Game : IGame
                     ChoiceLeaveCafe,
                     ChoiceWait
                 };
-                ApplyEnvironmentHeatedBuilding();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Кафе";
@@ -716,7 +647,6 @@ public sealed class Game : IGame
 
             case Phase.DeliveryTruck:
                 _choices = new[] { ChoiceDriveToWarehouse, ChoiceWait };
-                ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Delivery Truck";
@@ -728,7 +658,6 @@ public sealed class Game : IGame
 
             case Phase.WarehouseTruck:
                 _choices = new[] { ChoiceGetOutOfTruck, ChoiceWait };
-                ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
@@ -741,7 +670,6 @@ public sealed class Game : IGame
             case Phase.WarehouseAmbush:
                 _choices = new[] { ChoiceGetBackInTruck, ChoiceFight, ChoiceWait };
                 _selectedIndex = 0;
-                ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
@@ -754,7 +682,6 @@ public sealed class Game : IGame
             case Phase.WarehouseAftermath:
                 _choices = new[] { ChoiceGetBackInTruck, ChoiceWait };
                 _selectedIndex = 0;
-                ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
@@ -767,7 +694,6 @@ public sealed class Game : IGame
             case Phase.WarehouseInterior:
                 _choices = new[] { ChoiceBackToLoadingBay, ChoiceWait };
                 _selectedIndex = 0;
-                ApplyEnvironmentOutside();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Inside";
@@ -779,7 +705,6 @@ public sealed class Game : IGame
 
             case Phase.Tent:
                 _choices = new[] { ChoiceExitTent, ChoiceDisassembleTent, ChoiceSleep, ChoiceWait };
-                ApplyEnvironmentTentInterior();
                 _location = "Trash Bag Tent";
                 break;
         }
@@ -787,7 +712,6 @@ public sealed class Game : IGame
         // Swap the background image for the new phase
         ApplyBackgroundForCurrentPhase();
 
-        RefreshConcealment();
         if (newPhase == Phase.Opening)
             ClearDroppedItems();
     }
@@ -854,9 +778,6 @@ public sealed class Game : IGame
                 break;
         }
 
-        ClearEnvDeltas();
-        RefreshOutdoorComfortEnvironment();
-        RefreshConcealment();
         RefreshOutdoorActionChoices();
     }
 
@@ -865,14 +786,6 @@ public sealed class Game : IGame
     /// Advances the time of day by the given number of slots.
     /// Wrapping from Late Night to Morning starts a new day.
     /// </summary>
-    private int GetEnergyDrainForTimeSlot(int slotIndex) =>
-        EnergyDrainBasePerTimeSlot + slotIndex * EnergyDrainIncreasePerSlot;
-
-    private void ApplyTravelEnergyCost(int cost = EnergyCostTravel)
-    {
-        if (cost > 0)
-            ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -cost);
-    }
 
     private void AdvanceTime(int steps = 1)
     {
@@ -887,7 +800,6 @@ public sealed class Game : IGame
                 _day++;
             idx = newIdx;
             _timeOfDay = _timeSlots[idx];
-            ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -GetEnergyDrainForTimeSlot(idx));
         }
 
         // Temperature drifts with time of day (colder at night) — only outside the apartment
@@ -897,12 +809,8 @@ public sealed class Game : IGame
                 _temperatureF = Math.Max(-40, _temperatureF - 2);
             else if (IsMorningTimeSlot())
                 _temperatureF = Math.Min(60, _temperatureF + 1);
-
-            if (_phase is Phase.Outside || GamePhase.IsTownDistrict(_phase))
-                RefreshOutdoorComfortEnvironment();
         }
 
-        RefreshConcealment();
         TickDroppedItemsInCurrentRoom(steps);
     }
 
@@ -954,10 +862,10 @@ public sealed class Game : IGame
             ? GetBackpackSlotCharges(slotIndex, GameItems.BottledWater)
             : GameItems.BottledWaterMaxSips;
         string baseText = remaining >= GameItems.BottledWaterMaxSips
-            ? $"A full bottle — {GameItems.BottledWaterMaxSips} sips. Each sip restores hydration."
+            ? $"A full bottle — {GameItems.BottledWaterMaxSips} sips. Each sip is a small relief."
             : remaining == 1
                 ? "One sip left. Drink it before the bottle is empty."
-                : $"{remaining} sips left. Each sip restores some hydration.";
+                : $"{remaining} sips left. Each sip is a small relief.";
         if (_phase == Phase.ForestStream && remaining < GameItems.BottledWaterMaxSips)
             baseText += " You can top it off at the stream.";
         return baseText;
@@ -969,10 +877,10 @@ public sealed class Game : IGame
             ? GetBackpackSlotCharges(slotIndex, GameItems.CannedSoup)
             : GameItems.CannedSoupMaxServings;
         return remaining >= GameItems.CannedSoupMaxServings
-            ? $"A sealed can — {GameItems.CannedSoupMaxServings} servings. Each serving restores some stats."
+            ? $"A sealed can — {GameItems.CannedSoupMaxServings} servings. Each serving takes the edge off hunger."
             : remaining == 1
                 ? "One serving left. Eat it before you toss the can."
-                : $"{remaining} servings left. Each serving restores some stats.";
+                : $"{remaining} servings left. Each serving takes the edge off hunger.";
     }
 
     private int GetItemChargesForDisplay(string itemName, int slotIndex, int? chargesOverride)
@@ -1228,11 +1136,6 @@ public sealed class Game : IGame
                 CloseQuitConfirm();
                 return;
             }
-            if (_showStatsHelp)
-            {
-                CloseStatsHelp();
-                return;
-            }
             if (_sceneAreaSelect.IsActive)
             {
                 _sceneAreaSelect.Close();
@@ -1270,11 +1173,6 @@ public sealed class Game : IGame
             }
         }
 
-        if (_showStatsHelp && InputManager.IsConfirmPressed())
-        {
-            CloseStatsHelp();
-            return;
-        }
 
         if (_showStoreBuyMenu)
         {
@@ -1535,25 +1433,6 @@ public sealed class Game : IGame
             return;
         }
 
-        // === Stats help (modal) ===
-        if (_showStatsHelp)
-        {
-            _statsHelpCloseHovered = Raylib.CheckCollisionPointRec(mouse, _statsHelpCloseRect);
-
-            if (leftClicked && _statsHelpCloseHovered)
-            {
-                CloseStatsHelp();
-                return;
-            }
-
-            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _statsHelpPanelRect))
-            {
-                CloseStatsHelp();
-                return;
-            }
-
-            return;
-        }
 
         // === Quit confirmation (modal) ===
         if (_showQuitConfirm)
@@ -1910,8 +1789,6 @@ public sealed class Game : IGame
         }
         else if (AllowsSidebarAndSceneInput())
         {
-            _statsHelpIconHovered = _statsHelpIconRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _statsHelpIconRect);
             _buildSidebarButtonHovered = _buildSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _buildSidebarButtonRect);
             _huntSidebarButtonHovered = _huntSidebarButtonRect.Width > 0 &&
@@ -1921,12 +1798,6 @@ public sealed class Game : IGame
             _quitSidebarButtonHovered = _quitSidebarButtonRect.Width > 0 &&
                 Raylib.CheckCollisionPointRec(mouse, _quitSidebarButtonRect);
 
-            if (leftClicked && _statsHelpIconHovered)
-            {
-                OpenStatsHelp();
-                return;
-            }
-
             if (leftClicked && _buildSidebarButtonHovered)
             {
                 OpenBuildDialog();
@@ -1935,7 +1806,6 @@ public sealed class Game : IGame
 
             if (leftClicked && _huntSidebarButtonHovered)
             {
-                ClearActionDeltas();
                 PerformHunt();
                 return;
             }
@@ -2271,12 +2141,6 @@ public sealed class Game : IGame
             }
         }
 
-        if (_actionDeltaTimer > 0f)
-        {
-            _actionDeltaTimer -= dt;
-            if (_actionDeltaTimer <= 0f)
-                ClearActionDeltas();
-        }
 
         if (_showStoreBuyMenu)
             GameStatMath.TickTimedMessage(ref _storeBuyFeedbackTimer, ref _storeBuyFeedback, dt);
@@ -2309,7 +2173,7 @@ public sealed class Game : IGame
 
         if (AllowsSidebarAndSceneInput())
         {
-            if (_statsHelpIconHovered || _buildSidebarButtonHovered ||
+            if (_buildSidebarButtonHovered ||
                 _huntSidebarButtonHovered || _forageSidebarButtonHovered || _quitSidebarButtonHovered)
                 overClickable = true;
 
@@ -2464,10 +2328,6 @@ public sealed class Game : IGame
             (_quitConfirmYesHovered || _quitConfirmNoHovered))
             overClickable = true;
 
-        if (_showStatsHelp &&
-            (_statsHelpCloseHovered || !Raylib.CheckCollisionPointRec(mouse, _statsHelpPanelRect)))
-            overClickable = true;
-
         Raylib.SetMouseCursor(_sceneAreaSelect.IsActive
             ? MouseCursor.MOUSE_CURSOR_CROSSHAIR
             : overClickable
@@ -2483,7 +2343,6 @@ public sealed class Game : IGame
 
         try
         {
-            ClearActionDeltas();
             switch (_phase)
             {
                 case Phase.Opening:
@@ -2577,7 +2436,6 @@ public sealed class Game : IGame
                 _actionMessage = "You climb out the window and drop into the yard behind the block.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();   // the climb and landing take a moment
-                ApplyTravelEnergyCost();
                 EnterPhase(Phase.Outside);
                 break;
 
@@ -2598,13 +2456,10 @@ public sealed class Game : IGame
                 _actionMessage = "You pick your way downhill toward the sound of running water.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterForestArea(Phase.ForestStream);
                 break;
 
             case ChoiceGoBackToTown:
-                ApplyTravelEnergyCost();
                 AdvanceTime();
                 EnterPhase(Phase.Town);
                 break;
@@ -2634,8 +2489,6 @@ public sealed class Game : IGame
                 _actionMessage = "You pick your way downhill toward the sound of running water.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterForestArea(Phase.ForestStream);
                 break;
 
@@ -2664,8 +2517,6 @@ public sealed class Game : IGame
                 _actionMessage = "You push uphill into the older pines and leave the stream behind.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterForestArea(Phase.Forest);
                 break;
 
@@ -2673,8 +2524,6 @@ public sealed class Game : IGame
                 _actionMessage = "You work your way back toward the edge of town.";
                 _actionMessageTimer = 2.5f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterForestArea(Phase.ForestEntry);
                 break;
 
@@ -2707,8 +2556,6 @@ public sealed class Game : IGame
                 _actionMessage = "You slip through the gap in the fence and onto the empty street.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Town);
                 return;
 
@@ -2730,7 +2577,6 @@ public sealed class Game : IGame
         }
 
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -2745,8 +2591,6 @@ public sealed class Game : IGame
                 _actionMessage = "You cut west toward the warehouses and loading bays.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.IndustrialDistrict);
                 return;
 
@@ -2754,17 +2598,13 @@ public sealed class Game : IGame
                 _actionMessage = "You slip east toward the lit shopfronts.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.CommercialDistrict);
                 return;
 
             case ChoiceConvenienceStore:
                 _phaseBeforeStore = Phase.Town;
-                ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the heavy glass door into the harsh light.";
                 _actionMessageTimer = 1.8f;
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
                 EnterPhase(Phase.Store);
                 return;
 
@@ -2772,8 +2612,6 @@ public sealed class Game : IGame
                 _actionMessage = "You duck back through the fence into the courtyard behind your block.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Outside);
                 return;
 
@@ -2791,7 +2629,6 @@ public sealed class Game : IGame
         }
 
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -2804,10 +2641,8 @@ public sealed class Game : IGame
         {
             case ChoiceCafe:
                 _phaseBeforeCafe = Phase.IndustrialDistrict;
-                ApplyEnvironmentOnAction();
                 _actionMessage = "You push through the frosted glass door into the warmth.";
                 _actionMessageTimer = 1.8f;
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
                 EnterPhase(Phase.Cafe);
                 return;
 
@@ -2815,8 +2650,6 @@ public sealed class Game : IGame
                 _actionMessage = "You leave the warehouses behind and return to the central streets.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Town);
                 return;
 
@@ -2834,7 +2667,6 @@ public sealed class Game : IGame
         }
 
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -2846,11 +2678,8 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case ChoiceHeadForForest:
-                ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, -5);
                 _actionMessage = "You slip south from the shopfronts and into the dark pines at the edge of town.";
                 AdvanceTime();
-                ApplyTravelEnergyCost();
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.ForestEntry);
                 return;
 
@@ -2858,8 +2687,6 @@ public sealed class Game : IGame
                 _actionMessage = "You leave the shopfronts behind and return to the central streets.";
                 _actionMessageTimer = 2.0f;
                 AdvanceTime();
-                ApplyTravelEnergyCost(EnergyCostTravelShort);
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.Town);
                 return;
 
@@ -2877,7 +2704,6 @@ public sealed class Game : IGame
         }
 
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -2914,14 +2740,7 @@ public sealed class Game : IGame
         _actionMessage = "You curl up inside the shelter and sleep.";
         _actionMessageTimer = 2.4f;
 
-        // Time passes; the player wakes rested. We apply the energy refill after time-drain.
         AdvanceTime(TentSleepTimeSteps);
-        SetStatFromAction(ref _energy, ref _actionEnergyDelta, 100);
-
-        // Sleeping still costs water/food, but the body recovers a bit.
-        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, TentSleepSatiationCost);
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, TentSleepHydrationCost);
-        ModifyStatFromAction(ref _health, ref _actionHealthDelta, TentSleepHealthGain);
     }
 
     private void HandleStoreChoice(int index)
@@ -2940,7 +2759,6 @@ public sealed class Game : IGame
                     ? "You push back out into the cold dark yard."
                     : "You push back out onto the empty street.";
                 AdvanceTime();
-                ApplyTravelEnergyCost();
                 EnterPhase(_phaseBeforeStore == Phase.Outside || GamePhase.IsTownDistrict(_phaseBeforeStore)
                     ? _phaseBeforeStore
                     : Phase.Town);
@@ -2966,8 +2784,6 @@ public sealed class Game : IGame
                 _actionMessage = "You pull out onto the industrial roads, headlights cutting the rain toward the west yards.";
                 _actionMessageTimer = 2.8f;
                 AdvanceTime();
-                ApplyTravelEnergyCost();
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.WarehouseTruck);
                 return;
 
@@ -2991,7 +2807,6 @@ public sealed class Game : IGame
                 _actionMessage = "You push the door open and climb down from the cab.";
                 _actionMessageTimer = 2.1f;
                 AdvanceTime();
-                ApplyEnvironmentOnAction();
                 EnterPhase(_warehouseAmbushersDead ? Phase.WarehouseAftermath : Phase.WarehouseAmbush);
                 return;
 
@@ -3015,7 +2830,6 @@ public sealed class Game : IGame
                 _actionMessage = "You slide back into the cab and pull the door shut. The bratdvas haven't moved yet.";
                 _actionMessageTimer = 2.1f;
                 AdvanceTime();
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.WarehouseTruck);
                 return;
 
@@ -3048,8 +2862,6 @@ public sealed class Game : IGame
             "that lifts the bratdvas off their feet. This wasn't vodka.";
         _actionMessageTimer = 3.4f;
         AdvanceTime();
-        ApplyEnvironmentOnAction();
-        ModifyStatFromAction(ref _health, ref _actionHealthDelta, -4);
         EnterPhase(Phase.WarehouseAftermath);
     }
 
@@ -3064,7 +2876,6 @@ public sealed class Game : IGame
                 _actionMessage = "You slide back into the cab, coughing smoke. The yard is quiet except for the rain.";
                 _actionMessageTimer = 2.1f;
                 AdvanceTime();
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.WarehouseTruck);
                 return;
 
@@ -3088,7 +2899,6 @@ public sealed class Game : IGame
                 _actionMessage = "You duck back out into the smoking bay.";
                 _actionMessageTimer = 2.2f;
                 AdvanceTime();
-                ApplyEnvironmentOnAction();
                 EnterPhase(Phase.WarehouseAftermath);
                 return;
 
@@ -3173,7 +2983,7 @@ public sealed class Game : IGame
             return false;
 
         var entry = GloveCompartmentCatalog.Entries[index];
-        return entry.IsMoney || _backpack.Any(s => string.IsNullOrEmpty(s));
+        return _backpack.Any(s => string.IsNullOrEmpty(s));
     }
 
     private void TryTakeGloveBoxItem(int index)
@@ -3189,18 +2999,6 @@ public sealed class Game : IGame
         }
 
         var entry = GloveCompartmentCatalog.Entries[index];
-
-        if (entry.IsMoney)
-        {
-            RecordHistorySnapshot();
-            _money += entry.MoneyAmount;
-            _gloveBoxLootTaken[index] = true;
-            ClearActionDeltas();
-            MarkActionChanged();
-            _gloveBoxFeedback = $"Took {entry.Name} (+{entry.MoneyAmount:N0} ₽)";
-            _gloveBoxFeedbackTimer = 1.4f;
-            return;
-        }
 
         if (!TryAddToBackpack(entry.Name))
         {
@@ -3227,37 +3025,12 @@ public sealed class Game : IGame
         RecordHistorySnapshot();
         int takenCount = 0;
         bool backpackFull = false;
-        bool tookMoney = false;
-
         for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
         {
             if (_gloveBoxLootTaken[i])
                 continue;
 
             var entry = GloveCompartmentCatalog.Entries[i];
-            if (!entry.IsMoney)
-                continue;
-
-            _money += entry.MoneyAmount;
-            _gloveBoxLootTaken[i] = true;
-            tookMoney = true;
-            takenCount++;
-        }
-
-        if (tookMoney)
-        {
-            ClearActionDeltas();
-            MarkActionChanged();
-        }
-
-        for (int i = 0; i < GloveCompartmentCatalog.EntryCount; i++)
-        {
-            if (_gloveBoxLootTaken[i])
-                continue;
-
-            var entry = GloveCompartmentCatalog.Entries[i];
-            if (entry.IsMoney)
-                continue;
 
             if (!TryAddToBackpack(entry.Name))
             {
@@ -3417,7 +3190,6 @@ public sealed class Game : IGame
             "only packing straw and a chemical smell.";
         _actionMessageTimer = 3.4f;
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         CloseWarehouseCrateDialog();
         StopCrowbarUseMode();
     }
@@ -3612,7 +3384,6 @@ public sealed class Game : IGame
         _actionMessage = "The door lifts. Smoke and rain roll over your boots as you step inside.";
         _actionMessageTimer = 3.2f;
         AdvanceTime();
-        ApplyEnvironmentOnAction();
         EnterPhase(Phase.WarehouseInterior);
     }
 
@@ -3630,7 +3401,7 @@ public sealed class Game : IGame
             return false;
 
         var entry = items[itemIndex];
-        return entry.IsMoney || _backpack.Any(s => string.IsNullOrEmpty(s));
+        return _backpack.Any(s => string.IsNullOrEmpty(s));
     }
 
     private void TryTakeBodyLootItem(int itemIndex)
@@ -3652,30 +3423,17 @@ public sealed class Game : IGame
 
         var entry = items[itemIndex];
 
-        if (entry.IsMoney)
+        if (!TryAddToBackpack(entry.Name))
         {
-            RecordHistorySnapshot();
-            _money += entry.MoneyAmount;
-            _bodyLootTaken[globalIndex] = true;
-            ClearActionDeltas();
-            MarkActionChanged();
-            _bodyLootFeedback = $"Took {entry.Name} (+{entry.MoneyAmount:N0} ₽)";
-            _bodyLootFeedbackTimer = 1.4f;
+            _bodyLootFeedback = "Backpack is full.";
+            _bodyLootFeedbackTimer = 1.6f;
+            return;
         }
-        else
-        {
-            if (!TryAddToBackpack(entry.Name))
-            {
-                _bodyLootFeedback = "Backpack is full.";
-                _bodyLootFeedbackTimer = 1.6f;
-                return;
-            }
 
-            RecordHistorySnapshot();
-            _bodyLootTaken[globalIndex] = true;
-            _bodyLootFeedback = $"Took {entry.Name}";
-            _bodyLootFeedbackTimer = 1.2f;
-        }
+        RecordHistorySnapshot();
+        _bodyLootTaken[globalIndex] = true;
+        _bodyLootFeedback = $"Took {entry.Name}";
+        _bodyLootFeedbackTimer = 1.2f;
 
         RefreshBodyLootVisibleList();
         if (_bodyLootVisibleCount <= 0)
@@ -3691,8 +3449,6 @@ public sealed class Game : IGame
         var items = WarehouseBodyLootCatalog.Bodies[_activeBodyIndex].Items;
         int takenCount = 0;
         bool backpackFull = false;
-        bool tookMoney = false;
-
         for (int i = 0; i < items.Length; i++)
         {
             int globalIndex = WarehouseBodyLootCatalog.ToGlobalIndex(_activeBodyIndex, i);
@@ -3700,30 +3456,6 @@ public sealed class Game : IGame
                 continue;
 
             var entry = items[i];
-            if (!entry.IsMoney)
-                continue;
-
-            _money += entry.MoneyAmount;
-            _bodyLootTaken[globalIndex] = true;
-            tookMoney = true;
-            takenCount++;
-        }
-
-        if (tookMoney)
-        {
-            ClearActionDeltas();
-            MarkActionChanged();
-        }
-
-        for (int i = 0; i < items.Length; i++)
-        {
-            int globalIndex = WarehouseBodyLootCatalog.ToGlobalIndex(_activeBodyIndex, i);
-            if (_bodyLootTaken[globalIndex])
-                continue;
-
-            var entry = items[i];
-            if (entry.IsMoney)
-                continue;
 
             if (!TryAddToBackpack(entry.Name))
             {
@@ -3766,7 +3498,6 @@ public sealed class Game : IGame
                 CloseCafeOwnerDialog();
                 _actionMessage = "You step back out into the cold industrial dark.";
                 AdvanceTime();
-                ApplyTravelEnergyCost();
                 EnterPhase(_phaseBeforeCafe == Phase.IndustrialDistrict
                     ? _phaseBeforeCafe
                     : Phase.IndustrialDistrict);
@@ -3787,19 +3518,15 @@ public sealed class Game : IGame
         {
             case Phase.Outside:
                 _actionMessage = "You press yourself into the shadows and listen. Nothing moves.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.Town:
                 _actionMessage = "You flatten yourself against a wall and watch the street. Nothing moves.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.IndustrialDistrict:
                 _actionMessage = "You press into the shadow of a loading bay and listen. The yards are still.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.CommercialDistrict:
                 _actionMessage = "You linger in an alley between shopfronts. The street stays empty.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.Store:
                 _actionMessage = "You linger by the shelves, pretending to read labels.";
@@ -3809,23 +3536,18 @@ public sealed class Game : IGame
                 break;
             case Phase.DeliveryTruck:
                 _actionMessage = "The engine rumbles under you. The yards are a few minutes away.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.WarehouseTruck:
                 _actionMessage = "You sit in the cab and watch the bay through the windshield.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.WarehouseAmbush:
                 _actionMessage = "You hold still, listening to the rain and the men breathing in the dark.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.WarehouseAftermath:
                 _actionMessage = "You stay low beside the truck. The fire crackles; the bratdvas don't move.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.WarehouseInterior:
                 _actionMessage = "You stand in the aisle between the pallets, listening to rain on the roof.";
-                ApplyEnvironmentOnAction();
                 break;
             case Phase.ForestEntry:
                 _actionMessage = "You hold still among the young pines. The city is still too close.";
@@ -3845,7 +3567,6 @@ public sealed class Game : IGame
 
         AdvanceTime();
         // Waiting costs time but recovers a little energy (net gain after AdvanceTime's drain).
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, 12);
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -3902,7 +3623,6 @@ public sealed class Game : IGame
         StopCrowbarUseMode();
         CloseControllerDebug();
         CloseQuitConfirm();
-        CloseStatsHelp();
         _sceneAreaSelect.Close();
     }
 
@@ -3946,25 +3666,7 @@ public sealed class Game : IGame
         City = _city,
         Season = _season,
         TemperatureF = _temperatureF,
-        Money = _money,
-        Health = _health,
-        Energy = _energy,
-        Satiation = _satiation,
-        Hydration = _hydration,
         Status = _status,
-        Comfort = _comfort,
-        Concealment = _concealment,
-        EnvHealthDelta = _envHealthDelta,
-        EnvEnergyDelta = _envEnergyDelta,
-        EnvSatiationDelta = _envSatiationDelta,
-        EnvHydrationDelta = _envHydrationDelta,
-        EnvComfortDelta = _envComfortDelta,
-        ActionHealthDelta = _actionHealthDelta,
-        ActionEnergyDelta = _actionEnergyDelta,
-        ActionSatiationDelta = _actionSatiationDelta,
-        ActionHydrationDelta = _actionHydrationDelta,
-        ActionComfortDelta = _actionComfortDelta,
-        ActionDeltaTimer = _actionDeltaTimer,
         Backpack = (string?[])_backpack.Clone(),
         BackpackItemCharges = (int?[])_backpackItemCharges.Clone(),
         DroppedItems = CloneDroppedItems(_droppedItems),
@@ -4004,25 +3706,7 @@ public sealed class Game : IGame
             _city = snapshot.City;
             _season = snapshot.Season;
             _temperatureF = snapshot.TemperatureF;
-            _money = snapshot.Money;
-            _health = snapshot.Health;
-            _energy = snapshot.Energy;
-            _satiation = snapshot.Satiation;
-            _hydration = snapshot.Hydration;
             _status = snapshot.Status;
-            _comfort = snapshot.Comfort;
-            _concealment = snapshot.Concealment;
-            _envHealthDelta = snapshot.EnvHealthDelta;
-            _envEnergyDelta = snapshot.EnvEnergyDelta;
-            _envSatiationDelta = snapshot.EnvSatiationDelta;
-            _envHydrationDelta = snapshot.EnvHydrationDelta;
-            _envComfortDelta = snapshot.EnvComfortDelta;
-            _actionHealthDelta = snapshot.ActionHealthDelta;
-            _actionEnergyDelta = snapshot.ActionEnergyDelta;
-            _actionSatiationDelta = snapshot.ActionSatiationDelta;
-            _actionHydrationDelta = snapshot.ActionHydrationDelta;
-            _actionComfortDelta = snapshot.ActionComfortDelta;
-            _actionDeltaTimer = snapshot.ActionDeltaTimer;
             _backpack = (string?[])snapshot.Backpack.Clone();
             _backpackItemCharges = (int?[])snapshot.BackpackItemCharges.Clone();
             _droppedItems.Clear();
@@ -4039,7 +3723,6 @@ public sealed class Game : IGame
 
             _warehouseKeypad.RestoreUnlockedState(snapshot.WarehouseKeypadUnlocked);
             ApplyBackgroundForCurrentPhase();
-            RefreshConcealment();
 
             if (_choices.Length == 0)
                 _selectedIndex = 0;
@@ -4086,13 +3769,13 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showItemDialog || _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
-        || _crowbarUseActive || _showControllerDebug || _showQuitConfirm || _showStatsHelp
+        || _crowbarUseActive || _showControllerDebug || _showQuitConfirm
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showItemDialog && !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showWarehouseCrateDialog && !_crowbarUseActive && !_showQuitConfirm && !_showStatsHelp
+        && !_showWarehouseCrateDialog && !_crowbarUseActive && !_showQuitConfirm
         && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
@@ -4132,20 +3815,11 @@ public sealed class Game : IGame
         _tentBuiltInPhase = null;
         _buildFeedback = "";
         ResetDeathLines();
-
-        _health = 92;
-        _energy = 58;
-        _satiation = 69;
-        _hydration = 76;
-        _comfort = 50;
-        _money = 10000;
         _backpack = new string?[]
         {
             "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null
         };
         _backpackItemCharges = new int?[8];
-        ClearEnvDeltas();
-        ClearActionDeltas();
 
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
@@ -4237,7 +3911,6 @@ public sealed class Game : IGame
         int before = CountDroppedItemsInRoom(_phase);
         _droppedItems.RemoveAll(d => d.TurnsRemaining <= 0);
         if (CountDroppedItemsInRoom(_phase) != before)
-            RefreshConcealment();
         if (IsDroppedItemDialog)
             ValidateDroppedItemDialog();
     }
@@ -4289,7 +3962,6 @@ public sealed class Game : IGame
 
         _actionMessage = $"You set down the {item}.";
         _actionMessageTimer = ActionMessageDuration;
-        RefreshConcealment();
         CloseItemDialog();
     }
 
@@ -4317,7 +3989,6 @@ public sealed class Game : IGame
         _droppedItems.RemoveAt(_dialogDroppedItemIndex);
         _actionMessage = $"You pick up the {dropped.Name}.";
         _actionMessageTimer = ActionMessageDuration;
-        RefreshConcealment();
         CloseItemDialog();
     }
 
@@ -4417,7 +4088,6 @@ public sealed class Game : IGame
                          CafeOwnerDialog.WarehouseName + ", bay three. Move.\"";
         _actionMessageTimer = 2.8f;
         AdvanceTime();
-        ApplyTravelEnergyCost(EnergyCostTravelShort);
         EnterPhase(Phase.DeliveryTruck);
     }
 
@@ -4438,12 +4108,9 @@ public sealed class Game : IGame
 
         RecordHistorySnapshot();
         CloseForageDialog();
-        ClearActionDeltas();
 
         string item = ForageOptionItems[optionIndex];
-        ApplyEnvironmentOnAction();
         AdvanceTime();
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostForage);
 
         bool stored = TryAddToBackpack(item);
         string target = item.ToLowerInvariant();
@@ -4493,17 +4160,7 @@ public sealed class Game : IGame
         _quitConfirmNoHovered = false;
     }
 
-    private void OpenStatsHelp()
-    {
-        _showStatsHelp = true;
-        _statsHelpCloseHovered = false;
-    }
 
-    private void CloseStatsHelp()
-    {
-        _showStatsHelp = false;
-        _statsHelpCloseHovered = false;
-    }
 
     private void RefreshOutdoorActionChoices()
     {
@@ -4666,10 +4323,7 @@ public sealed class Game : IGame
         int slot = _dialogItemIndex;
         bool wasEmpty = string.Equals(_backpack[slot], GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase);
 
-        ClearActionDeltas();
         AdvanceTime();
-        ApplyEnvironmentOnAction();
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostFillBottle);
 
         _backpack[slot] = GameItems.BottledWater;
         _backpackItemCharges[slot] = GameItems.BottledWaterMaxSips;
@@ -4687,9 +4341,7 @@ public sealed class Game : IGame
             return;
 
         RecordHistorySnapshot();
-        ApplyEnvironmentOnAction();
         AdvanceTime();
-        ModifyStatFromAction(ref _energy, ref _actionEnergyDelta, -EnergyCostHunt);
 
         // Weighted outcomes: raccoon most likely, rabbit next, otherwise nothing.
         double roll = _rng.NextDouble();
@@ -4705,14 +4357,12 @@ public sealed class Game : IGame
         bool stored = TryAddToBackpack(catchItem);
         if (string.Equals(catchItem, GameItems.Raccoon, StringComparison.OrdinalIgnoreCase))
         {
-            ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, 12);
             _actionMessage = stored
                 ? "You catch a raccoon. You eat what you can, then stash the rest."
                 : "You catch a raccoon. You eat what you can, but your pack is full — you leave the rest.";
         }
         else
         {
-            ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, 8);
             _actionMessage = stored
                 ? "You catch a rabbit. You eat what you can, then stash the rest."
                 : "You catch a rabbit. You eat what you can, but your pack is full — you leave the rest.";
@@ -4735,7 +4385,6 @@ public sealed class Game : IGame
         _phaseOutdoorBeforeTent = _phase;
         _actionMessage = "You crawl through the flap into the cramped shelter.";
         _actionMessageTimer = 2.2f;
-        ApplyTravelEnergyCost(EnergyCostTravelShort);
         EnterPhase(Phase.Tent);
     }
 
@@ -4746,7 +4395,6 @@ public sealed class Game : IGame
 
         _actionMessage = "You push back out into the cold air.";
         _actionMessageTimer = 2f;
-        ApplyTravelEnergyCost(EnergyCostTravelShort);
         EnterPhase(_phaseOutdoorBeforeTent);
     }
 
@@ -4969,9 +4617,7 @@ public sealed class Game : IGame
         RecordHistorySnapshot();
         _hasTrashBagTent = true;
         _tentBuiltInPhase = _phase;
-        RefreshOutdoorComfortEnvironment();
         RefreshOutdoorActionChoices();
-        RefreshConcealment();
 
         int bagsSlot = FindBackpackSlotIndex(GameItems.TrashBags);
         int tapeSlot = FindBackpackSlotIndex(GameItems.DuctTape);
@@ -4982,7 +4628,7 @@ public sealed class Game : IGame
             ? "Shelter pitched — bags and tape only partly used."
             : "You rig a crude shelter from plastic and tape.";
         _buildFeedbackTimer = BuildFeedbackDuration;
-        _actionMessage = "Trash bag tent pitched. A little warmer out here.";
+        _actionMessage = "Trash bag tent pitched.";
         _actionMessageTimer = ActionMessageDuration;
     }
 
@@ -5087,9 +4733,7 @@ public sealed class Game : IGame
             EnterPhase(outdoorPhase);
         else
         {
-            RefreshOutdoorComfortEnvironment();
             RefreshOutdoorActionChoices();
-            RefreshConcealment();
         }
 
         _buildFeedback = "";
@@ -5280,8 +4924,6 @@ public sealed class Game : IGame
         if (!CanDrinkFromDialogSlot(_dialogItemIndex)) return;
 
         int remaining = GetBackpackSlotCharges(_dialogItemIndex, GameItems.BottledWater) - 1;
-        ClearActionDeltas();
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, GameItems.BottledWaterHydrationPerSip);
 
         if (remaining <= 0)
         {
@@ -5307,10 +4949,6 @@ public sealed class Game : IGame
         if (GetDialogItemAction(itemName, _dialogItemIndex) != DialogItemAction.EatSoup) return;
 
         int remaining = GetBackpackSlotCharges(_dialogItemIndex, itemName) - 1;
-        ClearActionDeltas();
-        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, GameItems.CannedSoupSatiationPerServing);
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, GameItems.CannedSoupHydrationPerServing);
-        ModifyStatFromAction(ref _health, ref _actionHealthDelta, GameItems.CannedSoupHealthPerServing);
 
         if (remaining <= 0)
         {
@@ -5369,22 +5007,15 @@ public sealed class Game : IGame
         if (index < 0 || index >= StoreCatalog.Entries.Length)
             return false;
 
-        var (_, price, _, _, _) = StoreCatalog.Entries[index];
-        return _money >= price && _backpack.Any(s => string.IsNullOrEmpty(s));
+        return _backpack.Any(s => string.IsNullOrEmpty(s));
     }
 
     private void TryBuyStoreItem(int index)
     {
-        if (index < 0 || index >= StoreCatalog.Entries.Length) return;
-
-        var (name, price, satiationDelta, hydrationDelta, healthDelta) = StoreCatalog.Entries[index];
-
-        if (_money < price)
-        {
-            _storeBuyFeedback = "Not enough money.";
-            _storeBuyFeedbackTimer = 1.6f;
+        if (index < 0 || index >= StoreCatalog.Entries.Length)
             return;
-        }
+
+        string name = StoreCatalog.Entries[index];
 
         if (!TryAddToBackpack(name))
         {
@@ -5394,12 +5025,6 @@ public sealed class Game : IGame
         }
 
         RecordHistorySnapshot();
-
-        _money -= price;
-        ClearActionDeltas();
-        ModifyStatFromAction(ref _satiation, ref _actionSatiationDelta, satiationDelta);
-        ModifyStatFromAction(ref _hydration, ref _actionHydrationDelta, hydrationDelta);
-        ModifyStatFromAction(ref _health, ref _actionHealthDelta, healthDelta);
 
         _storeBuyFeedback = $"Bought {name}";
         _storeBuyFeedbackTimer = 1.2f;
@@ -5548,7 +5173,7 @@ public sealed class Game : IGame
         var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
         bool showBuildingTag = GameItems.IsBuildingMaterial(_dialogItemName);
         string? buildingTag = showBuildingTag
-            ? StoreCatalog.FormatEffects(_dialogItemName, 0, 0, 0)
+            ? StoreCatalog.FormatItemHint(_dialogItemName)
             : null;
         int tagHeight = buildingTag != null ? 20 : 0;
         int tagGap = buildingTag != null ? 4 : 0;
@@ -5661,96 +5286,7 @@ public sealed class Game : IGame
     // =====================================================================
     // STATS HELP (modal) — explains sidebar status values
     // =====================================================================
-    private void DrawStatsHelpDialog()
-    {
-        GameDialogUi.DrawModalBackdrop(_screenWidth, _screenHeight);
 
-        Font font = _uiFont;
-        int panelW = 500;
-        int panelH = 600;
-        int panelX = (_screenWidth - panelW) / 2;
-        int panelY = (_screenHeight - panelH) / 2 - 12;
-
-        _statsHelpPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
-
-        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
-        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
-
-        const int titleSize = 24;
-        string title = "WHAT THE STATS MEAN";
-        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.75f).X;
-        Raylib.DrawTextEx(font, title,
-            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
-            titleSize, 0.75f, Palette.TextPrimary);
-
-        Raylib.DrawLine(panelX + 36, panelY + 52, panelX + panelW - 36, panelY + 52, Palette.SubtleBorder);
-
-        int textX = panelX + 28;
-        int textMaxW = panelW - 56;
-        int y = panelY + 64;
-        const float bodySize = 15f;
-        const float bodySpacing = 0.55f;
-        const int lineHeight = 20;
-
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Health", Palette.Health,
-            "Your overall physical condition. Food and drinks from the convenience store can raise it.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Energy", Palette.Energy,
-            "How rested you are. Energy fades faster as the day wears on; travel between places costs extra. Very low energy will eventually force sleep.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Satiation", Palette.Satiation,
-            "How well fed you are. Meals at home and store food restore it.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Hydration", Palette.Hydration,
-            "How hydrated you are. Drink bottled water or buy drinks at the store.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Comfort", Palette.Comfort,
-            "Protection from cold and exposure. Outdoors and low temperatures wear it down; heated places and a trash-bag tent help.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Concealment", Palette.Concealment,
-            "How unlikely you are to be spotted or caught. Darkness and good hiding spots help. Gear on the ground and a pitched tent make the area easier to find.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Money", Palette.Money,
-            "Rubles in hand. Spend them at the convenience store kiosk.");
-        DrawStatsHelpEntry(ref y, textX, textMaxW, font, bodySize, bodySpacing, lineHeight,
-            "Status", Palette.TextMuted,
-            "Your current situation — where you are and how close the authorities are.");
-
-        y += 4;
-        var (arrowLines, _) = GameTextLayout.WrapForBox(
-            "Arrows beside a stat show change: your recent choices (briefly), plus ongoing outdoor effects such as cold.",
-            font, bodySize, bodySpacing, textMaxW, lineHeight);
-        foreach (string line in arrowLines)
-        {
-            Raylib.DrawTextEx(font, line, new Vector2(textX, y), bodySize, bodySpacing, Palette.TextSecondary);
-            y += lineHeight;
-        }
-
-        const int btnW = 120;
-        const int btnH = 36;
-        int btnX = panelX + (panelW - btnW) / 2;
-        int btnY = panelY + panelH - 52;
-        _statsHelpCloseRect = new Rectangle(btnX, btnY, btnW, btnH);
-        GameDialogUi.DrawDialogButton(_statsHelpCloseRect, "CLOSE", _statsHelpCloseHovered, font);
-    }
-
-    private void DrawStatsHelpEntry(ref int y, int x, int maxWidth, Font font, float bodySize, float spacing,
-        int lineHeight, string name, Color nameColor, string description)
-    {
-        string heading = name + " —";
-        Raylib.DrawTextEx(font, heading, new Vector2(x, y), bodySize + 1f, spacing, nameColor);
-        y += lineHeight;
-
-        var (lines, _) = GameTextLayout.WrapForBox(description, font, bodySize, spacing, maxWidth, lineHeight);
-        foreach (string line in lines)
-        {
-            Raylib.DrawTextEx(font, line, new Vector2(x + 8, y), bodySize, spacing, Palette.TextSecondary);
-            y += lineHeight;
-        }
-
-        y += 6;
-    }
 
     // =====================================================================
     // BUILD DIALOG (modal) — crafting and construction
@@ -5822,7 +5358,7 @@ public sealed class Game : IGame
         string reqLine = built
             ? (CountDroppedItemsInRoom(Phase.Tent) > 0
                 ? "Shelter pitched — items still inside"
-                : "Shelter pitched — +comfort outdoors")
+                : "Shelter pitched")
             : "Uses some bags & tape · Outdoors only";
         Raylib.DrawTextEx(font, reqLine,
             new Vector2(textX, rowY + 30), 14, 0.5f, Palette.TextDim);
@@ -6279,12 +5815,6 @@ public sealed class Game : IGame
             new Vector2(panelX + 24, panelY + 18),
             titleSize, 0.8f, Palette.TextPrimary);
 
-        string moneyStr = $"{_money:N0} ₽";
-        int moneyW = (int)Raylib.MeasureTextEx(font, moneyStr, 20, 0.6f).X;
-        Raylib.DrawTextEx(font, moneyStr,
-            new Vector2(panelX + panelW - 24 - moneyW, panelY + 20),
-            20, 0.6f, Palette.TextSecondary);
-
         int headerBottom = panelY + 50;
         Raylib.DrawLine(panelX + 20, headerBottom, panelX + panelW - 20, headerBottom, Palette.SubtleBorder);
 
@@ -6309,10 +5839,9 @@ public sealed class Game : IGame
 
         for (int i = 0; i < StoreCatalog.Entries.Length; i++)
         {
-            var (name, price, _, _, _) = StoreCatalog.Entries[i];
+            string name = StoreCatalog.Entries[i];
 
             int rowY = contentTop + i * rowHeight;
-            bool canAfford = _money >= price;
             bool hasSpace = _backpack.Any(s => string.IsNullOrEmpty(s));
             bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _storeBuyItemRects[i]);
             bool rowHighlighted = i == _storeBuyHighlightedIndex;
@@ -6325,19 +5854,13 @@ public sealed class Game : IGame
             else if (rowHovered || rowHighlighted)
                 Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
 
-            Color tint = (canAfford && hasSpace) ? Color.WHITE : new Color(120, 118, 112, 255);
+            Color tint = hasSpace ? Color.WHITE : new Color(120, 118, 112, 255);
             int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
             Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
             DrawItemIcon(name, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
 
-            Color nameColor = (canAfford && hasSpace) ? Palette.TextPrimary : Palette.TextMuted;
+            Color nameColor = hasSpace ? Palette.TextPrimary : Palette.TextMuted;
             Raylib.DrawTextEx(font, name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
-
-            string priceStr = $"{price} ₽";
-            int pW = (int)Raylib.MeasureTextEx(font, priceStr, 17, 0.6f).X;
-            Color priceColor = canAfford ? new Color(185, 160, 90, 255) : Palette.TextMuted;
-            Raylib.DrawTextEx(font, priceStr,
-                new Vector2(listX + listW - 10 - pW, rowY + 8), 17, 0.6f, priceColor);
         }
 
         DrawStoreBuyDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
@@ -6368,7 +5891,7 @@ public sealed class Game : IGame
             return;
         }
 
-        var (name, price, satiation, hydration, health) = StoreCatalog.Entries[_storeBuyDetailIndex];
+        string name = StoreCatalog.Entries[_storeBuyDetailIndex];
         bool canBuy = CanBuyStoreItem(_storeBuyDetailIndex);
 
         const int iconSize = 64;
@@ -6385,14 +5908,7 @@ public sealed class Game : IGame
             new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
             titleSize, 0.75f, Palette.TextPrimary);
 
-        string priceStr = $"{price} ₽";
-        int priceW = (int)Raylib.MeasureTextEx(font, priceStr, 20, 0.6f).X;
-        Color priceColor = _money >= price ? new Color(185, 160, 90, 255) : Palette.TextMuted;
-        Raylib.DrawTextEx(font, priceStr,
-            new Vector2(x + (w - priceW) / 2, iconY + iconSize + 36),
-            20, 0.6f, priceColor);
-
-        int textY = iconY + iconSize + 62;
+        int textY = iconY + iconSize + 36;
         string flavor = StoreCatalog.GetFlavorText(name);
         int flavorSize = 16;
         float flavorSpacing = 0.55f;
@@ -6405,14 +5921,13 @@ public sealed class Game : IGame
         }
 
         textY += 4;
-        string effects = StoreCatalog.FormatEffects(name, satiation, hydration, health);
-        Raylib.DrawTextEx(font, effects, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
+        string itemHint = StoreCatalog.FormatItemHint(name);
+        Raylib.DrawTextEx(font, itemHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
         textY += 22;
 
         if (!canBuy)
         {
-            string blockReason = _money < price ? "Not enough money." : "Backpack is full.";
-            Raylib.DrawTextEx(font, blockReason, new Vector2(x + 4, textY), 15, 0.5f, new Color(200, 130, 110, 255));
+            Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f, new Color(200, 130, 110, 255));
         }
 
         int btnW = 108;
@@ -7073,10 +6588,6 @@ public sealed class Game : IGame
             DrawQuitConfirmDialog();
         }
 
-        if (_showStatsHelp)
-        {
-            DrawStatsHelpDialog();
-        }
 
         if (_showControllerDebug)
         {
@@ -7236,32 +6747,15 @@ public sealed class Game : IGame
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;   // comfortable top padding for the STATUS section with larger fonts
 
-        // === STATUS header + info icon ===
-        const int statsInfoIconSize = 16;
+        // === STATUS header ===
         Raylib.DrawTextEx(font, "STATUS",
             new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
-        int statusLabelW = (int)Raylib.MeasureTextEx(font, "STATUS", LayoutConstants.SidebarHeaderSize, 0.7f).X;
-        _statsHelpIconRect = new Rectangle(tx + statusLabelW + 8, cy + 1, statsInfoIconSize, statsInfoIconSize);
-        GameDialogUi.DrawInfoIcon(font, _statsHelpIconRect, _statsHelpIconHovered);
         cy += 20;
 
         // Subtle underline
         Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
         cy += 12;
 
-        // === Clean vertical stat list ===
-        // Numeric stats with bars (label + value on one line, bar underneath)
-        DrawCleanStatLine(ref cy, tx, "Health", _health, _envHealthDelta, _actionHealthDelta, Palette.Health);
-        DrawCleanStatLine(ref cy, tx, "Energy", _energy, _envEnergyDelta, _actionEnergyDelta, Palette.Energy);
-        DrawCleanStatLine(ref cy, tx, "Satiation", _satiation, _envSatiationDelta, _actionSatiationDelta, Palette.Satiation);
-        DrawCleanStatLine(ref cy, tx, "Hydration", _hydration, _envHydrationDelta, _actionHydrationDelta, Palette.Hydration);
-        DrawCleanStatLine(ref cy, tx, "Comfort", _comfort, _envComfortDelta, _actionComfortDelta, Palette.Comfort);
-        DrawCleanStatLine(ref cy, tx, "Concealment", _concealment, 0, 0, Palette.Concealment);
-
-        cy += 6;
-
-        // Simple text stats (same line for label + value to reduce clutter)
-        DrawTextStatLine(ref cy, tx, "Money", $"{_money:N0} ₽");
         DrawTextStatLine(ref cy, tx, "Status", _status);
 
         // Backpack grid (visual inventory)
@@ -7386,125 +6880,12 @@ public sealed class Game : IGame
         GameDialogUi.DrawDialogButton(_forageSidebarButtonRect, ChoiceForage, _forageSidebarButtonHovered, font);
     }
 
-    // Clean single-line stat row:  [←←] Label [→→]  26%  [thin colored bar]
-    private const int StatLeftArrowSlotW = 42;
-    private const int StatLabelColumnW = 92;
-    private const int StatRightArrowSlotW = 42;
-    private const int StatArrowSpacing = 14;
 
-    private void DrawCleanStatLine(ref int y, int x, string label, int value, int envDelta, int actionDelta, Color barColor)
-    {
-        Font font = _uiFont;
-        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
-        int arrowY = y + 13;
 
-        int labelX = x + StatLeftArrowSlotW + 4;
-        int rightSlotX = labelX + StatLabelColumnW;
 
-        // Action arrows show action + environment combined; after the timer, only environment remains
-        bool showActionFeedback = _actionDeltaTimer > 0f;
-        int leftTotal = 0;
-        int rightTotal = 0;
-        if (showActionFeedback)
-        {
-            if (actionDelta < 0) leftTotal += actionDelta;
-            if (envDelta < 0) leftTotal += envDelta;
-            if (actionDelta > 0) rightTotal += actionDelta;
-            if (envDelta > 0) rightTotal += envDelta;
-        }
-        else
-        {
-            leftTotal = envDelta < 0 ? envDelta : 0;
-            rightTotal = envDelta > 0 ? envDelta : 0;
-        }
 
-        bool blink = showActionFeedback && (leftTotal != 0 || rightTotal != 0);
-        DrawStatArrowIndicators(x, arrowY, rightSlotX, leftTotal, rightTotal, blink);
 
-        Raylib.DrawTextEx(font, label, new Vector2(labelX, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextSecondary);
 
-        // Value (right aligned)
-        string val = $"{value}%";
-        int valW = (int)Raylib.MeasureTextEx(font, val, LayoutConstants.StatValueSize, 0.7f).X;
-        int valX = x + available - valW;
-        Raylib.DrawTextEx(font, val, new Vector2(valX, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
-
-        y += 24;
-
-        // Thin progress bar underneath the label (not under arrow slots)
-        int barX = labelX;
-        int barW = StatLabelColumnW;
-        int barH = 5;
-        Raylib.DrawRectangle(barX, y, barW, barH, new Color((byte)22, (byte)24, (byte)28, (byte)255));
-        float pct = Math.Clamp(value / 100f, 0f, 1f);
-        if (pct > 0.01f)
-        {
-            Raylib.DrawRectangle(barX, y, (int)(barW * pct), barH, barColor);
-        }
-
-        y += 18; // good spacing to next row
-    }
-
-    private void DrawStatArrowIndicators(int x, int arrowY, int rightSlotX, int leftTotal, int rightTotal, bool blink)
-    {
-        Color negative = Palette.Negative;
-        Color positive = Palette.Positive;
-        if (blink)
-        {
-            byte alpha = (byte)(110 + 145 * (0.5f + 0.5f * MathF.Sin((float)Raylib.GetTime() * 10f)));
-            negative = new Color(negative.R, negative.G, negative.B, alpha);
-            positive = new Color(positive.R, positive.G, positive.B, alpha);
-        }
-
-        if (leftTotal < 0)
-        {
-            int count = GameStatMath.StatArrowCount(leftTotal);
-            int slotRight = x + StatLeftArrowSlotW - 4;
-            int startX = slotRight - (count - 1) * StatArrowSpacing;
-            for (int i = 0; i < count; i++)
-                DrawChevronLeft(startX + i * StatArrowSpacing, arrowY, negative);
-        }
-
-        if (rightTotal > 0)
-        {
-            int count = GameStatMath.StatArrowCount(rightTotal);
-            int startX = rightSlotX + 6;
-            for (int i = 0; i < count; i++)
-                DrawChevronRight(startX + i * StatArrowSpacing, arrowY, positive);
-        }
-    }
-
-    private static void DrawChevronLeft(int cx, int cy, Color color)
-    {
-        const float size = 6f;
-        const float thickness = 2.5f;
-        Raylib.DrawLineEx(new Vector2(cx + size * 0.35f, cy - size), new Vector2(cx - size, cy), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx - size, cy), new Vector2(cx + size * 0.35f, cy + size), thickness, color);
-    }
-
-    private static void DrawChevronRight(int cx, int cy, Color color)
-    {
-        const float size = 6f;
-        const float thickness = 2.5f;
-        Raylib.DrawLineEx(new Vector2(cx - size * 0.35f, cy - size), new Vector2(cx + size, cy), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx + size, cy), new Vector2(cx - size * 0.35f, cy + size), thickness, color);
-    }
-
-    private static void DrawChevronUp(int cx, int cy, Color color)
-    {
-        const float size = 5f;
-        const float thickness = 2f;
-        Raylib.DrawLineEx(new Vector2(cx - size, cy + size * 0.35f), new Vector2(cx, cy - size), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx, cy - size), new Vector2(cx + size, cy + size * 0.35f), thickness, color);
-    }
-
-    private static void DrawChevronDown(int cx, int cy, Color color)
-    {
-        const float size = 5f;
-        const float thickness = 2f;
-        Raylib.DrawLineEx(new Vector2(cx - size, cy - size * 0.35f), new Vector2(cx, cy + size), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx, cy + size), new Vector2(cx + size, cy - size * 0.35f), thickness, color);
-    }
 
     // Simple text-only row:  Label          Value
     private void DrawTextStatLine(ref int y, int x, string label, string value)
@@ -8013,6 +7394,22 @@ public sealed class Game : IGame
     private const int NarrativeCaretCornerPad = 8;
     private const int NarrativeCaretTextReserve = 14;
 
+    private static void DrawChevronUp(int cx, int cy, Color color)
+    {
+        const float size = 5f;
+        const float thickness = 2f;
+        Raylib.DrawLineEx(new Vector2(cx - size, cy + size * 0.35f), new Vector2(cx, cy - size), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy - size), new Vector2(cx + size, cy + size * 0.35f), thickness, color);
+    }
+
+    private static void DrawChevronDown(int cx, int cy, Color color)
+    {
+        const float size = 5f;
+        const float thickness = 2f;
+        Raylib.DrawLineEx(new Vector2(cx - size, cy - size * 0.35f), new Vector2(cx, cy + size), thickness, color);
+        Raylib.DrawLineEx(new Vector2(cx, cy + size), new Vector2(cx + size, cy - size * 0.35f), thickness, color);
+    }
+
     private static void DrawNarrativeCardCaret(int cardX, int cardY, int cardW, bool collapsed, bool hovered)
     {
         const float chevronSize = 5f;
@@ -8194,130 +7591,18 @@ public sealed class Game : IGame
         }
     }
 
-    // --- Player stats (environment, concealment) ---
-    private void ClearEnvDeltas()
-    {
-        _envHealthDelta = 0;
-        _envEnergyDelta = 0;
-        _envSatiationDelta = 0;
-        _envHydrationDelta = 0;
-        _envComfortDelta = 0;
-    }
 
-    private void ClearNonComfortEnvDeltas()
-    {
-        _envHealthDelta = 0;
-        _envEnergyDelta = 0;
-        _envSatiationDelta = 0;
-        _envHydrationDelta = 0;
-    }
 
-    private void ClearActionDeltas()
-    {
-        _actionHealthDelta = 0;
-        _actionEnergyDelta = 0;
-        _actionSatiationDelta = 0;
-        _actionHydrationDelta = 0;
-        _actionComfortDelta = 0;
-        _actionDeltaTimer = 0f;
-    }
 
-    private void MarkActionChanged()
-    {
-        _actionDeltaTimer = ActionDeltaDisplayDuration;
-    }
 
-    private void ModifyStatFromAction(ref int stat, ref int actionDelta, int amount)
-    {
-        if (amount == 0) return;
-        actionDelta += amount;
-        stat = GameStatMath.ClampStat(stat + amount);
-        MarkActionChanged();
-    }
 
-    private void SetStatFromAction(ref int stat, ref int actionDelta, int value)
-    {
-        int clamped = GameStatMath.ClampStat(value);
-        int change = clamped - stat;
-        if (change == 0) return;
-        actionDelta += change;
-        stat = clamped;
-        MarkActionChanged();
-    }
 
-    private void ApplyEnvironmentOnAction()
-    {
-        if (!GamePhase.IsOutdoorsSurvival(_phase)) return;
-        ModifyStatFromAction(ref _comfort, ref _actionComfortDelta, OutdoorComfortPerActionPenalty());
-    }
 
-    private void ApplyEnvironmentOutside()
-    {
-        ClearNonComfortEnvDeltas();
-        RefreshOutdoorComfortEnvironment();
-    }
 
-    private void ApplyEnvironmentHeatedBuilding()
-    {
-        ClearNonComfortEnvDeltas();
-        SetEnvironmentComfort(HeatedBuildingComfortBonus);
-    }
 
-    private void ApplyEnvironmentTentInterior()
-    {
-        ClearNonComfortEnvDeltas();
-        SetEnvironmentComfort(TentInteriorComfortBonus);
-    }
 
-    private const int HeatedBuildingComfortBonus = 4;   // 1 green arrow — warmed up a little indoors
 
-    private void SetEnvironmentComfort(int targetDelta)
-    {
-        int diff = targetDelta - _envComfortDelta;
-        if (diff == 0) return;
-        _envComfortDelta = targetDelta;
-        _comfort = GameStatMath.ClampStat(_comfort + diff);
-    }
 
-    private int OutdoorComfortPerActionPenalty() =>
-        SurvivalEnvironment.OutdoorComfortPerActionPenalty(_temperatureF);
 
-    private int OutdoorShelterComfortBonus() =>
-        _hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase) ? TrashBagTentComfortBonus : 0;
-
-    private void RefreshOutdoorComfortEnvironment()
-    {
-        if (!GamePhase.IsOutdoorsSurvival(_phase)) return;
-        SetEnvironmentComfort(SurvivalEnvironment.OutdoorComfortPenaltyForTemp(_temperatureF) + OutdoorShelterComfortBonus());
-    }
-
-    /// <summary>Extra concealment from darkness; scaled down in well-lit or already-hidden places.</summary>
-    private int ConcealmentTimeBonus()
-    {
-        if (!IsNightTimeSlot())
-            return 0;
-
-        int bonus = _timeOfDay == "Late Night" ? 14 : 10;
-
-        return _phase switch
-        {
-            Phase.Store => bonus / 4,    // lit interior — night barely helps
-            Phase.Cafe => bonus / 4,
-            Phase.Tent => bonus / 3,     // already hidden
-            Phase.Opening => bonus / 2,  // indoors with lights on
-            _ => bonus
-        };
-    }
-
-    private int ConcealmentDroppedItemsPenalty() =>
-        CountDroppedItemsInRoom(_phase) * ConcealmentPenaltyPerDroppedItem;
-
-    private int ConcealmentTentPenalty() =>
-        _hasTrashBagTent && _tentBuiltInPhase == _phase ? ConcealmentPenaltyForTent : 0;
-
-    private void RefreshConcealment() =>
-        _concealment = GameStatMath.ClampStat(
-            SurvivalEnvironment.ConcealmentForPhase(_phase) + ConcealmentTimeBonus()
-            - ConcealmentDroppedItemsPenalty() - ConcealmentTentPenalty());
 
 }

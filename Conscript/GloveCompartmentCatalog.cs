@@ -12,24 +12,18 @@ internal static class GloveCompartmentCatalog
         new LootCatalogEntry(
             Crowbar,
             Crowbar,
-            IsMoney: false,
-            MoneyAmount: 0,
-            Flavor: "A short steel crowbar with old paint on the curve. Heavy enough to count as an argument.",
-            EffectHint: "Goes in your backpack."),
+            "A short steel crowbar with old paint on the curve. Heavy enough to count as an argument.",
+            "Goes in your backpack."),
         new LootCatalogEntry(
             Vodka,
             Vodka,
-            IsMoney: false,
-            MoneyAmount: 0,
-            Flavor: "A half-liter bottle, label torn, cap re-seated crooked. It burns just looking at it.",
-            EffectHint: "Goes in your backpack."),
+            "A half-liter bottle, label torn, cap re-seated crooked. It burns just looking at it.",
+            "Goes in your backpack."),
         new LootCatalogEntry(
             Rag,
             Rag,
-            IsMoney: false,
-            MoneyAmount: 0,
-            Flavor: "A greasy shop rag, stiff with old oil. Still better than your sleeve.",
-            EffectHint: "Goes in your backpack."),
+            "A greasy shop rag, stiff with old oil. Still better than your sleeve.",
+            "Goes in your backpack."),
     ];
 
     public static int EntryCount => Entries.Length;

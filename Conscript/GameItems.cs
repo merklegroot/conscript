@@ -6,14 +6,10 @@ internal static class GameItems
     public const string BottledWater = "Bottled Water";
     public const string EmptyBottle = "Empty Bottle of Water";
     public const int BottledWaterMaxSips = 4;
-    public const int BottledWaterHydrationPerSip = 25;
 
     public const string CannedSoup = "Canned Soup";
     public const string EmptyCan = "Empty Can";
     public const int CannedSoupMaxServings = 3;
-    public const int CannedSoupSatiationPerServing = 12;
-    public const int CannedSoupHydrationPerServing = 3;
-    public const int CannedSoupHealthPerServing = 2;
 
     public const string TrashBags = "Trash Bags";
     public const string DuctTape = "Duct Tape";
