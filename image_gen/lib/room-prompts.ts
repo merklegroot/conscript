@@ -1,6 +1,6 @@
 /** Regeneration prompts for scene backgrounds. Verified = used for a shipped asset; inferred = drafted from Game.cs. */
 
-export type PromptSource = "verified" | "inferred";
+export type PromptSource = "verified" | "inferred" | "custom";
 
 export type RoomPrompt = {
   prompt: string;
@@ -73,7 +73,7 @@ export const ROOM_PROMPTS: Record<string, RoomPrompt> = {
   WarehouseAftermath: {
     source: "verified",
     prompt:
-      "Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Same composition as warehouse ambush: ground-level view on wet concrete near an old green delivery truck with open cab door on the right, corrugated roll-up door ahead — but showing violent explosion aftermath. Roiling orange fire and black smoke billowing from the doorway, scorched blackened metal door, shattered windows, burning pallets, charred barrels, rain hissing on embers. Two indistinct motionless silhouettes of men sprawled on wet concrete near the flames (no clear faces, no gore). Floodlights cutting through rain and smoke, long reflections in puddles, chain-link fence beyond. Moody gritty post-Soviet atmosphere, dramatic firelight vs cool rain, subtle film grain. Wide landscape 3:2. No readable text, no signage, no logos.",
+      "Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Ground-level view on wet concrete near an old green delivery truck with open cab door on the right, corrugated roll-up door ahead — showing violent explosion aftermath. Roiling orange fire and thick black smoke billowing from the doorway, scorched blackened metal door, shattered windows, burning pallets and debris scattered across the ground, rain hissing on hot embers. Floodlights cutting through rain and smoke, long reflections in puddles, chain-link fence beyond. Moody gritty post-Soviet atmosphere, dramatic firelight vs cool rain, subtle film grain. Wide landscape 3:2. No readable text, no signage, no logos. the bodies of two bratdva mobsters are lying on the ground.",
   },
   ForestEntry: {
     source: "inferred",

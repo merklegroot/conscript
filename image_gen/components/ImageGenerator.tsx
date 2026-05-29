@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AssignRoomImage from "@/components/AssignRoomImage";
+import { roomPromptSessionKey } from "@/components/RoomPromptEditor";
 import { GAME_ROOMS } from "@/lib/game-rooms";
 import type { AspectRatio, GenerationRecord, ImageResolution } from "@/lib/generation-types";
 
@@ -41,6 +42,21 @@ export default function ImageGenerator({
   targetRoom,
 }: ImageGeneratorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
+
+  useEffect(() => {
+    if (!targetRoom) {
+      return;
+    }
+
+    const pendingPrompt = sessionStorage.getItem(
+      roomPromptSessionKey(targetRoom.phase),
+    );
+
+    if (pendingPrompt) {
+      setPrompt(pendingPrompt);
+      sessionStorage.removeItem(roomPromptSessionKey(targetRoom.phase));
+    }
+  }, [targetRoom]);
   const [aspectRatio, setAspectRatio] = useState<AspectRatio | "">(
     initialAspectRatio ?? "",
   );

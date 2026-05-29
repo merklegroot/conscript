@@ -2,10 +2,10 @@ import { access } from "fs/promises";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import path from "path";
-import CopyPromptButton from "@/components/CopyPromptButton";
 import PasteRoomImage from "@/components/PasteRoomImage";
+import RoomPromptEditor from "@/components/RoomPromptEditor";
 import { gameImageUrl, getGameImageVersion } from "@/lib/game-image-cache";
-import { getRoomWithPrompt } from "@/lib/game-rooms";
+import { getRoomWithPromptResolved } from "@/lib/get-room-with-prompt";
 import { CONSCRIPT_IMG_DIR } from "@/lib/paths";
 
 type RoomPageProps = {
@@ -26,7 +26,7 @@ async function imageExists(imageFile: string): Promise<boolean> {
 export default async function RoomDetailPage({ params }: RoomPageProps) {
   const { phase: phaseParam } = await params;
   const phase = decodeURIComponent(phaseParam);
-  const room = getRoomWithPrompt(phase);
+  const room = await getRoomWithPromptResolved(phase);
 
   if (!room) {
     notFound();
@@ -34,8 +34,6 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
 
   const hasImage = await imageExists(room.imageFile);
   const imageVersion = await getGameImageVersion(room.imageFile);
-  const regenerateHref = `/?room=${encodeURIComponent(room.phase)}`;
-
   return (
     <main className="mx-auto max-w-4xl flex-1 px-6 py-12">
       <Link
@@ -70,40 +68,16 @@ export default async function RoomDetailPage({ params }: RoomPageProps) {
         />
       </div>
 
-      <section className="mt-10 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Regeneration prompt</h2>
-          <div className="flex flex-wrap gap-2">
-            <CopyPromptButton text={room.prompt} />
-            <Link
-              href={regenerateHref}
-              className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-            >
-              Generate with Grok
-            </Link>
-          </div>
-        </div>
-
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {room.promptSource === "verified"
-            ? "Verified — matches a logged generation in image-prompts.md"
-            : "Inferred from Game.cs narrative and project style guide — tweak before regenerating"}
-        </p>
-
-        <pre className="overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed whitespace-pre-wrap text-zinc-800 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200">
-          {room.prompt}
-        </pre>
-
-        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Target asset:{" "}
-          <code className="font-mono">Conscript/img/{room.imageFile}</code>
-          {" · "}
-          <code className="font-mono">
-            python3 scripts/install_scene_image.py generated_images/&lt;file&gt; Conscript/img/
-            {room.imageFile}
-          </code>
-        </p>
-      </section>
+      <div className="mt-10">
+        <RoomPromptEditor
+          phase={room.phase}
+          defaultPrompt={room.defaultPrompt}
+          defaultPromptSource={room.defaultPromptSource}
+          initialPrompt={room.prompt}
+          promptSource={room.promptSource}
+          imageFile={room.imageFile}
+        />
+      </div>
     </main>
   );
 }

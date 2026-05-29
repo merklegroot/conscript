@@ -1,6 +1,6 @@
 import ImageGenerator from "@/components/ImageGenerator";
 import PasteRoomImage from "@/components/PasteRoomImage";
-import { getRoomWithPrompt } from "@/lib/game-rooms";
+import { getRoomWithPromptResolved } from "@/lib/get-room-with-prompt";
 
 type HomeProps = {
   searchParams: Promise<{ room?: string }>;
@@ -9,7 +9,7 @@ type HomeProps = {
 export default async function Home({ searchParams }: HomeProps) {
   const { room: roomParam } = await searchParams;
   const room = roomParam
-    ? getRoomWithPrompt(decodeURIComponent(roomParam))
+    ? await getRoomWithPromptResolved(decodeURIComponent(roomParam))
     : undefined;
 
   return (
@@ -26,7 +26,12 @@ export default async function Home({ searchParams }: HomeProps) {
         {room ? (
           <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
             Prefilled for <strong>{room.name}</strong> (
-            {room.promptSource === "verified" ? "verified" : "inferred"} prompt).
+            {room.promptSource === "verified"
+              ? "verified"
+              : room.promptSource === "custom"
+                ? "custom"
+                : "inferred"}{" "}
+            prompt).
             After generating, use <strong>Apply to {room.name}</strong> below, or
             paste an image (Cmd+V) to install into{" "}
             <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-900">

@@ -59,6 +59,8 @@ export function getRoomByPhase(phase: string): GameRoom | undefined {
 
 export type GameRoomWithPrompt = GameRoom & {
   prompt: string;
+  defaultPrompt: string;
+  defaultPromptSource: PromptSource;
   promptSource: PromptSource;
 };
 
@@ -72,6 +74,8 @@ export function getRoomWithPrompt(phase: string): GameRoomWithPrompt | undefined
 
   return {
     ...room,
+    defaultPrompt: promptInfo.prompt,
+    defaultPromptSource: promptInfo.source,
     prompt: promptInfo.prompt,
     promptSource: promptInfo.source,
   };
