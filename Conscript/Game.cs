@@ -306,6 +306,7 @@ public sealed class Game : IGame
 
     // Scene item use — guide an inventory item onto hotspots (mouse or left stick)
     private bool _itemUseActive;
+    private bool _itemUsePointerInsideBounds;
     private string _itemUseItemName = "";
     private int _itemUseSlotIndex = -1;
     private Vector2 _itemUseCursorPos;
@@ -2178,7 +2179,7 @@ public sealed class Game : IGame
             }
         }
 
-        if (_itemUseActive && _warehouseCrateHotspotHovered)
+        if (_itemUseActive && _itemUsePointerInsideBounds && _warehouseCrateHotspotHovered)
             overClickable = true;
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
@@ -3197,12 +3198,18 @@ public sealed class Game : IGame
         GetItemUseMovementBounds(out int boundsX, out int boundsY, out int boundsW, out int boundsH);
         var movementBounds = new Rectangle(boundsX, boundsY, boundsW, boundsH);
         Vector2 mouse = Raylib.GetMousePosition();
-        _itemUseCursorPos = ClampPointToRectangle(mouse, movementBounds);
+        _itemUsePointerInsideBounds = Raylib.CheckCollisionPointRec(mouse, movementBounds);
         _itemUseActive = true;
         _itemUseItemName = itemName;
         _itemUseSlotIndex = slotIndex;
         _warehouseCrateHotspotHovered = false;
-        Raylib.HideCursor();
+        if (_itemUsePointerInsideBounds)
+        {
+            _itemUseCursorPos = mouse;
+            Raylib.HideCursor();
+        }
+        else
+            Raylib.ShowCursor();
     }
 
     private void StopItemUseMode()
@@ -3211,6 +3218,7 @@ public sealed class Game : IGame
             return;
 
         _itemUseActive = false;
+        _itemUsePointerInsideBounds = false;
         _itemUseItemName = "";
         _itemUseSlotIndex = -1;
         _warehouseCrateHotspotHovered = false;
@@ -3228,6 +3236,9 @@ public sealed class Game : IGame
     {
         if (InputManager.IsGamepadConnected)
         {
+            _itemUsePointerInsideBounds = true;
+            Raylib.HideCursor();
+
             int pad = InputManager.ActiveGamepad;
             float stickX = Raylib.GetGamepadAxisMovement(pad, GamepadAxis.GAMEPAD_AXIS_LEFT_X);
             float stickY = Raylib.GetGamepadAxisMovement(pad, GamepadAxis.GAMEPAD_AXIS_LEFT_Y);
@@ -3236,11 +3247,20 @@ public sealed class Game : IGame
                 _itemUseCursorPos.X += stickX * ItemUseMoveSpeed * dt;
                 _itemUseCursorPos.Y += stickY * ItemUseMoveSpeed * dt;
                 _itemUseCursorPos = ClampPointToRectangle(_itemUseCursorPos, movementBounds);
-                return;
             }
+
+            return;
         }
 
-        _itemUseCursorPos = ClampPointToRectangle(Raylib.GetMousePosition(), movementBounds);
+        Vector2 mouse = Raylib.GetMousePosition();
+        _itemUsePointerInsideBounds = Raylib.CheckCollisionPointRec(mouse, movementBounds);
+        if (_itemUsePointerInsideBounds)
+        {
+            Raylib.HideCursor();
+            _itemUseCursorPos = mouse;
+        }
+        else
+            Raylib.ShowCursor();
     }
 
     private void UpdateWarehouseCrateClickRect(Rectangle artBounds)
@@ -3328,7 +3348,7 @@ public sealed class Game : IGame
 
         _warehouseCrateHotspotHovered = false;
         _warehouseCrateClickRect = default;
-        if (_phase == Phase.WarehouseInterior)
+        if (_itemUsePointerInsideBounds && _phase == Phase.WarehouseInterior)
         {
             GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
             var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -3336,7 +3356,7 @@ public sealed class Game : IGame
             _warehouseCrateHotspotHovered = ItemUseCursorOverWarehouseCrate();
         }
 
-        if (leftClicked || InputManager.IsConfirmPressed())
+        if (_itemUsePointerInsideBounds && (leftClicked || InputManager.IsConfirmPressed()))
             TryItemUseAtCursor();
     }
 
@@ -3351,7 +3371,7 @@ public sealed class Game : IGame
 
     private void DrawItemUseOverlay()
     {
-        if (!_itemUseActive)
+        if (!_itemUseActive || !_itemUsePointerInsideBounds)
             return;
 
         float half = ItemUseIconSize / 2f;
