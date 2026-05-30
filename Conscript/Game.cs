@@ -300,6 +300,8 @@ public sealed class Game : IGame
         new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
     // Warehouse interior — sealed crate
+    private Rectangle _warehouseInteriorExitClickRect;
+    private bool _warehouseInteriorExitHotspotHovered;
     private Rectangle _warehouseCrateClickRect;
     private bool _warehouseCrateHotspotHovered;
     private bool _warehouseCrateOpened;
@@ -2010,8 +2012,30 @@ public sealed class Game : IGame
 
             if (_phase == Phase.WarehouseInterior)
             {
-                GetCinematicArtBounds(out int crateArtX, out int crateArtY, out int crateArtW, out int crateArtH);
-                var crateArtBounds = new Rectangle(crateArtX, crateArtY, crateArtW, crateArtH);
+                GetCinematicArtBounds(out int interiorArtX, out int interiorArtY, out int interiorArtW, out int interiorArtH);
+                var interiorArtBounds = new Rectangle(interiorArtX, interiorArtY, interiorArtW, interiorArtH);
+
+                _warehouseInteriorExitHotspotHovered = false;
+                float exitW = WarehouseInteriorHotspots.ExitX2 - WarehouseInteriorHotspots.ExitX1;
+                float exitH = WarehouseInteriorHotspots.ExitY2 - WarehouseInteriorHotspots.ExitY1;
+                _warehouseInteriorExitClickRect = SceneRegion.ToScreenRect(
+                    WarehouseInteriorHotspots.ExitX1,
+                    WarehouseInteriorHotspots.ExitY1,
+                    exitW,
+                    exitH,
+                    interiorArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _warehouseInteriorExitClickRect))
+                {
+                    _warehouseInteriorExitHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        RecordHistorySnapshot();
+                        ExitWarehouseToLoadingBay();
+                        return;
+                    }
+                }
+
                 _warehouseCrateHotspotHovered = false;
                 float crateW = WarehouseInteriorHotspots.CrateX2 - WarehouseInteriorHotspots.CrateX1;
                 float crateH = WarehouseInteriorHotspots.CrateY2 - WarehouseInteriorHotspots.CrateY1;
@@ -2020,7 +2044,7 @@ public sealed class Game : IGame
                     WarehouseInteriorHotspots.CrateY1,
                     crateW,
                     crateH,
-                    crateArtBounds);
+                    interiorArtBounds);
 
                 if (Raylib.CheckCollisionPointRec(mouse, _warehouseCrateClickRect))
                 {
@@ -2037,6 +2061,8 @@ public sealed class Game : IGame
             }
             else
             {
+                _warehouseInteriorExitHotspotHovered = false;
+                _warehouseInteriorExitClickRect = default;
                 _warehouseCrateHotspotHovered = false;
                 _warehouseCrateClickRect = default;
             }
@@ -2334,6 +2360,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_warehouseCrateHotspotHovered)
+                overClickable = true;
+
+            if (_warehouseInteriorExitHotspotHovered)
                 overClickable = true;
 
             if (_openingWindowHotspotHovered)
@@ -3068,10 +3097,7 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case ChoiceBackToLoadingBay:
-                _actionMessage = "You duck back out into the smoking bay.";
-                _actionMessageTimer = 2.2f;
-                AdvanceTime();
-                EnterPhase(Phase.WarehouseAftermath);
+                ExitWarehouseToLoadingBay();
                 return;
 
             case ChoiceWait:
@@ -3845,6 +3871,20 @@ public sealed class Game : IGame
         _actionMessageTimer = 3.2f;
         AdvanceTime();
         EnterPhase(Phase.WarehouseInterior);
+    }
+
+    private void ExitWarehouseToLoadingBay()
+    {
+        if (_phase != Phase.WarehouseInterior)
+            return;
+
+        CloseCrateLootMenu();
+        CloseWarehouseCrateDialog();
+        StopItemUseMode();
+        _actionMessage = "You duck back out into the smoking bay.";
+        _actionMessageTimer = 2.2f;
+        AdvanceTime();
+        EnterPhase(Phase.WarehouseAftermath);
     }
 
     private bool CanTakeBodyLootItem(int itemIndex)
@@ -7228,6 +7268,42 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseInteriorExitHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float exitW = WarehouseInteriorHotspots.ExitX2 - WarehouseInteriorHotspots.ExitX1;
+        float exitH = WarehouseInteriorHotspots.ExitY2 - WarehouseInteriorHotspots.ExitY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseInteriorHotspots.ExitX1,
+            WarehouseInteriorHotspots.ExitY1,
+            exitW,
+            exitH,
+            artBounds);
+
+        bool hovered = _warehouseInteriorExitHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "EXIT";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawWarehouseCrateHotspot(int artX, int artY, int artW, int artH)
     {
         var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -7999,7 +8075,10 @@ public sealed class Game : IGame
         }
 
         if (_phase == Phase.WarehouseInterior)
+        {
+            DrawWarehouseInteriorExitHotspot(artX, artY, artW, artH);
             DrawWarehouseCrateHotspot(artX, artY, artW, artH);
+        }
 
         if (_phase == Phase.Cafe)
             DrawCafeBorisHotspot(artX, artY, artW, artH);
