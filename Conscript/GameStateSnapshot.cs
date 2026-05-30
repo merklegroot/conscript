@@ -30,7 +30,6 @@ internal sealed class GameStateSnapshot
     public required bool[] BodyLootTaken { get; init; }
     public required string[] Choices { get; init; }
     public required int SelectedIndex { get; init; }
-    public required bool NarrativeCollapsed { get; init; }
     public required string ActionMessage { get; init; }
     public required float ActionMessageTimer { get; init; }
     public required string DeathLine1 { get; init; }

@@ -50,8 +50,6 @@ public static class Palette
     public static readonly Color CardBorder = new Color(52, 55, 63, 255);
     public static readonly Color NarrativeCardBg = new Color(12, 14, 18, 138);
     public static readonly Color NarrativeCardBorder = new Color(52, 55, 63, 185);
-    public static readonly Color NarrativeCardHoverBg = new Color(24, 27, 34, 168);
-    public static readonly Color NarrativeCardHoverBorder = new Color(92, 98, 110, 205);
 
     // === Atmospheric Scene Colors (for the rich placeholder art) ===
     public static readonly Color DeepNight = new Color(6, 7, 12, 255);

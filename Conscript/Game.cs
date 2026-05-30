@@ -376,11 +376,6 @@ public sealed class Game : IGame
     private Rectangle _gloveCompartmentClickRect;
     private bool _gloveCompartmentHovered;
 
-    // Scene narrative card (right sidebar — click to collapse or expand)
-    private bool _narrativeCollapsed;
-    private Rectangle _narrativeCardRect;
-    private bool _narrativeCardHovered;
-
     // Cached backpack slot rectangles (updated during DrawBackpack every frame)
     private Rectangle[] _backpackSlotRects = new Rectangle[BackpackSlotCount];
 
@@ -501,7 +496,6 @@ public sealed class Game : IGame
 
         _phase = newPhase;
         _selectedIndex = 0;
-        _narrativeCollapsed = false;
         _actionMessage = "";
         _actionMessageTimer = 0;
 
@@ -1785,18 +1779,6 @@ public sealed class Game : IGame
                 return;
             }
 
-            if (GamePhase.ShowsSceneNarrative(_phase) && _narrativeCardRect.Width > 0)
-            {
-                _narrativeCardHovered = Raylib.CheckCollisionPointRec(mouse, _narrativeCardRect);
-                if (leftClicked && _narrativeCardHovered)
-                {
-                    _narrativeCollapsed = !_narrativeCollapsed;
-                    return;
-                }
-            }
-            else
-                _narrativeCardHovered = false;
-
             if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase) && _trashBagTentClickRect.Width > 0)
             {
                 _trashBagTentHovered = Raylib.CheckCollisionPointRec(mouse, _trashBagTentClickRect);
@@ -2186,9 +2168,6 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_openingWindowHotspotHovered)
-                overClickable = true;
-
-            if (_narrativeCardHovered)
                 overClickable = true;
 
             if (_hoveredDroppedItemListIndex >= 0)
@@ -3745,7 +3724,6 @@ public sealed class Game : IGame
         BodyLootTaken = (bool[])_bodyLootTaken.Clone(),
         Choices = (string[])_choices.Clone(),
         SelectedIndex = _selectedIndex,
-        NarrativeCollapsed = _narrativeCollapsed,
         ActionMessage = _actionMessage,
         ActionMessageTimer = _actionMessageTimer,
         DeathLine1 = _deathLine1,
@@ -3785,7 +3763,6 @@ public sealed class Game : IGame
             Array.Copy(snapshot.BodyLootTaken, _bodyLootTaken, _bodyLootTaken.Length);
             _choices = (string[])snapshot.Choices.Clone();
             _selectedIndex = snapshot.SelectedIndex;
-            _narrativeCollapsed = snapshot.NarrativeCollapsed;
             _actionMessage = snapshot.ActionMessage;
             _actionMessageTimer = snapshot.ActionMessageTimer;
             _deathLine1 = snapshot.DeathLine1;
@@ -6947,13 +6924,9 @@ public sealed class Game : IGame
             int availableW = w - GameConstants.SidebarPadding * 2;
             int maxLogHeight = quitY - logY - logBottomGap;
 
-            if (maxLogHeight >= NarrativeCollapsedHeight)
+            if (maxLogHeight >= NarrativeMinHeight)
                 DrawSidebarNarrative(tx, logY, availableW, maxLogHeight, GetSceneNarrative());
-            else
-                _narrativeCardRect = default;
         }
-        else
-            _narrativeCardRect = default;
     }
 
     private void DrawQuitSidebarButton(int y, int x)
@@ -7448,12 +7421,16 @@ public sealed class Game : IGame
             return new Rectangle(x, y, w, h);
         }
 
-        // En route — glove compartment latch on the right side of the dashboard
-        int dashX = artX + (int)(artW * 0.58f);
-        int dashY = artY + (int)(artH * 0.50f);
-        int dashW = (int)(artW * 0.24f);
-        int dashH = (int)(artH * 0.20f);
-        return new Rectangle(dashX, dashY, dashW, dashH);
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float gloveW = DeliveryTruckHotspots.GloveBoxX2 - DeliveryTruckHotspots.GloveBoxX1;
+        float gloveH = DeliveryTruckHotspots.GloveBoxY2 - DeliveryTruckHotspots.GloveBoxY1;
+
+        return SceneRegion.ToScreenRect(
+            DeliveryTruckHotspots.GloveBoxX1,
+            DeliveryTruckHotspots.GloveBoxY1,
+            gloveW,
+            gloveH,
+            artBounds);
     }
 
     private void DrawDeliveryTruckGloveCompartmentHotspot(int artX, int artY, int artW, int artH)
@@ -7531,53 +7508,10 @@ public sealed class Game : IGame
 
     private const int NarrativeHorizontalPadding = 14;
     private const int NarrativeVerticalPadding = 14;
-    private const int NarrativeCollapsedHeight = 36;
-    private const int NarrativeCaretCornerPad = 8;
-    private const int NarrativeCaretTextReserve = 14;
-
-    private static void DrawChevronUp(int cx, int cy, Color color)
-    {
-        const float size = 5f;
-        const float thickness = 2f;
-        Raylib.DrawLineEx(new Vector2(cx - size, cy + size * 0.35f), new Vector2(cx, cy - size), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx, cy - size), new Vector2(cx + size, cy + size * 0.35f), thickness, color);
-    }
-
-    private static void DrawChevronDown(int cx, int cy, Color color)
-    {
-        const float size = 5f;
-        const float thickness = 2f;
-        Raylib.DrawLineEx(new Vector2(cx - size, cy - size * 0.35f), new Vector2(cx, cy + size), thickness, color);
-        Raylib.DrawLineEx(new Vector2(cx, cy + size), new Vector2(cx + size, cy - size * 0.35f), thickness, color);
-    }
-
-    private static void DrawNarrativeCardCaret(int cardX, int cardY, int cardW, bool collapsed, bool hovered)
-    {
-        const float chevronSize = 5f;
-        int cornerRight = cardX + cardW;
-        int cornerTop = cardY;
-        int cx = cornerRight - NarrativeCaretCornerPad;
-        Color color = hovered ? Palette.TextPrimary : Palette.TextMuted;
-
-        if (collapsed)
-        {
-            int cy = cornerTop + NarrativeCaretCornerPad + (int)(chevronSize * 0.35f);
-            DrawChevronDown(cx, cy, color);
-        }
-        else
-        {
-            int cy = cornerTop + NarrativeCaretCornerPad + (int)chevronSize;
-            DrawChevronUp(cx, cy, color);
-        }
-    }
-
-    private static (Color bg, Color border) GetNarrativeCardColors(bool hovered) =>
-        hovered
-            ? (Palette.NarrativeCardHoverBg, Palette.NarrativeCardHoverBorder)
-            : (Palette.NarrativeCardBg, Palette.NarrativeCardBorder);
+    private const int NarrativeMinHeight = 36;
 
     /// <summary>
-    /// Draws the scene narrative log in the right sidebar. Click the card to collapse or expand it.
+    /// Draws the scene narrative log in the right sidebar.
     /// </summary>
     private void DrawSidebarNarrative(int panelX, int startY, int availableWidth, int maxHeight, string narrativeText)
     {
@@ -7587,7 +7521,7 @@ public sealed class Game : IGame
         int lineHeight = (int)(fontSize * 1.42f);
         int blankLineHeight = lineHeight / 2;
 
-        int textMaxWidth = availableWidth - NarrativeHorizontalPadding * 2 - NarrativeCaretTextReserve;
+        int textMaxWidth = availableWidth - NarrativeHorizontalPadding * 2;
 
         var (wrappedLines, textHeight) = GameTextLayout.WrapForBox(
             narrativeText,
@@ -7597,41 +7531,12 @@ public sealed class Game : IGame
             textMaxWidth,
             lineHeight);
 
-        int expandedCardH = textHeight + NarrativeVerticalPadding * 2;
+        int cardH = Math.Min(textHeight + NarrativeVerticalPadding * 2, maxHeight);
         int cardX = panelX;
         int cardY = startY;
 
-        if (_narrativeCollapsed)
-        {
-            _narrativeCardRect = new Rectangle(cardX, cardY, availableWidth, NarrativeCollapsedHeight);
-
-            (Color bg, Color border) = GetNarrativeCardColors(_narrativeCardHovered);
-            Raylib.DrawRectangle(cardX, cardY, availableWidth, NarrativeCollapsedHeight, bg);
-            Raylib.DrawRectangleLines(cardX, cardY, availableWidth, NarrativeCollapsedHeight, border);
-            DrawNarrativeCardCaret(cardX, cardY, availableWidth, collapsed: true, _narrativeCardHovered);
-
-            const string collapsedLabel = "…";
-            float collapsedLabelSize = 22f;
-            Vector2 collapsedLabelSizeVec = Raylib.MeasureTextEx(font, collapsedLabel, collapsedLabelSize, 0.5f);
-            Raylib.DrawTextEx(
-                font,
-                collapsedLabel,
-                new Vector2(
-                    cardX + NarrativeHorizontalPadding,
-                    cardY + (NarrativeCollapsedHeight - collapsedLabelSizeVec.Y) / 2f),
-                collapsedLabelSize,
-                0.5f,
-                Palette.TextMuted);
-            return;
-        }
-
-        int cardH = Math.Min(expandedCardH, maxHeight);
-        _narrativeCardRect = new Rectangle(cardX, cardY, availableWidth, cardH);
-
-        (Color cardBg, Color cardBorder) = GetNarrativeCardColors(_narrativeCardHovered);
-        Raylib.DrawRectangle(cardX, cardY, availableWidth, cardH, cardBg);
-        Raylib.DrawRectangleLines(cardX, cardY, availableWidth, cardH, cardBorder);
-        DrawNarrativeCardCaret(cardX, cardY, availableWidth, collapsed: false, _narrativeCardHovered);
+        Raylib.DrawRectangle(cardX, cardY, availableWidth, cardH, Palette.NarrativeCardBg);
+        Raylib.DrawRectangleLines(cardX, cardY, availableWidth, cardH, Palette.NarrativeCardBorder);
 
         int textLeft = cardX + NarrativeHorizontalPadding;
         int textTop = cardY + NarrativeVerticalPadding;
