@@ -225,7 +225,7 @@ public sealed class Game : IGame
     private readonly List<int> _droppedItemVisibleIndices = new(); // parallel to click rects → _droppedItems index
     private int _hoveredDroppedItemListIndex = -1; // index into visible/click lists
 
-    // Item detail panel (right sidebar when backpack or ground item is selected)
+    // Item detail panel (left sidebar under backpack when item is selected)
     private bool _showItemDialog;
     private int _dialogItemIndex = -1;
     private int _dialogDroppedItemIndex = -1;
@@ -1671,7 +1671,7 @@ public sealed class Game : IGame
             }
         }
 
-        // === Item panel (right sidebar) ===
+        // === Item panel (left sidebar) ===
         if (_showItemDialog && AllowsSidebarAndSceneInput())
         {
             UpdateItemPanelHover(mouse);
@@ -5163,7 +5163,7 @@ public sealed class Game : IGame
     private int DrawItemPanel(int startY, int x)
     {
         Font font = _uiFont;
-        int available = GameConstants.RightPanelWidth - GameConstants.SidebarPadding * 2;
+        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
         const int panelPad = 12;
         int innerX = x + panelPad;
         int innerW = available - panelPad * 2;
@@ -6733,7 +6733,13 @@ public sealed class Game : IGame
         Font font = _uiFont;
         int tx = x + GameConstants.SidebarPadding;
         int cy = y + 28;
-        DrawBackpack(cy, tx);
+        cy = DrawBackpack(cy, tx);
+
+        if (_showItemDialog)
+        {
+            cy += 16;
+            DrawItemPanel(cy, tx);
+        }
     }
 
     // =====================================================================
@@ -6767,12 +6773,6 @@ public sealed class Game : IGame
             _huntSidebarButtonHovered = false;
             _forageSidebarButtonRect = default;
             _forageSidebarButtonHovered = false;
-        }
-
-        if (_showItemDialog)
-        {
-            cy += 8;
-            cy = DrawItemPanel(cy, tx);
         }
 
         const int btnH = 36;
