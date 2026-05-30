@@ -54,6 +54,22 @@ No other text. Photorealistic, soft side lighting, subtle grain. Portrait orient
   - Shown full-size in `FoldedPaperReaderDialog` when the player presses READ on Folded Paper.
   - Also used as the backpack/item icon for `GameItems.FoldedPaper`.
 
+## `warehouse-closed-door.png`
+
+- **asset**: `Conscript/img/warehouse-closed-door.png`
+- **date**: 2026-05-29
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage`
+- **prompt**:
+
+```text
+Photorealistic closed corrugated steel roll-up warehouse door, Soviet-era industrial hangar at night in heavy rain. Dark gray-blue metal with horizontal ribs, wet surface catching cold white floodlight and faint warm glow from nearby fire (no flames visible through door). Door fully lowered and sealed, weathered with light rust streaks. Front-facing, fills entire frame edge to edge. Cinematic gritty post-Soviet mood, subtle film grain. Portrait orientation roughly 5:6 aspect ratio. No people, no text, no logos, no open gap.
+```
+
+- **notes**:
+  - Drawn over `warehouse-14-aftermath.png` in the door hotspot `(0.282, 0.297)–(0.557, 0.632)` while the keypad lock is not unlocked.
+  - Hidden once the player enters the correct code and the door is open.
+
 ## `crate-note.png`
 
 - **asset**: `Conscript/img/crate-note.png`

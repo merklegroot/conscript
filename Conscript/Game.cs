@@ -43,6 +43,7 @@ public sealed class Game : IGame
     private Texture2D _warehouseBackground;
     private Texture2D _warehouseAmbushBackground;
     private Texture2D _warehouseAftermathBackground;
+    private Texture2D _warehouseClosedDoorTexture;
     private Texture2D _warehouseInteriorBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
@@ -1005,6 +1006,7 @@ public sealed class Game : IGame
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
         _warehouseAmbushBackground = LoadTextureOrFallback("warehouse-14-ambush.png", _warehouseBackground);
         _warehouseAftermathBackground = LoadTextureOrFallback("warehouse-14-aftermath.png", _warehouseAmbushBackground);
+        _warehouseClosedDoorTexture = EmbeddedTextureLoader.Load(WarehouseAftermathHotspots.ClosedDoorImageFile);
         _warehouseInteriorBackground = LoadTextureOrFallback("warehouse-14-interior.png", _warehouseAftermathBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
@@ -1062,6 +1064,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _warehouseBackground);
         UnloadTextureIfLoaded(ref _warehouseAmbushBackground);
         UnloadTextureIfLoaded(ref _warehouseAftermathBackground);
+        UnloadTextureIfLoaded(ref _warehouseClosedDoorTexture);
         UnloadTextureIfLoaded(ref _warehouseInteriorBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
@@ -7063,6 +7066,26 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseClosedDoorOverlay(int artX, int artY, int artW, int artH)
+    {
+        if (_warehouseClosedDoorTexture.Id == 0)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float doorW = WarehouseAftermathHotspots.DoorX2 - WarehouseAftermathHotspots.DoorX1;
+        float doorH = WarehouseAftermathHotspots.DoorY2 - WarehouseAftermathHotspots.DoorY1;
+        Rectangle dst = SceneRegion.ToScreenRect(
+            WarehouseAftermathHotspots.DoorX1,
+            WarehouseAftermathHotspots.DoorY1,
+            doorW,
+            doorH,
+            artBounds);
+
+        Rectangle src = new Rectangle(0, 0, _warehouseClosedDoorTexture.Width, _warehouseClosedDoorTexture.Height);
+        Color tint = GetOutdoorTimeOfDayTint();
+        Raylib.DrawTexturePro(_warehouseClosedDoorTexture, src, dst, Vector2.Zero, 0f, tint);
+    }
+
     private void DrawWarehouseLockHotspot(int artX, int artY, int artW, int artH)
     {
         var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -7960,6 +7983,9 @@ public sealed class Game : IGame
 
         if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
+
+        if (_phase == Phase.WarehouseAftermath && !_warehouseKeypad.IsUnlocked)
+            DrawWarehouseClosedDoorOverlay(artX, artY, artW, artH);
 
         if (GamePhase.IsInTruckCab(_phase))
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);

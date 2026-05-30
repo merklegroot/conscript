@@ -16,4 +16,6 @@ internal static class WarehouseAftermathHotspots
     public const float LockY2 = 0.447f;
 
     public const string LockCode = "4237";
+
+    public const string ClosedDoorImageFile = "warehouse-closed-door.png";
 }
