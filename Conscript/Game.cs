@@ -175,6 +175,12 @@ public sealed class Game : IGame
     private Texture2D _crateNoteTexture;
     private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
+    private readonly GasGaugeViewerDialog _gasGaugeViewer = new();
+    private Texture2D _gasGaugeFaceTexture;
+    private Texture2D _gasGaugeNeedleTexture;
+    private int _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
+    private Rectangle _gasGaugeClickRect;
+    private bool _gasGaugeHotspotHovered;
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
@@ -1018,6 +1024,8 @@ public sealed class Game : IGame
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
         _foldedPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.FoldedPaperNoteFile);
         _crateNoteTexture = EmbeddedTextureLoader.Load(GameItems.CrateNoteFile);
+        _gasGaugeFaceTexture = EmbeddedTextureLoader.Load(GasGaugeCatalog.FaceFile);
+        _gasGaugeNeedleTexture = EmbeddedTextureLoader.Load(GasGaugeCatalog.NeedleFile);
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1076,6 +1084,8 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _titleLogoTexture);
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
         UnloadTextureIfLoaded(ref _crateNoteTexture);
+        UnloadTextureIfLoaded(ref _gasGaugeFaceTexture);
+        UnloadTextureIfLoaded(ref _gasGaugeNeedleTexture);
     }
 
     // --- Main loop ---
@@ -1119,6 +1129,11 @@ public sealed class Game : IGame
             if (_foldedPaperReader.IsOpen)
             {
                 CloseFoldedPaperReader();
+                return;
+            }
+            if (_gasGaugeViewer.IsOpen)
+            {
+                CloseGasGaugeViewer();
                 return;
             }
             if (_showBuildDialog)
@@ -1486,6 +1501,12 @@ public sealed class Game : IGame
         if (_foldedPaperReader.IsOpen)
         {
             _foldedPaperReader.Update(mouse, leftClicked);
+            return;
+        }
+
+        if (_gasGaugeViewer.IsOpen)
+        {
+            _gasGaugeViewer.Update(mouse, leftClicked, ref _gasGaugeLevel, RecordGasGaugeLevelChange);
             return;
         }
 
@@ -1890,11 +1911,43 @@ public sealed class Game : IGame
                 }
                 else
                     _gloveCompartmentHovered = false;
+
+                if (_phase == Phase.WarehouseTruck)
+                {
+                    GetCinematicArtBounds(out int gaugeArtX, out int gaugeArtY, out int gaugeArtW, out int gaugeArtH);
+                    var gaugeArtBounds = new Rectangle(gaugeArtX, gaugeArtY, gaugeArtW, gaugeArtH);
+                    _gasGaugeHotspotHovered = false;
+                    float gaugeW = WarehouseTruckHotspots.GasGaugeX2 - WarehouseTruckHotspots.GasGaugeX1;
+                    float gaugeH = WarehouseTruckHotspots.GasGaugeY2 - WarehouseTruckHotspots.GasGaugeY1;
+                    _gasGaugeClickRect = SceneRegion.ToScreenRect(
+                        WarehouseTruckHotspots.GasGaugeX1,
+                        WarehouseTruckHotspots.GasGaugeY1,
+                        gaugeW,
+                        gaugeH,
+                        gaugeArtBounds);
+
+                    if (Raylib.CheckCollisionPointRec(mouse, _gasGaugeClickRect))
+                    {
+                        _gasGaugeHotspotHovered = true;
+                        if (leftClicked)
+                        {
+                            OpenGasGaugeViewer();
+                            return;
+                        }
+                    }
+                }
+                else
+                {
+                    _gasGaugeHotspotHovered = false;
+                    _gasGaugeClickRect = default;
+                }
             }
             else
             {
                 _gloveCompartmentClickRect = default;
                 _gloveCompartmentHovered = false;
+                _gasGaugeHotspotHovered = false;
+                _gasGaugeClickRect = default;
             }
 
             if (_phase == Phase.WarehouseAftermath)
@@ -2375,6 +2428,9 @@ public sealed class Game : IGame
             if (_gloveCompartmentHovered)
                 overClickable = true;
 
+            if (_gasGaugeHotspotHovered)
+                overClickable = true;
+
             if (_hoveredBodyIndex >= 0)
                 overClickable = true;
 
@@ -2509,6 +2565,9 @@ public sealed class Game : IGame
             overClickable = true;
 
         if (_foldedPaperReader.IsOpen)
+            overClickable = true;
+
+        if (_gasGaugeViewer.IsOpen)
             overClickable = true;
 
         // Build dialog: close button + overlay
@@ -4153,6 +4212,7 @@ public sealed class Game : IGame
         CloseBodyLootMenu();
         CloseWarehouseLock();
         CloseFoldedPaperReader();
+        CloseGasGaugeViewer();
         CloseBuildDialog();
         CloseForageDialog();
         CloseCafeOwnerDialog();
@@ -4193,6 +4253,7 @@ public sealed class Game : IGame
         WarehouseAmbushersDead = _warehouseAmbushersDead,
         FoldedPaperMessageRead = _foldedPaperMessageRead,
         NoteMessageRead = _noteMessageRead,
+        GasGaugeLevel = _gasGaugeLevel,
         WarehouseCrateOpened = _warehouseCrateOpened,
         WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
         HasTrashBagTent = _hasTrashBagTent,
@@ -4234,6 +4295,7 @@ public sealed class Game : IGame
             _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
+            _gasGaugeLevel = snapshot.GasGaugeLevel;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _hasTrashBagTent = snapshot.HasTrashBagTent;
             _tentBuiltInPhase = snapshot.TentBuiltInPhase;
@@ -4307,13 +4369,15 @@ public sealed class Game : IGame
         _showStoreBuyMenu || _showGloveBoxMenu || _showCrateLootMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
         || _itemUseActive || _showControllerDebug || _showQuitConfirm
-        || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
+        || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen
+        || _gasGaugeViewer.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showStoreBuyMenu && !_showGloveBoxMenu && !_showCrateLootMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
-        && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
+        && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen
+        && !_gasGaugeViewer.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -4335,6 +4399,7 @@ public sealed class Game : IGame
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
+        _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
         _warehouseKeypad.Reset();
         _buildFeedback = "";
         ResetDeathLines();
@@ -4370,6 +4435,7 @@ public sealed class Game : IGame
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
+        _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
         _warehouseKeypad.Reset();
         EnterPhase(Phase.WarehouseInterior);
     }
@@ -5445,6 +5511,18 @@ public sealed class Game : IGame
         _foldedPaperReader.Close();
         _activeNoteReadItemName = "";
     }
+
+    private void OpenGasGaugeViewer()
+    {
+        if (_phase != Phase.WarehouseTruck)
+            return;
+
+        _gasGaugeViewer.Open();
+    }
+
+    private void CloseGasGaugeViewer() => _gasGaugeViewer.Close();
+
+    private void RecordGasGaugeLevelChange() => RecordHistorySnapshot();
 
     private string GetFoldedPaperDialogText()
     {
@@ -7179,6 +7257,45 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.WarehouseTruck)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float gaugeW = WarehouseTruckHotspots.GasGaugeX2 - WarehouseTruckHotspots.GasGaugeX1;
+        float gaugeH = WarehouseTruckHotspots.GasGaugeY2 - WarehouseTruckHotspots.GasGaugeY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseTruckHotspots.GasGaugeX1,
+            WarehouseTruckHotspots.GasGaugeY1,
+            gaugeW,
+            gaugeH,
+            artBounds);
+
+        bool hovered = _gasGaugeHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "FUEL GAUGE";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawWarehouseClosedDoorOverlay(int artX, int artY, int artW, int artH)
     {
         if (_warehouseClosedDoorTexture.Id == 0)
@@ -7537,6 +7654,17 @@ public sealed class Game : IGame
         if (_foldedPaperReader.IsOpen)
         {
             _foldedPaperReader.Draw(_uiFont, GetActiveNoteReadTexture(), _screenWidth, _screenHeight);
+        }
+
+        if (_gasGaugeViewer.IsOpen)
+        {
+            _gasGaugeViewer.Draw(
+                _uiFont,
+                _gasGaugeFaceTexture,
+                _gasGaugeNeedleTexture,
+                _gasGaugeLevel,
+                _screenWidth,
+                _screenHeight);
         }
 
         if (_showBuildDialog)
@@ -8138,6 +8266,9 @@ public sealed class Game : IGame
 
         if (GamePhase.IsInTruckCab(_phase))
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
+
+        if (_phase == Phase.WarehouseTruck)
+            DrawWarehouseTruckGasGaugeHotspot(artX, artY, artW, artH);
 
         if (_phase == Phase.WarehouseAftermath)
         {

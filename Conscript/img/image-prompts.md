@@ -54,6 +54,28 @@ No other text. Photorealistic, soft side lighting, subtle grain. Portrait orient
   - Shown full-size in `FoldedPaperReaderDialog` when the player presses READ on Folded Paper.
   - Also used as the backpack/item icon for `GameItems.FoldedPaper`.
 
+## `truck-gas-gauge-face.png` / `truck-gas-gauge-needle.png`
+
+- **assets**: `Conscript/img/truck-gas-gauge-face.png`, `Conscript/img/truck-gas-gauge-needle.png`
+- **date**: 2026-05-29
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage`
+- **prompt (face)**:
+
+```text
+Round analog fuel gauge face ONLY, no needle, no pointer, empty dial. Soviet-era truck dashboard style, amber orange backlit markings with E at lower left and F at lower right, black face, weathered rusty metal bezel ring. Photorealistic close-up, square 1:1 composition, gauge centered and fills most of frame. Solid black background outside the circular bezel. No people, no hands, no needle.
+```
+
+- **prompt (needle)**:
+
+```text
+Single thin illuminated orange fuel gauge needle pointer ONLY, pointing straight up (12 o'clock), pivot hub at the very bottom center of the needle. Transparent background. Post-Soviet truck dashboard style, photorealistic, glowing amber-orange metal. Tall narrow composition, needle is isolated with no dial, no bezel, no other parts.
+```
+
+- **notes**:
+  - Face + rotated needle shown in `GasGaugeViewerDialog` when clicking the fuel gauge hotspot in `Phase.WarehouseTruck`.
+  - Five discrete levels (empty → full); ◀ ▶ arrows rotate the needle between E and F.
+
 ## `warehouse-closed-door.png`
 
 - **asset**: `Conscript/img/warehouse-closed-door.png`

@@ -13,6 +13,7 @@ internal sealed class GameStateSnapshot
     public required bool WarehouseAmbushersDead { get; init; }
     public required bool FoldedPaperMessageRead { get; init; }
     public required bool NoteMessageRead { get; init; }
+    public required int GasGaugeLevel { get; init; }
     public required bool WarehouseCrateOpened { get; init; }
     public required bool WarehouseKeypadUnlocked { get; init; }
     public required bool HasTrashBagTent { get; init; }
