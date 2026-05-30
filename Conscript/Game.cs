@@ -1472,7 +1472,8 @@ public sealed class Game : IGame
             if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
             {
                 RecordHistorySnapshot();
-                EnterWarehouseInterior();
+                _actionMessage = "The roll-up door rattles and grinds open.";
+                _actionMessageTimer = 2.8f;
             }
 
             return;
