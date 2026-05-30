@@ -308,6 +308,10 @@ public sealed class Game : IGame
     private Rectangle _openingWindowClickRect;
     private bool _openingWindowHotspotHovered;
 
+    // Café — Boris behind the counter
+    private Rectangle _cafeBorisClickRect;
+    private bool _cafeBorisHotspotHovered;
+
     // Scene item use — guide an inventory item onto hotspots (mouse or left stick)
     private bool _itemUseActive;
     private bool _itemUsePointerInsideBounds;
@@ -1944,6 +1948,36 @@ public sealed class Game : IGame
                 _warehouseCrateClickRect = default;
             }
 
+            if (_phase == Phase.Cafe)
+            {
+                GetCinematicArtBounds(out int cafeArtX, out int cafeArtY, out int cafeArtW, out int cafeArtH);
+                var cafeArtBounds = new Rectangle(cafeArtX, cafeArtY, cafeArtW, cafeArtH);
+                _cafeBorisHotspotHovered = false;
+                float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
+                float borisH = CafeHotspots.BorisY2 - CafeHotspots.BorisY1;
+                _cafeBorisClickRect = SceneRegion.ToScreenRect(
+                    CafeHotspots.BorisX1,
+                    CafeHotspots.BorisY1,
+                    borisW,
+                    borisH,
+                    cafeArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _cafeBorisClickRect))
+                {
+                    _cafeBorisHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        OpenCafeOwnerDialog();
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                _cafeBorisHotspotHovered = false;
+                _cafeBorisClickRect = default;
+            }
+
             _hoveredDroppedItemListIndex = -1;
             for (int i = 0; i < _droppedItemClickRects.Count; i++)
             {
@@ -2168,6 +2202,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_openingWindowHotspotHovered)
+                overClickable = true;
+
+            if (_cafeBorisHotspotHovered)
                 overClickable = true;
 
             if (_hoveredDroppedItemListIndex >= 0)
@@ -3851,8 +3888,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot inside the warehouse hangar with the crowbar.
-    /// Resets stats, money, and inventory for interior/crate testing.
+    /// Jump to a reproducible debug snapshot in the workers' café before Boris's delivery job.
+    /// Resets inventory and warehouse progress for café/dialog testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -3864,20 +3901,19 @@ public sealed class Game : IGame
         ResetDeathLines();
         _backpack = new string?[BackpackSlotCount]
         {
-            "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null, null, null, null, null
+            "Knife", "Lighter", "Phone", null, null, null, null, null, null, null, null, null
         };
         _backpackItemCharges = new int?[BackpackSlotCount];
 
-        _borisDeliveryJobActive = true;
-        _warehouseAmbushersDead = true;
+        _phaseBeforeCafe = Phase.IndustrialDistrict;
+        _borisDeliveryJobActive = false;
+        _warehouseAmbushersDead = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
-        _gloveBoxLootTaken[0] = true;
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _warehouseKeypad.Reset();
-        _warehouseKeypad.RestoreUnlockedState(true);
-        EnterPhase(Phase.WarehouseInterior);
+        EnterPhase(Phase.Cafe);
     }
 
     // --- Inventory & ground items ---
@@ -6479,6 +6515,42 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawCafeBorisHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
+        float borisH = CafeHotspots.BorisY2 - CafeHotspots.BorisY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            CafeHotspots.BorisX1,
+            CafeHotspots.BorisY1,
+            borisW,
+            borisH,
+            artBounds);
+
+        bool hovered = _cafeBorisHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "BORIS";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawOpeningWindowHotspot(int artX, int artY, int artW, int artH)
     {
         var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -7292,6 +7364,9 @@ public sealed class Game : IGame
 
         if (_phase == Phase.WarehouseInterior)
             DrawWarehouseCrateHotspot(artX, artY, artW, artH);
+
+        if (_phase == Phase.Cafe)
+            DrawCafeBorisHotspot(artX, artY, artW, artH);
 
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))
