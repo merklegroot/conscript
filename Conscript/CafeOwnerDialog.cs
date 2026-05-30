@@ -9,9 +9,9 @@ internal static class CafeOwnerDialog
         DeliveryOffer
     }
 
-    public const int MainOptionCount = 4;
+    public const int MainOptionCount = 3;
     public const int DeliveryOptionCount = 2;
-    public const int WorkOptionIndex = 1;
+    public const int WorkOptionIndex = 0;
 
     public const string Title = "БОРИС";
     public const string Subtitle = "Bratva — café owner";
@@ -33,7 +33,6 @@ internal static class CafeOwnerDialog
 
     public static readonly string[] MainPlayerLines =
     [
-        "\"Do the patrols come through here?\"",
         "\"I need work — off the books.\"",
         "\"I need to lie low for a few days.\"",
         "\"Just passing through.\""
@@ -41,7 +40,6 @@ internal static class CafeOwnerDialog
 
     public static readonly string[] MainOwnerReplies =
     [
-        "He taps ash into a saucer. \"Sometimes. I know which door they use and who takes money to look away. That can help you — or bury you, if you cross me.\"",
         "A thin smile. \"I move things that shouldn't move. Maybe I point you at a job. Maybe I sell you to someone paying more. Show me you're useful.\"",
         "\"I hide people when it suits me. I also turn them in when it pays better. Don't ask for favors you can't afford to owe.\"",
         "He laughs once, without warmth. \"Nobody 'just passes through' my café. Sit down, buy tea, and pray I decide you're worth keeping around.\""
