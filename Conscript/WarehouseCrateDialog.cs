@@ -14,8 +14,6 @@ internal static class WarehouseCrateDialog
     public const string OpenedBody =
         "The lid hangs crooked on bent nails. Whatever was inside is already gone — or never made it this far.";
 
-    public const string OpenActionLabel = "PRY OPEN";
-
     public static string GetBodyText(bool hasCrowbar, bool opened)
     {
         if (opened)

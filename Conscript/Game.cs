@@ -301,8 +301,6 @@ public sealed class Game : IGame
     private Rectangle _warehouseCratePanelRect;
     private Rectangle _warehouseCrateCloseRect;
     private bool _warehouseCrateCloseHovered;
-    private Rectangle _warehouseCrateActionRect;
-    private bool _warehouseCrateActionHovered;
 
     // Opening apartment — bedroom window
     private Rectangle _openingWindowClickRect;
@@ -1269,10 +1267,7 @@ public sealed class Game : IGame
             }
             else if (_showWarehouseCrateDialog)
             {
-                if (_warehouseCrateActionHovered)
-                    TryOpenWarehouseCrateWithCrowbar();
-                else
-                    CloseWarehouseCrateDialog();
+                CloseWarehouseCrateDialog();
             }
             else if (_showStoreBuyMenu)
             {
@@ -1614,17 +1609,7 @@ public sealed class Game : IGame
         // === Warehouse crate dialog (modal) ===
         if (_showWarehouseCrateDialog)
         {
-            bool canPryOpen = !_warehouseCrateOpened && HasBackpackItem(GameItems.Crowbar);
-            _warehouseCrateActionHovered = canPryOpen &&
-                _warehouseCrateActionRect.Width > 0 &&
-                Raylib.CheckCollisionPointRec(mouse, _warehouseCrateActionRect);
             _warehouseCrateCloseHovered = Raylib.CheckCollisionPointRec(mouse, _warehouseCrateCloseRect);
-
-            if (leftClicked && _warehouseCrateActionHovered)
-            {
-                TryOpenWarehouseCrateWithCrowbar();
-                return;
-            }
 
             if (leftClicked && _warehouseCrateCloseHovered)
             {
@@ -2320,7 +2305,7 @@ public sealed class Game : IGame
 
         if (_showWarehouseCrateDialog)
         {
-            if (_warehouseCrateCloseHovered || _warehouseCrateActionHovered ||
+            if (_warehouseCrateCloseHovered ||
                 !Raylib.CheckCollisionPointRec(mouse, _warehouseCratePanelRect))
                 overClickable = true;
         }
@@ -3178,14 +3163,12 @@ public sealed class Game : IGame
 
         _showWarehouseCrateDialog = true;
         _warehouseCrateCloseHovered = false;
-        _warehouseCrateActionHovered = false;
     }
 
     private void CloseWarehouseCrateDialog()
     {
         _showWarehouseCrateDialog = false;
         _warehouseCrateCloseHovered = false;
-        _warehouseCrateActionHovered = false;
     }
 
     private void TryOpenWarehouseCrateWithCrowbar()
@@ -3942,8 +3925,8 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot in the workers' café before Boris's delivery job.
-    /// Resets inventory and warehouse progress for café/dialog testing.
+    /// Jump to a reproducible debug snapshot inside Warehouse 14 with a crowbar for crate testing.
+    /// Resets inventory and warehouse progress for interior/dialog testing.
     /// </summary>
     private void DebugStartGame()
     {
@@ -3955,19 +3938,20 @@ public sealed class Game : IGame
         ResetDeathLines();
         _backpack = new string?[BackpackSlotCount]
         {
-            "Knife", "Lighter", "Phone", null, null, null, null, null, null, null, null, null
+            "Knife", "Lighter", "Phone", GameItems.Crowbar, null, null, null, null, null, null, null, null
         };
         _backpackItemCharges = new int?[BackpackSlotCount];
 
         _phaseBeforeCafe = Phase.IndustrialDistrict;
-        _borisDeliveryJobActive = false;
-        _warehouseAmbushersDead = false;
+        _borisDeliveryJobActive = true;
+        _warehouseAmbushersDead = true;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
+        _gloveBoxLootTaken[0] = true;
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.Cafe);
+        EnterPhase(Phase.WarehouseInterior);
     }
 
     // --- Inventory & ground items ---
@@ -6682,7 +6666,6 @@ public sealed class Game : IGame
         GameDialogUi.DrawModalBackdrop(screenW, screenH);
 
         bool hasCrowbar = HasBackpackItem(GameItems.Crowbar);
-        bool canPryOpen = !_warehouseCrateOpened && hasCrowbar;
         string body = WarehouseCrateDialog.GetBodyText(hasCrowbar, _warehouseCrateOpened);
 
         Font font = _uiFont;
@@ -6722,28 +6705,11 @@ public sealed class Game : IGame
 
         int btnH = 36;
         int btnY = panelY + panelH - 52;
-        int gap = 8;
-        int btnW = canPryOpen ? 120 : 100;
-        int totalW = canPryOpen ? btnW * 2 + gap : btnW;
-        int startX = panelX + (panelW - totalW) / 2;
+        int btnW = 100;
+        int startX = panelX + (panelW - btnW) / 2;
 
-        if (canPryOpen)
-        {
-            _warehouseCrateActionRect = new Rectangle(startX, btnY, btnW, btnH);
-            _warehouseCrateCloseRect = new Rectangle(startX + btnW + gap, btnY, btnW, btnH);
-            GameDialogUi.DrawDialogButton(
-                _warehouseCrateActionRect,
-                WarehouseCrateDialog.OpenActionLabel,
-                _warehouseCrateActionHovered,
-                font);
-            GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
-        }
-        else
-        {
-            _warehouseCrateActionRect = new Rectangle(0, 0, 0, 0);
-            _warehouseCrateCloseRect = new Rectangle(startX, btnY, btnW, btnH);
-            GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
-        }
+        _warehouseCrateCloseRect = new Rectangle(startX, btnY, btnW, btnH);
+        GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
     }
 
     // --- Render ---
