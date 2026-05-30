@@ -18,4 +18,10 @@ internal static class WarehouseAftermathHotspots
     public const string LockCode = "4237";
 
     public const string ClosedDoorImageFile = "warehouse-closed-door.png";
+
+    /// <summary>Delivery truck cab — corners from area select.</summary>
+    public const float TruckX1 = 0.794f;
+    public const float TruckY1 = 0.332f;
+    public const float TruckX2 = 0.990f;
+    public const float TruckY2 = 0.732f;
 }

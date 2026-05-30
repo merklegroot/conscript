@@ -296,6 +296,8 @@ public sealed class Game : IGame
     private bool _warehouseLockHotspotHovered;
     private Rectangle _warehouseDoorClickRect;
     private bool _warehouseDoorHotspotHovered;
+    private Rectangle _warehouseTruckClickRect;
+    private bool _warehouseTruckHotspotHovered;
     private readonly NumericKeypadLockDialog _warehouseKeypad =
         new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
@@ -1969,6 +1971,27 @@ public sealed class Game : IGame
                         return;
                     }
                 }
+
+                _warehouseTruckHotspotHovered = false;
+                float truckW = WarehouseAftermathHotspots.TruckX2 - WarehouseAftermathHotspots.TruckX1;
+                float truckH = WarehouseAftermathHotspots.TruckY2 - WarehouseAftermathHotspots.TruckY1;
+                _warehouseTruckClickRect = SceneRegion.ToScreenRect(
+                    WarehouseAftermathHotspots.TruckX1,
+                    WarehouseAftermathHotspots.TruckY1,
+                    truckW,
+                    truckH,
+                    bodyArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _warehouseTruckClickRect))
+                {
+                    _warehouseTruckHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        RecordHistorySnapshot();
+                        EnterWarehouseTruck();
+                        return;
+                    }
+                }
             }
             else
             {
@@ -1978,6 +2001,8 @@ public sealed class Game : IGame
                 _warehouseLockClickRect = default;
                 _warehouseDoorHotspotHovered = false;
                 _warehouseDoorClickRect = default;
+                _warehouseTruckHotspotHovered = false;
+                _warehouseTruckClickRect = default;
             }
 
             if (_phase == Phase.Opening)
@@ -2357,6 +2382,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_warehouseDoorHotspotHovered)
+                overClickable = true;
+
+            if (_warehouseTruckHotspotHovered)
                 overClickable = true;
 
             if (_warehouseCrateHotspotHovered)
@@ -3074,10 +3102,7 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case ChoiceGetBackInTruck:
-                _actionMessage = "You slide back into the cab, coughing smoke. The yard is quiet except for the rain.";
-                _actionMessageTimer = 2.1f;
-                AdvanceTime();
-                EnterPhase(Phase.WarehouseTruck);
+                EnterWarehouseTruck();
                 return;
 
             case ChoiceWait:
@@ -3107,6 +3132,17 @@ public sealed class Game : IGame
 
         AdvanceTime();
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void EnterWarehouseTruck()
+    {
+        if (_phase != Phase.WarehouseAftermath)
+            return;
+
+        _actionMessage = "You slide back into the cab, coughing smoke. The yard is quiet except for the rain.";
+        _actionMessageTimer = 2.1f;
+        AdvanceTime();
+        EnterPhase(Phase.WarehouseTruck);
     }
 
     private bool GloveCompartmentHasRemainingLoot()
@@ -7107,6 +7143,42 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawWarehouseTruckHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float truckW = WarehouseAftermathHotspots.TruckX2 - WarehouseAftermathHotspots.TruckX1;
+        float truckH = WarehouseAftermathHotspots.TruckY2 - WarehouseAftermathHotspots.TruckY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseAftermathHotspots.TruckX1,
+            WarehouseAftermathHotspots.TruckY1,
+            truckW,
+            truckH,
+            artBounds);
+
+        bool hovered = _warehouseTruckHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "TRUCK";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawWarehouseClosedDoorOverlay(int artX, int artY, int artW, int artH)
     {
         if (_warehouseClosedDoorTexture.Id == 0)
@@ -8072,6 +8144,7 @@ public sealed class Game : IGame
             DrawWarehouseBodyHotspots(artX, artY, artW, artH);
             DrawWarehouseDoorHotspot(artX, artY, artW, artH);
             DrawWarehouseLockHotspot(artX, artY, artW, artH);
+            DrawWarehouseTruckHotspot(artX, artY, artW, artH);
         }
 
         if (_phase == Phase.WarehouseInterior)
