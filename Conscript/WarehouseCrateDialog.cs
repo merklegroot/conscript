@@ -12,7 +12,7 @@ internal static class WarehouseCrateDialog
         "The nails are sunk flush. You'd need something with leverage — a crowbar, maybe — to force it open.";
 
     public const string OpenedBody =
-        "The lid hangs crooked on bent nails. Whatever was inside is already gone — or never made it this far.";
+        "The lid hangs crooked on bent nails. Only straw packing remains — you already took what was inside.";
 
     public static string GetBodyText(bool hasCrowbar, bool opened)
     {

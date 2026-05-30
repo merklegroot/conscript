@@ -302,6 +302,24 @@ public sealed class Game : IGame
     private Rectangle _warehouseCrateCloseRect;
     private bool _warehouseCrateCloseHovered;
 
+    // Warehouse crate loot (after prying open)
+    private bool _showCrateLootMenu;
+    private int _crateLootHighlightedIndex;
+    private int _crateLootDetailIndex = -1;
+    private string _crateLootFeedback = "";
+    private float _crateLootFeedbackTimer;
+    private readonly Rectangle[] _crateLootItemRects = new Rectangle[WarehouseCrateLootCatalog.EntryCount];
+    private Rectangle _crateLootPanelRect;
+    private Rectangle _crateLootCloseRect;
+    private bool _crateLootCloseHovered;
+    private Rectangle _crateLootTakeAllRect;
+    private bool _crateLootTakeAllHovered;
+    private Rectangle _crateLootPickupRect;
+    private bool _crateLootPickupHovered;
+    private readonly bool[] _crateLootTaken = new bool[WarehouseCrateLootCatalog.EntryCount];
+    private readonly int[] _crateLootVisibleCatalogIndices = new int[WarehouseCrateLootCatalog.EntryCount];
+    private int _crateLootVisibleCount;
+
     // Opening apartment — bedroom window
     private Rectangle _openingWindowClickRect;
     private bool _openingWindowHotspotHovered;
@@ -1069,6 +1087,11 @@ public sealed class Game : IGame
                 CloseGloveBoxMenu();
                 return;
             }
+            if (_showCrateLootMenu)
+            {
+                CloseCrateLootMenu();
+                return;
+            }
             if (_showBodyLootMenu)
             {
                 CloseBodyLootMenu();
@@ -1193,6 +1216,28 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showCrateLootMenu)
+        {
+            RefreshCrateLootVisibleList();
+
+            if (InputManager.IsVerticalNavUpPressed())
+            {
+                if (_crateLootVisibleCount > 0)
+                {
+                    _crateLootHighlightedIndex = (_crateLootHighlightedIndex - 1 + _crateLootVisibleCount) % _crateLootVisibleCount;
+                    _crateLootDetailIndex = _crateLootHighlightedIndex;
+                }
+            }
+            if (InputManager.IsVerticalNavDownPressed())
+            {
+                if (_crateLootVisibleCount > 0)
+                {
+                    _crateLootHighlightedIndex = (_crateLootHighlightedIndex + 1) % _crateLootVisibleCount;
+                    _crateLootDetailIndex = _crateLootHighlightedIndex;
+                }
+            }
+        }
+
         if (_showBodyLootMenu)
         {
             RefreshBodyLootVisibleList();
@@ -1291,6 +1336,20 @@ public sealed class Game : IGame
                     TryTakeGloveBoxItem(highlightedCatalogIndex);
                 else
                     _gloveBoxDetailIndex = _gloveBoxHighlightedIndex;
+            }
+            else if (_showCrateLootMenu)
+            {
+                int catalogIndex = GetCrateLootCatalogIndexFromVisibleIndex(_crateLootDetailIndex);
+                int highlightedCatalogIndex = GetCrateLootCatalogIndexFromVisibleIndex(_crateLootHighlightedIndex);
+
+                if (_crateLootTakeAllHovered)
+                    TryTakeAllCrateLootItems();
+                else if (_crateLootPickupHovered && catalogIndex >= 0)
+                    TryTakeCrateLootItem(catalogIndex);
+                else if (_crateLootDetailIndex == _crateLootHighlightedIndex && highlightedCatalogIndex >= 0)
+                    TryTakeCrateLootItem(highlightedCatalogIndex);
+                else
+                    _crateLootDetailIndex = _crateLootHighlightedIndex;
             }
             else if (_showBodyLootMenu)
             {
@@ -1713,6 +1772,19 @@ public sealed class Game : IGame
             _gloveBoxPickupHovered = false;
         }
 
+        if (_showCrateLootMenu)
+        {
+            _crateLootCloseHovered = Raylib.CheckCollisionPointRec(mouse, _crateLootCloseRect);
+            _crateLootTakeAllHovered = Raylib.CheckCollisionPointRec(mouse, _crateLootTakeAllRect);
+            _crateLootPickupHovered = Raylib.CheckCollisionPointRec(mouse, _crateLootPickupRect);
+        }
+        else
+        {
+            _crateLootCloseHovered = false;
+            _crateLootTakeAllHovered = false;
+            _crateLootPickupHovered = false;
+        }
+
         if (_showBodyLootMenu)
         {
             _bodyLootCloseHovered = Raylib.CheckCollisionPointRec(mouse, _bodyLootCloseRect);
@@ -1922,7 +1994,10 @@ public sealed class Game : IGame
                     _warehouseCrateHotspotHovered = true;
                     if (leftClicked)
                     {
-                        OpenWarehouseCrateDialog();
+                        if (_warehouseCrateOpened && CrateHasRemainingLoot())
+                            OpenCrateLootMenu();
+                        else
+                            OpenWarehouseCrateDialog();
                         return;
                     }
                 }
@@ -2076,6 +2151,49 @@ public sealed class Game : IGame
             }
         }
 
+        if (_showCrateLootMenu)
+        {
+            RefreshCrateLootVisibleList();
+
+            for (int i = 0; i < _crateLootVisibleCount; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _crateLootItemRects[i]))
+                {
+                    _crateLootHighlightedIndex = i;
+                    if (leftClicked)
+                        _crateLootDetailIndex = i;
+                    break;
+                }
+            }
+
+            if (leftClicked && _crateLootDetailIndex >= 0 &&
+                (_crateLootPickupHovered || Raylib.CheckCollisionPointRec(mouse, _crateLootPickupRect)))
+            {
+                int catalogIndex = GetCrateLootCatalogIndexFromVisibleIndex(_crateLootDetailIndex);
+                if (catalogIndex >= 0)
+                    TryTakeCrateLootItem(catalogIndex);
+                return;
+            }
+
+            if (leftClicked && _crateLootTakeAllHovered)
+            {
+                TryTakeAllCrateLootItems();
+                return;
+            }
+
+            if (leftClicked && Raylib.CheckCollisionPointRec(mouse, _crateLootCloseRect))
+            {
+                CloseCrateLootMenu();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _crateLootPanelRect))
+            {
+                CloseCrateLootMenu();
+                return;
+            }
+        }
+
         if (_showBodyLootMenu)
         {
             RefreshBodyLootVisibleList();
@@ -2134,6 +2252,9 @@ public sealed class Game : IGame
 
         if (_showGloveBoxMenu)
             GameStatMath.TickTimedMessage(ref _gloveBoxFeedbackTimer, ref _gloveBoxFeedback, dt);
+
+        if (_showCrateLootMenu)
+            GameStatMath.TickTimedMessage(ref _crateLootFeedbackTimer, ref _crateLootFeedback, dt);
 
         if (_showBodyLootMenu)
             GameStatMath.TickTimedMessage(ref _bodyLootFeedbackTimer, ref _bodyLootFeedback, dt);
@@ -2250,6 +2371,23 @@ public sealed class Game : IGame
             for (int i = 0; i < _gloveBoxItemRects.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _gloveBoxItemRects[i]))
+                {
+                    overClickable = true;
+                    break;
+                }
+            }
+        }
+
+        if (_showCrateLootMenu)
+        {
+            if (_crateLootCloseHovered || _crateLootTakeAllHovered || _crateLootPickupHovered ||
+                Raylib.CheckCollisionPointRec(mouse, _crateLootPanelRect) ||
+                !Raylib.CheckCollisionPointRec(mouse, _crateLootPanelRect))
+                overClickable = true;
+
+            for (int i = 0; i < _crateLootItemRects.Length; i++)
+            {
+                if (Raylib.CheckCollisionPointRec(mouse, _crateLootItemRects[i]))
                 {
                     overClickable = true;
                     break;
@@ -3056,6 +3194,154 @@ public sealed class Game : IGame
             CloseGloveBoxMenu();
     }
 
+    private void ResetCrateLoot() => Array.Clear(_crateLootTaken);
+
+    private bool CrateHasRemainingLoot()
+    {
+        for (int i = 0; i < _crateLootTaken.Length; i++)
+        {
+            if (!_crateLootTaken[i])
+                return true;
+        }
+
+        return false;
+    }
+
+    private void RefreshCrateLootVisibleList()
+    {
+        int count = 0;
+        for (int i = 0; i < WarehouseCrateLootCatalog.EntryCount; i++)
+        {
+            if (!_crateLootTaken[i])
+                _crateLootVisibleCatalogIndices[count++] = i;
+        }
+
+        _crateLootVisibleCount = count;
+
+        if (_crateLootVisibleCount <= 0)
+        {
+            _crateLootHighlightedIndex = 0;
+            _crateLootDetailIndex = -1;
+            return;
+        }
+
+        _crateLootHighlightedIndex = Math.Clamp(_crateLootHighlightedIndex, 0, _crateLootVisibleCount - 1);
+        if (_crateLootDetailIndex >= _crateLootVisibleCount)
+            _crateLootDetailIndex = _crateLootHighlightedIndex;
+    }
+
+    private int GetCrateLootCatalogIndexFromVisibleIndex(int visibleIndex) =>
+        visibleIndex < 0 || visibleIndex >= _crateLootVisibleCount
+            ? -1
+            : _crateLootVisibleCatalogIndices[visibleIndex];
+
+    private void OpenCrateLootMenu()
+    {
+        if (_phase != Phase.WarehouseInterior || !_warehouseCrateOpened || !CrateHasRemainingLoot())
+            return;
+
+        _showCrateLootMenu = true;
+        _crateLootHighlightedIndex = 0;
+        _crateLootDetailIndex = -1;
+        _crateLootFeedback = "";
+        _crateLootFeedbackTimer = 0f;
+        _crateLootCloseHovered = false;
+        _crateLootTakeAllHovered = false;
+        _crateLootPickupHovered = false;
+        RefreshCrateLootVisibleList();
+    }
+
+    private void CloseCrateLootMenu()
+    {
+        _showCrateLootMenu = false;
+        _crateLootDetailIndex = -1;
+        _crateLootFeedback = "";
+        _crateLootFeedbackTimer = 0f;
+        _crateLootCloseHovered = false;
+        _crateLootTakeAllHovered = false;
+        _crateLootPickupHovered = false;
+    }
+
+    private bool CanTakeCrateLootItem(int index)
+    {
+        if (index < 0 || index >= WarehouseCrateLootCatalog.EntryCount || _crateLootTaken[index])
+            return false;
+
+        return _backpack.Any(s => string.IsNullOrEmpty(s));
+    }
+
+    private void TryTakeCrateLootItem(int index)
+    {
+        if (index < 0 || index >= WarehouseCrateLootCatalog.EntryCount)
+            return;
+
+        if (_crateLootTaken[index])
+        {
+            _crateLootFeedback = "Already taken.";
+            _crateLootFeedbackTimer = 1.6f;
+            return;
+        }
+
+        var entry = WarehouseCrateLootCatalog.Entries[index];
+
+        if (!TryAddToBackpack(entry.Name))
+        {
+            _crateLootFeedback = "Backpack is full.";
+            _crateLootFeedbackTimer = 1.6f;
+            return;
+        }
+
+        RecordHistorySnapshot();
+        _crateLootTaken[index] = true;
+        _crateLootFeedback = $"Took {entry.Name}";
+        _crateLootFeedbackTimer = 1.2f;
+
+        RefreshCrateLootVisibleList();
+        if (_crateLootVisibleCount <= 0)
+            CloseCrateLootMenu();
+    }
+
+    private void TryTakeAllCrateLootItems()
+    {
+        if (_crateLootVisibleCount <= 0)
+            return;
+
+        RecordHistorySnapshot();
+        int takenCount = 0;
+        bool backpackFull = false;
+        for (int i = 0; i < WarehouseCrateLootCatalog.EntryCount; i++)
+        {
+            if (_crateLootTaken[i])
+                continue;
+
+            var entry = WarehouseCrateLootCatalog.Entries[i];
+
+            if (!TryAddToBackpack(entry.Name))
+            {
+                backpackFull = true;
+                break;
+            }
+
+            _crateLootTaken[i] = true;
+            takenCount++;
+        }
+
+        RefreshCrateLootVisibleList();
+
+        if (takenCount == 0)
+        {
+            _crateLootFeedback = "Backpack is full.";
+            _crateLootFeedbackTimer = 1.6f;
+            return;
+        }
+
+        _crateLootFeedback = backpackFull ? "Backpack full — took what you could." : "Took everything.";
+        _crateLootFeedbackTimer = 1.4f;
+
+        if (_crateLootVisibleCount <= 0)
+            CloseCrateLootMenu();
+    }
+
     private void ResetBodyLoot() => Array.Clear(_bodyLootTaken);
 
     private bool BodyHasRemainingLoot(int bodyIndex)
@@ -3161,6 +3447,9 @@ public sealed class Game : IGame
         if (_phase != Phase.WarehouseInterior)
             return;
 
+        if (_warehouseCrateOpened && CrateHasRemainingLoot())
+            return;
+
         _showWarehouseCrateDialog = true;
         _warehouseCrateCloseHovered = false;
     }
@@ -3182,12 +3471,13 @@ public sealed class Game : IGame
         RecordHistorySnapshot();
         _warehouseCrateOpened = true;
         _actionMessage =
-            "You work the crowbar under the lid. Nails shriek and splinter. The crate is empty — " +
-            "only packing straw and a chemical smell.";
+            "You work the crowbar under the lid. Nails shriek and splinter — inside: a note, " +
+            "a bottle of vodka, and a rag.";
         _actionMessageTimer = 3.4f;
         AdvanceTime();
         CloseWarehouseCrateDialog();
         StopItemUseMode();
+        OpenCrateLootMenu();
     }
 
     private bool HasBackpackItemAtSlot(int slotIndex, string itemName) =>
@@ -3738,6 +4028,7 @@ public sealed class Game : IGame
         CloseItemDialog();
         CloseStoreBuyMenu();
         CloseGloveBoxMenu();
+        CloseCrateLootMenu();
         CloseBodyLootMenu();
         CloseWarehouseLock();
         CloseFoldedPaperReader();
@@ -3796,6 +4087,7 @@ public sealed class Game : IGame
         DroppedItems = CloneDroppedItems(_droppedItems),
         GloveBoxLootTaken = (bool[])_gloveBoxLootTaken.Clone(),
         BodyLootTaken = (bool[])_bodyLootTaken.Clone(),
+        CrateLootTaken = (bool[])_crateLootTaken.Clone(),
         Choices = (string[])_choices.Clone(),
         SelectedIndex = _selectedIndex,
         ActionMessage = _actionMessage,
@@ -3835,6 +4127,7 @@ public sealed class Game : IGame
             _droppedItems.AddRange(CloneDroppedItems(snapshot.DroppedItems));
             Array.Copy(snapshot.GloveBoxLootTaken, _gloveBoxLootTaken, _gloveBoxLootTaken.Length);
             Array.Copy(snapshot.BodyLootTaken, _bodyLootTaken, _bodyLootTaken.Length);
+            Array.Copy(snapshot.CrateLootTaken, _crateLootTaken, _crateLootTaken.Length);
             _choices = (string[])snapshot.Choices.Clone();
             _selectedIndex = snapshot.SelectedIndex;
             _actionMessage = snapshot.ActionMessage;
@@ -3888,13 +4181,13 @@ public sealed class Game : IGame
     }
 
     private bool BlocksActionBarNavigation() =>
-        _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
+        _showStoreBuyMenu || _showGloveBoxMenu || _showCrateLootMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
         || _itemUseActive || _showControllerDebug || _showQuitConfirm
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
-        !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
+        !_showStoreBuyMenu && !_showGloveBoxMenu && !_showCrateLootMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
         && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
@@ -3915,6 +4208,7 @@ public sealed class Game : IGame
         _warehouseAmbushersDead = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
+        ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _warehouseKeypad.Reset();
@@ -3948,6 +4242,7 @@ public sealed class Game : IGame
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         _gloveBoxLootTaken[0] = true;
+        ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _warehouseKeypad.Reset();
@@ -6296,6 +6591,183 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
+    // WAREHOUSE CRATE LOOT (modal — take items after prying open)
+    // =====================================================================
+    private void DrawCrateLootMenu()
+    {
+        RefreshCrateLootVisibleList();
+
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        Raylib.DrawRectangle(0, 0, screenW, screenH, new Color(0, 0, 0, 160));
+
+        int panelW = 720;
+        int panelH = 360;
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 10;
+
+        _crateLootPanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        Font font = _uiFont;
+
+        Raylib.DrawTextEx(font, WarehouseCrateDialog.Title,
+            new Vector2(panelX + 24, panelY + 18), 28, 0.8f, Palette.TextPrimary);
+
+        string hint = "Take what you can carry";
+        int hintW = (int)Raylib.MeasureTextEx(font, hint, 18, 0.55f).X;
+        Raylib.DrawTextEx(font, hint,
+            new Vector2(panelX + panelW - 24 - hintW, panelY + 22),
+            18, 0.55f, Palette.TextSecondary);
+
+        int headerBottom = panelY + 50;
+        Raylib.DrawLine(panelX + 20, headerBottom, panelX + panelW - 20, headerBottom, Palette.SubtleBorder);
+
+        int listX = panelX + 16;
+        int listW = 268;
+        int contentTop = headerBottom + 10;
+        int panelBottom = panelY + panelH - 12;
+        int btnH = 32;
+        int takeAllW = 112;
+        int closeW = 88;
+        int btnGap = 8;
+        int btnRowW = takeAllW + btnGap + closeW;
+        int btnY = panelBottom - btnH;
+        int btnRowX = listX + (listW - btnRowW) / 2;
+        int dividerX = listX + listW + 8;
+        int detailX = dividerX + 9;
+        int detailW = panelX + panelW - 20 - detailX;
+
+        Raylib.DrawLine(dividerX, contentTop, dividerX, panelBottom, Palette.SubtleBorder);
+        Raylib.DrawLine(listX, btnY - 6, listX + listW, btnY - 6, Palette.SubtleBorder);
+
+        int rowHeight = 44;
+        const int iconSize = 28;
+
+        for (int i = 0; i < _crateLootVisibleCount; i++)
+        {
+            int catalogIndex = _crateLootVisibleCatalogIndices[i];
+            var entry = WarehouseCrateLootCatalog.Entries[catalogIndex];
+            bool canTake = CanTakeCrateLootItem(catalogIndex);
+
+            int rowY = contentTop + i * rowHeight;
+            _crateLootItemRects[i] = new Rectangle(listX, rowY, listW, rowHeight - 4);
+            bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _crateLootItemRects[i]);
+            bool rowHighlighted = i == _crateLootHighlightedIndex;
+            bool rowConfirmed = _crateLootDetailIndex >= 0 && i == _crateLootDetailIndex;
+
+            if (rowConfirmed)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(62, 58, 48, 200));
+            else if (rowHovered || rowHighlighted)
+                Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
+
+            Color tint = canTake ? Color.WHITE : new Color(120, 118, 112, 255);
+            int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
+            Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
+            DrawItemIcon(entry.IconItemName, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
+
+            Raylib.DrawTextEx(font, entry.Name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, Palette.TextPrimary);
+        }
+
+        DrawCrateLootDetailPanel(font, detailX, contentTop, detailW, panelBottom - contentTop);
+
+        if (_crateLootFeedbackTimer > 0f && !string.IsNullOrEmpty(_crateLootFeedback))
+        {
+            int fbW = (int)Raylib.MeasureTextEx(font, _crateLootFeedback, 17, 0.5f).X;
+            Raylib.DrawTextEx(font, _crateLootFeedback,
+                new Vector2(detailX + (detailW - fbW) / 2, panelBottom - 48),
+                17, 0.5f, Palette.TextSecondary);
+        }
+
+        _crateLootTakeAllRect = new Rectangle(btnRowX, btnY, takeAllW, btnH);
+        _crateLootCloseRect = new Rectangle(btnRowX + takeAllW + btnGap, btnY, closeW, btnH);
+        GameDialogUi.DrawDialogButton(_crateLootTakeAllRect, "TAKE ALL", _crateLootTakeAllHovered, font);
+        GameDialogUi.DrawDialogButton(_crateLootCloseRect, "CLOSE", _crateLootCloseHovered, font);
+    }
+
+    private void DrawCrateLootDetailPanel(Font font, int x, int y, int w, int h)
+    {
+        if (_crateLootDetailIndex < 0)
+        {
+            string hint = "Select an item";
+            int hintSize = 20;
+            int hintW = (int)Raylib.MeasureTextEx(font, hint, hintSize, 0.6f).X;
+            Raylib.DrawTextEx(font, hint,
+                new Vector2(x + (w - hintW) / 2, y + h / 2 - 12),
+                hintSize, 0.6f, Palette.TextMuted);
+            _crateLootPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        int catalogIndex = GetCrateLootCatalogIndexFromVisibleIndex(_crateLootDetailIndex);
+        if (catalogIndex < 0)
+        {
+            _crateLootDetailIndex = -1;
+            _crateLootPickupRect = new Rectangle(0, 0, 0, 0);
+            return;
+        }
+
+        var entry = WarehouseCrateLootCatalog.Entries[catalogIndex];
+        bool canTake = CanTakeCrateLootItem(catalogIndex);
+
+        const int iconSize = 64;
+        int iconX = x + (w - iconSize) / 2;
+        int iconY = y + 4;
+        Raylib.DrawRectangle(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, new Color(22, 20, 17, 255));
+        Raylib.DrawRectangleLines(iconX - 2, iconY - 2, iconSize + 4, iconSize + 4, Palette.SubtleBorder);
+        DrawItemIcon(entry.IconItemName, new Rectangle(iconX, iconY, iconSize, iconSize), Color.WHITE);
+
+        string title = entry.Name.ToUpperInvariant();
+        int titleW = (int)Raylib.MeasureTextEx(font, title, 22, 0.75f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(x + (w - titleW) / 2, iconY + iconSize + 10),
+            22, 0.75f, Palette.TextPrimary);
+
+        int textY = iconY + iconSize + 36;
+        const int flavorSize = 16;
+        float flavorSpacing = 0.55f;
+        int flavorLineHeight = 22;
+        var (flavorLines, _) = GameTextLayout.WrapForBox(entry.Flavor, font, flavorSize, flavorSpacing, w - 8, flavorLineHeight);
+        foreach (string line in flavorLines)
+        {
+            Raylib.DrawTextEx(font, line, new Vector2(x + 4, textY), flavorSize, flavorSpacing, Palette.TextSecondary);
+            textY += flavorLineHeight;
+        }
+
+        textY += 4;
+        Raylib.DrawTextEx(font, entry.EffectHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
+        textY += 22;
+
+        if (!canTake)
+        {
+            Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f,
+                new Color(200, 130, 110, 255));
+        }
+
+        int btnW = 108;
+        int btnH = 34;
+        int btnX = x + (w - btnW) / 2;
+        int btnY = y + h - btnH;
+        _crateLootPickupRect = new Rectangle(btnX, btnY, btnW, btnH);
+
+        if (canTake)
+            GameDialogUi.DrawDialogButton(_crateLootPickupRect, "TAKE", _crateLootPickupHovered, font);
+        else
+        {
+            Raylib.DrawRectangleRec(_crateLootPickupRect, new Color(24, 26, 30, 255));
+            Raylib.DrawRectangleLinesEx(_crateLootPickupRect, 1f, Palette.SubtleBorder);
+            int labelSize = 18;
+            int labelW = (int)Raylib.MeasureTextEx(font, "TAKE", labelSize, 0.55f).X;
+            Raylib.DrawTextEx(font, "TAKE",
+                new Vector2(btnX + (btnW - labelW) / 2f, btnY + 8),
+                labelSize, 0.55f, Palette.TextMuted);
+        }
+    }
+
+    // =====================================================================
     // WAREHOUSE BODY LOOT (modal — search bratdvas, glove-box layout)
     // =====================================================================
     private void DrawBodyLootMenu()
@@ -6646,7 +7118,11 @@ public sealed class Game : IGame
 
         if (hovered)
         {
-            string label = _warehouseCrateOpened ? "OPENED" : "CRATE";
+            string label = !_warehouseCrateOpened
+                ? "CRATE"
+                : CrateHasRemainingLoot()
+                    ? "SEARCH"
+                    : "OPENED";
             Font font = _uiFont;
             float fontSize = 13f;
             Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
@@ -6759,6 +7235,11 @@ public sealed class Game : IGame
         if (_showGloveBoxMenu)
         {
             DrawGloveBoxMenu();
+        }
+
+        if (_showCrateLootMenu)
+        {
+            DrawCrateLootMenu();
         }
 
         if (_showBodyLootMenu)

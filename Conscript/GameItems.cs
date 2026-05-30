@@ -26,6 +26,7 @@ internal static class GameItems
     public const string Vodka = "Vodka";
     public const string Rag = "Rag";
     public const string FoldedPaper = "Folded Paper";
+    public const string Note = "Note";
     public const string Knife = "Knife";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
@@ -46,6 +47,7 @@ internal static class GameItems
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
         [FoldedPaper]     = "folded-paper-note.png",
+        [Note]            = "folded-paper-note.png",
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
@@ -79,7 +81,8 @@ internal static class GameItems
         string.Equals(name, DuctTape, StringComparison.OrdinalIgnoreCase);
 
     public static bool IsFoldedPaper(string name) =>
-        string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, Note, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Backpack items that should not show a USE action (empty containers, build-only materials).</summary>
     public static bool IsExcludedFromUse(string name) =>

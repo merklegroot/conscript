@@ -28,6 +28,7 @@ internal sealed class GameStateSnapshot
     public required List<DroppedItem> DroppedItems { get; init; }
     public required bool[] GloveBoxLootTaken { get; init; }
     public required bool[] BodyLootTaken { get; init; }
+    public required bool[] CrateLootTaken { get; init; }
     public required string[] Choices { get; init; }
     public required int SelectedIndex { get; init; }
     public required string ActionMessage { get; init; }
