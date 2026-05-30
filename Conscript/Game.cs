@@ -293,6 +293,8 @@ public sealed class Game : IGame
     private int _hoveredBodyIndex = -1;
     private Rectangle _warehouseLockClickRect;
     private bool _warehouseLockHotspotHovered;
+    private Rectangle _warehouseDoorClickRect;
+    private bool _warehouseDoorHotspotHovered;
     private readonly NumericKeypadLockDialog _warehouseKeypad =
         new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
@@ -1941,6 +1943,26 @@ public sealed class Game : IGame
                         return;
                     }
                 }
+
+                _warehouseDoorHotspotHovered = false;
+                float doorW = WarehouseAftermathHotspots.DoorX2 - WarehouseAftermathHotspots.DoorX1;
+                float doorH = WarehouseAftermathHotspots.DoorY2 - WarehouseAftermathHotspots.DoorY1;
+                _warehouseDoorClickRect = SceneRegion.ToScreenRect(
+                    WarehouseAftermathHotspots.DoorX1,
+                    WarehouseAftermathHotspots.DoorY1,
+                    doorW,
+                    doorH,
+                    bodyArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _warehouseDoorClickRect))
+                {
+                    _warehouseDoorHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        OpenWarehouseDoor();
+                        return;
+                    }
+                }
             }
             else
             {
@@ -1948,6 +1970,8 @@ public sealed class Game : IGame
                 Array.Clear(_bodyClickRects);
                 _warehouseLockHotspotHovered = false;
                 _warehouseLockClickRect = default;
+                _warehouseDoorHotspotHovered = false;
+                _warehouseDoorClickRect = default;
             }
 
             if (_phase == Phase.Opening)
@@ -2300,6 +2324,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_warehouseLockHotspotHovered)
+                overClickable = true;
+
+            if (_warehouseDoorHotspotHovered)
                 overClickable = true;
 
             if (_warehouseCrateHotspotHovered)
@@ -3435,6 +3462,14 @@ public sealed class Game : IGame
         if (_phase != Phase.WarehouseAftermath)
             return;
 
+        _warehouseKeypad.Open();
+    }
+
+    private void OpenWarehouseDoor()
+    {
+        if (_phase != Phase.WarehouseAftermath)
+            return;
+
         if (_warehouseKeypad.IsUnlocked)
         {
             RecordHistorySnapshot();
@@ -3442,7 +3477,8 @@ public sealed class Game : IGame
             return;
         }
 
-        _warehouseKeypad.Open();
+        _actionMessage = "The roll-up door is locked.";
+        _actionMessageTimer = 2.4f;
     }
 
     private void CloseWarehouseLock() => _warehouseKeypad.Close();
@@ -7051,7 +7087,43 @@ public sealed class Game : IGame
 
         if (hovered)
         {
-            string label = _warehouseKeypad.IsUnlocked ? "ENTER" : "KEYPAD";
+            const string label = "KEYPAD";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
+    private void DrawWarehouseDoorHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float doorW = WarehouseAftermathHotspots.DoorX2 - WarehouseAftermathHotspots.DoorX1;
+        float doorH = WarehouseAftermathHotspots.DoorY2 - WarehouseAftermathHotspots.DoorY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            WarehouseAftermathHotspots.DoorX1,
+            WarehouseAftermathHotspots.DoorY1,
+            doorW,
+            doorH,
+            artBounds);
+
+        bool hovered = _warehouseDoorHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            string label = _warehouseKeypad.IsUnlocked ? "ENTER" : "DOOR";
             Font font = _uiFont;
             float fontSize = 13f;
             Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
@@ -7895,6 +7967,7 @@ public sealed class Game : IGame
         if (_phase == Phase.WarehouseAftermath)
         {
             DrawWarehouseBodyHotspots(artX, artY, artW, artH);
+            DrawWarehouseDoorHotspot(artX, artY, artW, artH);
             DrawWarehouseLockHotspot(artX, artY, artW, artH);
         }
 
