@@ -1953,14 +1953,7 @@ public sealed class Game : IGame
                 GetCinematicArtBounds(out int cafeArtX, out int cafeArtY, out int cafeArtW, out int cafeArtH);
                 var cafeArtBounds = new Rectangle(cafeArtX, cafeArtY, cafeArtW, cafeArtH);
                 _cafeBorisHotspotHovered = false;
-                float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
-                float borisH = CafeHotspots.BorisY2 - CafeHotspots.BorisY1;
-                _cafeBorisClickRect = SceneRegion.ToScreenRect(
-                    CafeHotspots.BorisX1,
-                    CafeHotspots.BorisY1,
-                    borisW,
-                    borisH,
-                    cafeArtBounds);
+                UpdateCafeBorisClickRect(cafeArtBounds);
 
                 if (Raylib.CheckCollisionPointRec(mouse, _cafeBorisClickRect))
                 {
@@ -2233,6 +2226,9 @@ public sealed class Game : IGame
         }
 
         if (_itemUseActive && _itemUsePointerInsideBounds && _warehouseCrateHotspotHovered)
+            overClickable = true;
+
+        if (_itemUseActive && _itemUsePointerInsideBounds && _cafeBorisHotspotHovered)
             overClickable = true;
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
@@ -3230,6 +3226,31 @@ public sealed class Game : IGame
         _warehouseCrateClickRect.Width > 0 &&
         Raylib.CheckCollisionPointRec(_itemUseCursorPos, _warehouseCrateClickRect);
 
+    private bool ItemUseCursorOverCafeBoris() =>
+        _phase == Phase.Cafe &&
+        _cafeBorisClickRect.Width > 0 &&
+        Raylib.CheckCollisionPointRec(_itemUseCursorPos, _cafeBorisClickRect);
+
+    private void UpdateCafeBorisClickRect(Rectangle artBounds)
+    {
+        float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
+        float borisH = CafeHotspots.BorisY2 - CafeHotspots.BorisY1;
+        _cafeBorisClickRect = SceneRegion.ToScreenRect(
+            CafeHotspots.BorisX1,
+            CafeHotspots.BorisY1,
+            borisW,
+            borisH,
+            artBounds);
+    }
+
+    private void DieFromAttackingBoris()
+    {
+        CloseCafeOwnerDialog();
+        EnterDeath(
+            "You went for Boris with a weapon.",
+            "He put you down before you cleared the counter.");
+    }
+
     private void GetItemUseMovementBounds(out int boundsX, out int boundsY, out int boundsW, out int boundsH)
     {
         GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
@@ -3268,6 +3289,7 @@ public sealed class Game : IGame
         _itemUseItemName = itemName;
         _itemUseSlotIndex = slotIndex;
         _warehouseCrateHotspotHovered = false;
+        _cafeBorisHotspotHovered = false;
         if (_itemUsePointerInsideBounds)
         {
             _itemUseCursorPos = mouse;
@@ -3287,6 +3309,7 @@ public sealed class Game : IGame
         _itemUseItemName = "";
         _itemUseSlotIndex = -1;
         _warehouseCrateHotspotHovered = false;
+        _cafeBorisHotspotHovered = false;
         Raylib.ShowCursor();
     }
 
@@ -3342,6 +3365,18 @@ public sealed class Game : IGame
 
     private string GetItemUseFailureMessage(string itemName)
     {
+        if (_phase == Phase.Cafe && ItemUseCursorOverCafeBoris())
+        {
+            return itemName switch
+            {
+                "Lighter" => "Boris snuffs the flame with two fingers. \"Don't.\"",
+                "Phone" or GameItems.BurnerPhone => "Boris glances at the screen and laughs. \"Nobody's coming.\"",
+                GameItems.Vodka => "He takes the bottle without thanks and sets it out of reach.",
+                GameItems.Rag => "Boris flicks the rag into the sink. \"Not in my place.\"",
+                _ => "Boris doesn't move. \"Put that away before I put you away.\""
+            };
+        }
+
         if (_phase == Phase.WarehouseInterior && ItemUseCursorOverWarehouseCrate())
         {
             if (string.Equals(itemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase))
@@ -3354,7 +3389,7 @@ public sealed class Game : IGame
 
             return itemName switch
             {
-                "Knife" => "The blade rings off the crate — nothing gives way.",
+                GameItems.Knife => "The blade rings off the crate — nothing gives way.",
                 "Lighter" => "The flame licks the steel bands and dies. The crate doesn't care.",
                 _ => "That won't work on the crate."
             };
@@ -3370,7 +3405,7 @@ public sealed class Game : IGame
 
         return itemName switch
         {
-            "Knife" => "You sweep the blade through the air. Nothing here needs cutting.",
+            GameItems.Knife => "You sweep the blade through the air. Nothing here needs cutting.",
             "Lighter" => "You flick the wheel. Nothing here needs burning.",
             GameItems.Molotov => "Nothing here to soak and ignite.",
             GameItems.LitMolotov => "There is nowhere safe to throw it here.",
@@ -3394,6 +3429,12 @@ public sealed class Game : IGame
             return;
         }
 
+        if (ItemUseCursorOverCafeBoris() && GameItems.IsWeapon(_itemUseItemName))
+        {
+            DieFromAttackingBoris();
+            return;
+        }
+
         _actionMessage = GetItemUseFailureMessage(_itemUseItemName);
         _actionMessageTimer = ActionMessageDuration;
         StopItemUseMode();
@@ -3413,12 +3454,25 @@ public sealed class Game : IGame
 
         _warehouseCrateHotspotHovered = false;
         _warehouseCrateClickRect = default;
-        if (_itemUsePointerInsideBounds && _phase == Phase.WarehouseInterior)
+        _cafeBorisHotspotHovered = false;
+        _cafeBorisClickRect = default;
+
+        if (_itemUsePointerInsideBounds)
         {
             GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
             var artBounds = new Rectangle(artX, artY, artW, artH);
-            UpdateWarehouseCrateClickRect(artBounds);
-            _warehouseCrateHotspotHovered = ItemUseCursorOverWarehouseCrate();
+
+            if (_phase == Phase.WarehouseInterior)
+            {
+                UpdateWarehouseCrateClickRect(artBounds);
+                _warehouseCrateHotspotHovered = ItemUseCursorOverWarehouseCrate();
+            }
+
+            if (_phase == Phase.Cafe)
+            {
+                UpdateCafeBorisClickRect(artBounds);
+                _cafeBorisHotspotHovered = ItemUseCursorOverCafeBoris();
+            }
         }
 
         if (_itemUsePointerInsideBounds && (leftClicked || InputManager.IsConfirmPressed()))
@@ -6517,15 +6571,12 @@ public sealed class Game : IGame
 
     private void DrawCafeBorisHotspot(int artX, int artY, int artW, int artH)
     {
+        if (_phase != Phase.Cafe)
+            return;
+
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
-        float borisH = CafeHotspots.BorisY2 - CafeHotspots.BorisY1;
-        Rectangle r = SceneRegion.ToScreenRect(
-            CafeHotspots.BorisX1,
-            CafeHotspots.BorisY1,
-            borisW,
-            borisH,
-            artBounds);
+        UpdateCafeBorisClickRect(artBounds);
+        Rectangle r = _cafeBorisClickRect;
 
         bool hovered = _cafeBorisHotspotHovered;
         Color fill = hovered

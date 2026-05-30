@@ -26,6 +26,7 @@ internal static class GameItems
     public const string Vodka = "Vodka";
     public const string Rag = "Rag";
     public const string FoldedPaper = "Folded Paper";
+    public const string Knife = "Knife";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
 
@@ -84,4 +85,11 @@ internal static class GameItems
     public static bool IsExcludedFromUse(string name) =>
         string.Equals(name, EmptyCan, StringComparison.OrdinalIgnoreCase) ||
         IsBuildingMaterial(name);
+
+    /// <summary>Items that can harm someone when guided onto a scene target.</summary>
+    public static bool IsWeapon(string name) =>
+        string.Equals(name, Knife, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, Crowbar, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, Molotov, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, LitMolotov, StringComparison.OrdinalIgnoreCase);
 }
