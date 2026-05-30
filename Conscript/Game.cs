@@ -208,9 +208,6 @@ public sealed class Game : IGame
     private string _season = "Early Autumn";
     private int _temperatureF = 34;   // default Fahrenheit ( Buryatia autumn nights are cold )
 
-    private string _status = "Fugitive";
-
-
     // Sergei fled wearing his winter jacket (on his body, not in the backpack grid).
 
     // --- Backpack & ground items ---
@@ -521,7 +518,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Evening";
                 _location = "Family Apartment";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "At Home";
                 _season = "Early Autumn";
                 _temperatureF = 34;   // tense night outside the apartment
                 // Reset backpack to starting gear (knife, lighter, phone)
@@ -536,7 +532,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Forest Entry";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 22;
                 RefreshOutdoorActionChoices();
@@ -547,7 +542,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _location = "Deep Forest";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "Fugitive";
                 _season = "Early Autumn";
                 _temperatureF = 19;   // colder the deeper you go
                 RefreshOutdoorActionChoices();
@@ -558,7 +552,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Morning";
                 _location = "Forest Stream";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "Fugitive";
                 _season = "Early Autumn";
                 _temperatureF = 17;
                 RefreshOutdoorActionChoices();
@@ -573,7 +566,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Apartment Courtyard";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 27;   // clear cold night in the yard
                 RefreshOutdoorActionChoices();
@@ -584,7 +576,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Town";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 26;
                 RefreshOutdoorActionChoices();
@@ -595,7 +586,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Industrial District";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 24;
                 RefreshOutdoorActionChoices();
@@ -606,7 +596,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Commercial District";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 26;
                 RefreshOutdoorActionChoices();
@@ -623,7 +612,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Convenience Store";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 24;   // slightly warmer inside
                 break;
@@ -639,7 +627,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Кафе";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 28;
                 break;
@@ -650,7 +637,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = "Delivery Truck";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 22;
                 break;
@@ -661,7 +647,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 21;
                 break;
@@ -673,7 +658,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 21;
                 break;
@@ -685,7 +669,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 24;
                 break;
@@ -697,7 +680,6 @@ public sealed class Game : IGame
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Inside";
                 _city = "Ulan-Ude, Republic of Buryatia";
-                _status = "On the Run";
                 _season = "Early Autumn";
                 _temperatureF = 22;
                 break;
@@ -763,11 +745,10 @@ public sealed class Game : IGame
                 _location = "Deep Forest";
                 _temperatureF = 19;
                 _backgroundTexture = _forestBackground;
-                if (_status == "On the Run")
+                if (_day < 3)
                 {
                     _day = 3;
                     _timeOfDay = "Morning";
-                    _status = "Fugitive";
                 }
                 break;
             case Phase.ForestStream:
@@ -3634,7 +3615,6 @@ public sealed class Game : IGame
         City = _city,
         Season = _season,
         TemperatureF = _temperatureF,
-        Status = _status,
         Backpack = (string?[])_backpack.Clone(),
         BackpackItemCharges = (int?[])_backpackItemCharges.Clone(),
         DroppedItems = CloneDroppedItems(_droppedItems),
@@ -3674,7 +3654,6 @@ public sealed class Game : IGame
             _city = snapshot.City;
             _season = snapshot.Season;
             _temperatureF = snapshot.TemperatureF;
-            _status = snapshot.Status;
             _backpack = (string?[])snapshot.Backpack.Clone();
             _backpackItemCharges = (int?[])snapshot.BackpackItemCharges.Clone();
             _droppedItems.Clear();
@@ -6739,7 +6718,7 @@ public sealed class Game : IGame
     }
 
     // =====================================================================
-    // LEFT SIDEBAR — Fixed panel with flavor text + clean stat list
+    // LEFT SIDEBAR — Backpack
     // =====================================================================
     private void DrawLeftSidebar()
     {
@@ -6753,21 +6732,7 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
         int tx = x + GameConstants.SidebarPadding;
-        int cy = y + 28;   // comfortable top padding for the STATUS section with larger fonts
-
-        // === STATUS header ===
-        Raylib.DrawTextEx(font, "STATUS",
-            new Vector2(tx, cy), LayoutConstants.SidebarHeaderSize, 0.7f, Palette.TextMuted);
-        cy += 20;
-
-        // Subtle underline
-        Raylib.DrawLine(tx, cy - 2, tx + 42, cy - 2, Palette.SubtleBorder);
-        cy += 12;
-
-        DrawTextStatLine(ref cy, tx, "Status", _status);
-
-        // Backpack grid (visual inventory)
-        cy += 20;
+        int cy = y + 28;
         DrawBackpack(cy, tx);
     }
 
@@ -6902,20 +6867,6 @@ public sealed class Game : IGame
 
 
 
-
-    // Simple text-only row:  Label          Value
-    private void DrawTextStatLine(ref int y, int x, string label, string value)
-    {
-        Font font = _uiFont;
-        int available = GameConstants.SidebarWidth - GameConstants.SidebarPadding * 2;
-
-        Raylib.DrawTextEx(font, label, new Vector2(x, y), LayoutConstants.StatLabelSize, 0.75f, Palette.TextMuted);
-
-        int valW = (int)Raylib.MeasureTextEx(font, value, LayoutConstants.StatValueSize, 0.7f).X;
-        Raylib.DrawTextEx(font, value, new Vector2(x + available - valW, y), LayoutConstants.StatValueSize, 0.7f, Palette.TextPrimary);
-
-        y += 20;
-    }
 
     // =====================================================================
     // BACKPACK — simple visual grid with a "fabric pack" border treatment

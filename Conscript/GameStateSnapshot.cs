@@ -23,7 +23,6 @@ internal sealed class GameStateSnapshot
     public required string City { get; init; }
     public required string Season { get; init; }
     public required int TemperatureF { get; init; }
-    public required string Status { get; init; }
     public required string?[] Backpack { get; init; }
     public required int?[] BackpackItemCharges { get; init; }
     public required List<DroppedItem> DroppedItems { get; init; }
