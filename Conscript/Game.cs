@@ -304,6 +304,10 @@ public sealed class Game : IGame
     private Rectangle _warehouseCrateActionRect;
     private bool _warehouseCrateActionHovered;
 
+    // Opening apartment — bedroom window
+    private Rectangle _openingWindowClickRect;
+    private bool _openingWindowHotspotHovered;
+
     // Scene item use — guide an inventory item onto hotspots (mouse or left stick)
     private bool _itemUseActive;
     private bool _itemUsePointerInsideBounds;
@@ -1898,6 +1902,36 @@ public sealed class Game : IGame
                 _warehouseLockClickRect = default;
             }
 
+            if (_phase == Phase.Opening)
+            {
+                GetCinematicArtBounds(out int openingArtX, out int openingArtY, out int openingArtW, out int openingArtH);
+                var openingArtBounds = new Rectangle(openingArtX, openingArtY, openingArtW, openingArtH);
+                _openingWindowHotspotHovered = false;
+                float windowW = OpeningHotspots.WindowX2 - OpeningHotspots.WindowX1;
+                float windowH = OpeningHotspots.WindowY2 - OpeningHotspots.WindowY1;
+                _openingWindowClickRect = SceneRegion.ToScreenRect(
+                    OpeningHotspots.WindowX1,
+                    OpeningHotspots.WindowY1,
+                    windowW,
+                    windowH,
+                    openingArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _openingWindowClickRect))
+                {
+                    _openingWindowHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        TryPerformOpeningWindowClick();
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                _openingWindowHotspotHovered = false;
+                _openingWindowClickRect = default;
+            }
+
             if (_phase == Phase.WarehouseInterior)
             {
                 GetCinematicArtBounds(out int crateArtX, out int crateArtY, out int crateArtW, out int crateArtH);
@@ -2151,6 +2185,9 @@ public sealed class Game : IGame
             if (_warehouseCrateHotspotHovered)
                 overClickable = true;
 
+            if (_openingWindowHotspotHovered)
+                overClickable = true;
+
             if (_narrativeCardHovered)
                 overClickable = true;
 
@@ -2370,6 +2407,18 @@ public sealed class Game : IGame
         finally
         {
             _historyRecordSuppression--;
+        }
+    }
+
+    private void TryPerformOpeningWindowClick()
+    {
+        for (int i = 0; i < _choices.Length; i++)
+        {
+            if (_choices[i] == ChoiceFleeOutWindow)
+            {
+                PerformChoice(i);
+                return;
+            }
         }
     }
 
@@ -6453,6 +6502,42 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawOpeningWindowHotspot(int artX, int artY, int artW, int artH)
+    {
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float windowW = OpeningHotspots.WindowX2 - OpeningHotspots.WindowX1;
+        float windowH = OpeningHotspots.WindowY2 - OpeningHotspots.WindowY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            OpeningHotspots.WindowX1,
+            OpeningHotspots.WindowY1,
+            windowW,
+            windowH,
+            artBounds);
+
+        bool hovered = _openingWindowHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "WINDOW";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawWarehouseCrateHotspot(int artX, int artY, int artW, int artH)
     {
         var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -7297,6 +7382,8 @@ public sealed class Game : IGame
         int artH = h - GameConstants.ScenePadding * 2;
 
         DrawSceneBackground(artX, artY, artW, artH);
+
+        DrawOpeningWindowHotspot(artX, artY, artW, artH);
 
         DrawDroppedItemsInScene(artX, artY, artW, artH);
 
