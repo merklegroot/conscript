@@ -304,12 +304,14 @@ public sealed class Game : IGame
     private Rectangle _warehouseCrateActionRect;
     private bool _warehouseCrateActionHovered;
 
-    // Crowbar — guide onto the warehouse crate (mouse or left stick)
-    private bool _crowbarUseActive;
-    private Vector2 _crowbarCursorPos;
-    private const float CrowbarUseStickDeadzone = 0.18f;
-    private const float CrowbarUseMoveSpeed = 480f;
-    private const int CrowbarUseIconSize = 56;
+    // Scene item use — guide an inventory item onto hotspots (mouse or left stick)
+    private bool _itemUseActive;
+    private string _itemUseItemName = "";
+    private int _itemUseSlotIndex = -1;
+    private Vector2 _itemUseCursorPos;
+    private const float ItemUseStickDeadzone = 0.18f;
+    private const float ItemUseMoveSpeed = 480f;
+    private const int ItemUseIconSize = 56;
 
     // Build & craft dialog (modal)
     private bool _showBuildDialog;
@@ -498,7 +500,7 @@ public sealed class Game : IGame
         _actionMessage = "";
         _actionMessageTimer = 0;
 
-        StopCrowbarUseMode();
+        StopItemUseMode();
 
         // Reset custom death text unless we're deliberately entering the death screen
         if (newPhase != Phase.Death)
@@ -1101,9 +1103,9 @@ public sealed class Game : IGame
                 CloseWarehouseCrateDialog();
                 return;
             }
-            if (_crowbarUseActive)
+            if (_itemUseActive)
             {
-                StopCrowbarUseMode();
+                StopItemUseMode();
                 return;
             }
             if (_showControllerDebug)
@@ -1736,9 +1738,9 @@ public sealed class Game : IGame
             _bodyLootPickupHovered = false;
         }
 
-        if (_crowbarUseActive)
+        if (_itemUseActive)
         {
-            UpdateCrowbarUseMode(dt, leftClicked);
+            UpdateItemUseMode(dt, leftClicked);
         }
         else if (AllowsSidebarAndSceneInput())
         {
@@ -2176,7 +2178,7 @@ public sealed class Game : IGame
             }
         }
 
-        if (_crowbarUseActive && _warehouseCrateHotspotHovered)
+        if (_itemUseActive && _warehouseCrateHotspotHovered)
             overClickable = true;
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
@@ -3140,53 +3142,68 @@ public sealed class Game : IGame
         _actionMessageTimer = 3.4f;
         AdvanceTime();
         CloseWarehouseCrateDialog();
-        StopCrowbarUseMode();
+        StopItemUseMode();
     }
 
-    private static bool IsCrowbarItem(string? itemName) =>
-        string.Equals(itemName ?? "", GameItems.Crowbar, StringComparison.OrdinalIgnoreCase);
+    private bool HasBackpackItemAtSlot(int slotIndex, string itemName) =>
+        slotIndex >= 0 &&
+        slotIndex < _backpack.Length &&
+        string.Equals(_backpack[slotIndex], itemName, StringComparison.OrdinalIgnoreCase);
 
-    private bool HasCrowbarUseScene() =>
+    private bool HasItemUseScene() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
 
-    private bool CrowbarCursorOverSealedWarehouseCrate() =>
+    private bool ItemUseCursorOverSealedWarehouseCrate() =>
         _phase == Phase.WarehouseInterior &&
         !_warehouseCrateOpened &&
         _warehouseCrateClickRect.Width > 0 &&
-        Raylib.CheckCollisionPointRec(_crowbarCursorPos, _warehouseCrateClickRect);
+        Raylib.CheckCollisionPointRec(_itemUseCursorPos, _warehouseCrateClickRect);
 
-    private bool CrowbarCursorOverWarehouseCrate() =>
+    private bool ItemUseCursorOverWarehouseCrate() =>
         _phase == Phase.WarehouseInterior &&
         _warehouseCrateClickRect.Width > 0 &&
-        Raylib.CheckCollisionPointRec(_crowbarCursorPos, _warehouseCrateClickRect);
+        Raylib.CheckCollisionPointRec(_itemUseCursorPos, _warehouseCrateClickRect);
 
-    private void StartCrowbarUseMode()
+    private void StartItemUseMode()
     {
-        if (!IsCrowbarItem(_dialogItemName) || !HasCrowbarUseScene())
+        if (_dialogItemIndex < 0 || !CanShowItemUseAction(_dialogItemName, _dialogItemIndex))
+            return;
+
+        if (GetDialogItemAction(_dialogItemName, _dialogItemIndex) != DialogItemAction.Use)
+            return;
+
+        if (!HasItemUseScene())
         {
-            _actionMessage = "There's no scene here to work the crowbar against.";
+            _actionMessage = "There's no scene here to use that on.";
             _actionMessageTimer = ActionMessageDuration;
             return;
         }
 
+        if (!HasBackpackItemAtSlot(_dialogItemIndex, _dialogItemName))
+            return;
+
+        string itemName = _dialogItemName;
+        int slotIndex = _dialogItemIndex;
         CloseItemDialog();
         GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
         var artBounds = new Rectangle(artX, artY, artW, artH);
         Vector2 mouse = Raylib.GetMousePosition();
-        _crowbarCursorPos = ClampPointToRectangle(mouse, artBounds);
-        _crowbarUseActive = true;
+        _itemUseCursorPos = ClampPointToRectangle(mouse, artBounds);
+        _itemUseActive = true;
+        _itemUseItemName = itemName;
+        _itemUseSlotIndex = slotIndex;
         _warehouseCrateHotspotHovered = false;
         Raylib.HideCursor();
-        _actionMessage = "Guide the crowbar and click to try it on something. Esc to cancel.";
-        _actionMessageTimer = 3.2f;
     }
 
-    private void StopCrowbarUseMode()
+    private void StopItemUseMode()
     {
-        if (!_crowbarUseActive)
+        if (!_itemUseActive)
             return;
 
-        _crowbarUseActive = false;
+        _itemUseActive = false;
+        _itemUseItemName = "";
+        _itemUseSlotIndex = -1;
         _warehouseCrateHotspotHovered = false;
         Raylib.ShowCursor();
     }
@@ -3198,23 +3215,23 @@ public sealed class Game : IGame
         return new Vector2(x, y);
     }
 
-    private void UpdateCrowbarUseCursor(float dt, Rectangle artBounds)
+    private void UpdateItemUseCursor(float dt, Rectangle artBounds)
     {
         if (InputManager.IsGamepadConnected)
         {
             int pad = InputManager.ActiveGamepad;
             float stickX = Raylib.GetGamepadAxisMovement(pad, GamepadAxis.GAMEPAD_AXIS_LEFT_X);
             float stickY = Raylib.GetGamepadAxisMovement(pad, GamepadAxis.GAMEPAD_AXIS_LEFT_Y);
-            if (MathF.Abs(stickX) > CrowbarUseStickDeadzone || MathF.Abs(stickY) > CrowbarUseStickDeadzone)
+            if (MathF.Abs(stickX) > ItemUseStickDeadzone || MathF.Abs(stickY) > ItemUseStickDeadzone)
             {
-                _crowbarCursorPos.X += stickX * CrowbarUseMoveSpeed * dt;
-                _crowbarCursorPos.Y += stickY * CrowbarUseMoveSpeed * dt;
-                _crowbarCursorPos = ClampPointToRectangle(_crowbarCursorPos, artBounds);
+                _itemUseCursorPos.X += stickX * ItemUseMoveSpeed * dt;
+                _itemUseCursorPos.Y += stickY * ItemUseMoveSpeed * dt;
+                _itemUseCursorPos = ClampPointToRectangle(_itemUseCursorPos, artBounds);
                 return;
             }
         }
 
-        _crowbarCursorPos = ClampPointToRectangle(Raylib.GetMousePosition(), artBounds);
+        _itemUseCursorPos = ClampPointToRectangle(Raylib.GetMousePosition(), artBounds);
     }
 
     private void UpdateWarehouseCrateClickRect(Rectangle artBounds)
@@ -3229,88 +3246,114 @@ public sealed class Game : IGame
             artBounds);
     }
 
-    private string GetCrowbarUseFailureMessage()
+    private string GetItemUseFailureMessage(string itemName)
     {
-        if (_phase == Phase.WarehouseInterior && CrowbarCursorOverWarehouseCrate())
+        if (_phase == Phase.WarehouseInterior && ItemUseCursorOverWarehouseCrate())
         {
-            if (_warehouseCrateOpened)
-                return "The crate lid is already forced open — nothing left to lever.";
+            if (string.Equals(itemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase))
+            {
+                if (_warehouseCrateOpened)
+                    return "The crate lid is already forced open — nothing left to lever.";
 
-            return "The crowbar skids along the steel bands but finds no purchase.";
+                return "The crowbar skids along the steel bands but finds no purchase.";
+            }
+
+            return itemName switch
+            {
+                "Knife" => "The blade rings off the crate — nothing gives way.",
+                "Lighter" => "The flame licks the steel bands and dies. The crate doesn't care.",
+                _ => "That won't work on the crate."
+            };
         }
 
-        if (_phase == Phase.WarehouseInterior)
-            return "The crowbar rings off concrete and pallet wood — nothing here gives way.";
+        if (string.Equals(itemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_phase == Phase.WarehouseInterior)
+                return "The crowbar rings off concrete and pallet wood — nothing here gives way.";
 
-        return "Nothing here yields to the crowbar.";
+            return "Nothing here yields to the crowbar.";
+        }
+
+        return itemName switch
+        {
+            "Knife" => "You sweep the blade through the air. Nothing here needs cutting.",
+            "Lighter" => "You flick the wheel. Nothing here needs burning.",
+            GameItems.Molotov => "Nothing here to soak and ignite.",
+            GameItems.LitMolotov => "There is nowhere safe to throw it here.",
+            "Phone" or GameItems.BurnerPhone => "No signal. The screen stays dark.",
+            _ => "Nothing here responds to that."
+        };
     }
 
-    private void TryCrowbarUseAtCursor()
+    private void TryItemUseAtCursor()
     {
-        if (!HasBackpackItem(GameItems.Crowbar))
+        if (!HasBackpackItemAtSlot(_itemUseSlotIndex, _itemUseItemName))
         {
-            StopCrowbarUseMode();
+            StopItemUseMode();
             return;
         }
 
-        if (CrowbarCursorOverSealedWarehouseCrate())
+        if (string.Equals(_itemUseItemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase) &&
+            ItemUseCursorOverSealedWarehouseCrate())
         {
             TryOpenWarehouseCrateWithCrowbar();
             return;
         }
 
-        _actionMessage = GetCrowbarUseFailureMessage();
+        _actionMessage = GetItemUseFailureMessage(_itemUseItemName);
         _actionMessageTimer = ActionMessageDuration;
+        StopItemUseMode();
     }
 
-    private void UpdateCrowbarUseMode(float dt, bool leftClicked)
+    private void UpdateItemUseMode(float dt, bool leftClicked)
     {
-        if (!HasBackpackItem(GameItems.Crowbar) || !HasCrowbarUseScene())
+        if (!HasBackpackItemAtSlot(_itemUseSlotIndex, _itemUseItemName) || !HasItemUseScene())
         {
-            StopCrowbarUseMode();
+            StopItemUseMode();
             return;
         }
 
         GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        UpdateCrowbarUseCursor(dt, artBounds);
+        UpdateItemUseCursor(dt, artBounds);
 
         _warehouseCrateHotspotHovered = false;
         _warehouseCrateClickRect = default;
         if (_phase == Phase.WarehouseInterior)
         {
             UpdateWarehouseCrateClickRect(artBounds);
-            _warehouseCrateHotspotHovered = CrowbarCursorOverWarehouseCrate();
+            _warehouseCrateHotspotHovered = ItemUseCursorOverWarehouseCrate();
         }
 
         if (leftClicked || InputManager.IsConfirmPressed())
-            TryCrowbarUseAtCursor();
+            TryItemUseAtCursor();
     }
 
-    private string GetCrowbarUseHintText()
+    private string GetItemUseHintText()
     {
-        if (_phase == Phase.WarehouseInterior && !_warehouseCrateOpened)
+        if (string.Equals(_itemUseItemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase) &&
+            _phase == Phase.WarehouseInterior && !_warehouseCrateOpened)
             return "Click the crate to pry it open · Esc to cancel";
 
-        return "Click to try the crowbar · Esc to cancel";
+        return "Click to try it · Esc to cancel";
     }
 
-    private void DrawCrowbarUseOverlay()
+    private void DrawItemUseOverlay()
     {
-        if (!_crowbarUseActive)
+        if (!_itemUseActive)
             return;
 
-        float half = CrowbarUseIconSize / 2f;
+        float half = ItemUseIconSize / 2f;
         var iconDest = new Rectangle(
-            _crowbarCursorPos.X - half,
-            _crowbarCursorPos.Y - half,
-            CrowbarUseIconSize,
-            CrowbarUseIconSize);
-        DrawItemIcon(GameItems.Crowbar, iconDest, Color.WHITE);
+            _itemUseCursorPos.X - half,
+            _itemUseCursorPos.Y - half,
+            ItemUseIconSize,
+            ItemUseIconSize);
+        DrawItemIcon(_itemUseItemName, iconDest, Color.WHITE, _itemUseSlotIndex);
 
         GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
         Font font = _uiFont;
-        string hint = GetCrowbarUseHintText();
+        string hint = GetItemUseHintText();
         const float hintSize = 14f;
         Vector2 hintMeasure = Raylib.MeasureTextEx(font, hint, hintSize, 0.5f);
         float hintX = artX + (artW - hintMeasure.X) / 2f;
@@ -3569,7 +3612,7 @@ public sealed class Game : IGame
         CloseForageDialog();
         CloseCafeOwnerDialog();
         CloseWarehouseCrateDialog();
-        StopCrowbarUseMode();
+        StopItemUseMode();
         CloseControllerDebug();
         CloseQuitConfirm();
         _sceneAreaSelect.Close();
@@ -3716,13 +3759,13 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showStoreBuyMenu || _showGloveBoxMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
-        || _crowbarUseActive || _showControllerDebug || _showQuitConfirm
+        || _itemUseActive || _showControllerDebug || _showQuitConfirm
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
         !_showStoreBuyMenu && !_showGloveBoxMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showWarehouseCrateDialog && !_crowbarUseActive && !_showQuitConfirm
+        && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
         && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
@@ -4719,7 +4762,7 @@ public sealed class Game : IGame
         LightMolotov,
         ThrowLitMolotov,
         ReadPaper,
-        UseCrowbar
+        Use
     }
 
     private bool CanThrowLitMolotovAtAmbush() => _phase == Phase.WarehouseAmbush;
@@ -4737,9 +4780,6 @@ public sealed class Game : IGame
 
     private DialogItemAction GetDialogItemAction(string itemName, int slotIndex)
     {
-        if (string.Equals(itemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase))
-            return DialogItemAction.UseCrowbar;
-
         if (string.Equals(itemName, GameItems.LitMolotov, StringComparison.OrdinalIgnoreCase) &&
             CanThrowLitMolotovAtAmbush())
             return DialogItemAction.ThrowLitMolotov;
@@ -4762,11 +4802,16 @@ public sealed class Game : IGame
         if (GameItems.IsFoldedPaper(itemName))
             return DialogItemAction.ReadPaper;
 
-        return DialogItemAction.None;
+        if (GameItems.IsExcludedFromUse(itemName))
+            return DialogItemAction.None;
+
+        return DialogItemAction.Use;
     }
 
-    private bool CanPerformDialogItemAction(string itemName, int slotIndex) =>
-        CanDrinkFromDialogSlot(slotIndex) || CanFillBottleAtStream(slotIndex);
+    private bool CanShowItemUseAction(string itemName, int slotIndex) =>
+        CanDrinkFromDialogSlot(slotIndex) ||
+        CanFillBottleAtStream(slotIndex) ||
+        !GameItems.IsExcludedFromUse(itemName);
 
     private static string GetDialogItemActionLabel(DialogItemAction action) =>
         action switch
@@ -4777,21 +4822,21 @@ public sealed class Game : IGame
             DialogItemAction.LightMolotov => "LIGHT",
             DialogItemAction.ThrowLitMolotov => "THROW",
             DialogItemAction.ReadPaper => "READ",
-            DialogItemAction.UseCrowbar => "USE",
-            _ => ""
+            DialogItemAction.Use => "USE",
+            _ => "USE"
         };
 
     private static bool IsDialogPrimaryAction(DialogItemAction action) =>
         action is DialogItemAction.EatSoup or DialogItemAction.LightMolotov or DialogItemAction.ThrowLitMolotov
-            or DialogItemAction.ReadPaper or DialogItemAction.UseCrowbar;
+            or DialogItemAction.ReadPaper or DialogItemAction.Use;
 
     private void TryPerformDialogItemAction(DialogItemAction action)
     {
         if (_dialogItemIndex < 0 || _dialogItemIndex >= _backpack.Length) return;
 
-        if (action == DialogItemAction.UseCrowbar)
+        if (action == DialogItemAction.Use)
         {
-            StartCrowbarUseMode();
+            StartItemUseMode();
             return;
         }
 
@@ -5092,8 +5137,10 @@ public sealed class Game : IGame
         {
             DialogItemAction.LightMolotov =>
                 "Vodka in a bottle with a rag wick. One spark from your lighter and it's ready to throw.",
-            DialogItemAction.UseCrowbar =>
+            DialogItemAction.Use when string.Equals(_dialogItemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase) =>
                 "A short steel crowbar with old paint on the curve. Select USE and guide it onto something that might give way.",
+            DialogItemAction.Use =>
+                "Select USE and guide it onto something in the scene.",
             DialogItemAction.ThrowLitMolotov =>
                 "The rag is soaked and burning. One throw into the bratdvas and this bottle stops being vodka.",
             DialogItemAction.EatSoup => GetCannedSoupDialogText(slot),
@@ -5104,7 +5151,7 @@ public sealed class Game : IGame
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, GameItems.EmptyCan, StringComparison.OrdinalIgnoreCase)
                     ? "An empty can. Nothing left to eat."
-                    : "Set it down here to lighten your pack, or keep carrying it."
+                    : "Select USE to try it, or DROP to leave it here."
         };
     }
 
@@ -5113,13 +5160,10 @@ public sealed class Game : IGame
         bool isGround = IsDroppedItemDialog;
         bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-        DialogItemAction itemAction = isGround
-            ? DialogItemAction.None
-            : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
 
         _dialogActionHovered = _dialogActionRect.Width > 0 &&
             Raylib.CheckCollisionPointRec(mouse, _dialogActionRect) &&
-            (isGround || canDrink || (canFill && !canDrink) || IsDialogPrimaryAction(itemAction));
+            (isGround || CanShowItemUseAction(_dialogItemName, _dialogItemIndex));
         _dialogSecondaryActionHovered = _dialogSecondaryActionRect.Width > 0 &&
             canDrink && canFill &&
             Raylib.CheckCollisionPointRec(mouse, _dialogSecondaryActionRect);
@@ -5175,7 +5219,7 @@ public sealed class Game : IGame
             : GetDialogItemAction(_dialogItemName, _dialogItemIndex);
         bool canDrink = !isGround && CanDrinkFromDialogSlot(_dialogItemIndex);
         bool canFill = !isGround && CanFillBottleAtStream(_dialogItemIndex);
-        bool canAct = !isGround && (canDrink || canFill || IsDialogPrimaryAction(itemAction));
+        bool canAct = !isGround && CanShowItemUseAction(_dialogItemName, _dialogItemIndex);
 
         const int iconSize = 72;
         int iconX = innerX + (innerW - iconSize) / 2;
@@ -6586,8 +6630,8 @@ public sealed class Game : IGame
         if (_sceneAreaSelect.IsActive)
             DrawSceneAreaSelectOverlay();
 
-        if (_crowbarUseActive)
-            DrawCrowbarUseOverlay();
+        if (_itemUseActive)
+            DrawItemUseOverlay();
 
         DrawBuildDateBottomRight();
 

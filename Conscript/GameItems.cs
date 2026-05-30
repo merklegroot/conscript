@@ -79,4 +79,9 @@ internal static class GameItems
 
     public static bool IsFoldedPaper(string name) =>
         string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Backpack items that should not show a USE action (empty containers, build-only materials).</summary>
+    public static bool IsExcludedFromUse(string name) =>
+        string.Equals(name, EmptyCan, StringComparison.OrdinalIgnoreCase) ||
+        IsBuildingMaterial(name);
 }
