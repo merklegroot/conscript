@@ -54,6 +54,29 @@ No other text. Photorealistic, soft side lighting, subtle grain. Portrait orient
   - Shown full-size in `FoldedPaperReaderDialog` when the player presses READ on Folded Paper.
   - Also used as the backpack/item icon for `GameItems.FoldedPaper`.
 
+## `crate-note.png`
+
+- **asset**: `Conscript/img/crate-note.png`
+- **date**: 2026-05-29
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage`
+- **prompt**:
+
+```text
+A worn half-sheet of ledger paper photographed flat on a dark surface, post-Soviet warehouse mood. Cream-yellowed gridded paper with grease smudges, torn left edge, folded crease lines. Handwritten block letters in dark ink, clearly legible, centered on the paper exactly as written:
+
+Boris,
+I've been patient.
+It's time for you to deliver the product.
+Meet me at the border.
+
+No other text. Photorealistic, soft side lighting, subtle grain. Portrait orientation roughly 3:4 aspect ratio. No people, no hands, no UI frames. Match the style of a threatening handwritten note on aged Soviet ledger paper.
+```
+
+- **notes**:
+  - Shown full-size in `FoldedPaperReaderDialog` when the player presses READ on the crate `Note`.
+  - Also used as the backpack/item icon for `GameItems.Note`.
+
 ## `warehouse-14-aftermath.png`
 
 - **asset**: `Conscript/img/warehouse-14-aftermath.png`

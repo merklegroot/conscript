@@ -37,6 +37,9 @@ internal static class GameItems
         "Treason or not, it will be done.\n" +
         "Severe consequences will follow.";
 
+    public const string CrateNoteFile = "crate-note.png";
+    public const string FoldedPaperNoteFile = "folded-paper-note.png";
+
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
         ["Knife"]         = "items.knife.png",
@@ -46,8 +49,8 @@ internal static class GameItems
         [Crowbar]         = "items.crowbar.png",
         [Vodka]           = "items.vodka.png",
         [Rag]             = "items.rag.png",
-        [FoldedPaper]     = "folded-paper-note.png",
-        [Note]            = "folded-paper-note.png",
+        [FoldedPaper]     = FoldedPaperNoteFile,
+        [Note]            = CrateNoteFile,
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
@@ -83,6 +86,11 @@ internal static class GameItems
     public static bool IsFoldedPaper(string name) =>
         string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, Note, StringComparison.OrdinalIgnoreCase);
+
+    public static string GetReadableNoteImageFile(string itemName) =>
+        string.Equals(itemName, Note, StringComparison.OrdinalIgnoreCase)
+            ? CrateNoteFile
+            : FoldedPaperNoteFile;
 
     /// <summary>Backpack items that should not show a USE action (empty containers, build-only materials).</summary>
     public static bool IsExcludedFromUse(string name) =>

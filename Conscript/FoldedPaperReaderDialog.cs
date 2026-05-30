@@ -10,10 +10,15 @@ internal sealed class FoldedPaperReaderDialog
     private Rectangle _imageRect;
     private Rectangle _closeRect;
     private bool _closeHovered;
+    private string _title = "FOLDED NOTE";
 
     public bool IsOpen { get; private set; }
 
-    public void Open() => IsOpen = true;
+    public void Open(string title = "FOLDED NOTE")
+    {
+        _title = title;
+        IsOpen = true;
+    }
 
     public void Close()
     {
@@ -70,7 +75,7 @@ internal sealed class FoldedPaperReaderDialog
         Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
         Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
 
-        Raylib.DrawTextEx(font, "FOLDED NOTE",
+        Raylib.DrawTextEx(font, _title,
             new Vector2(panelX + 20, panelY + 14), 22, 0.7f, Palette.TextPrimary);
 
         int imageX = panelX + (panelW - imageW) / 2;

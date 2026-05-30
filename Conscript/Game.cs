@@ -169,7 +169,10 @@ public sealed class Game : IGame
     private bool _borisDeliveryJobActive;
     private bool _warehouseAmbushersDead;
     private bool _foldedPaperMessageRead;
+    private bool _noteMessageRead;
     private Texture2D _foldedPaperNoteTexture;
+    private Texture2D _crateNoteTexture;
+    private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
@@ -1005,7 +1008,8 @@ public sealed class Game : IGame
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
-        _foldedPaperNoteTexture = EmbeddedTextureLoader.Load("folded-paper-note.png");
+        _foldedPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.FoldedPaperNoteFile);
+        _crateNoteTexture = EmbeddedTextureLoader.Load(GameItems.CrateNoteFile);
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1062,6 +1066,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
         UnloadTextureIfLoaded(ref _titleLogoTexture);
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
+        UnloadTextureIfLoaded(ref _crateNoteTexture);
     }
 
     // --- Main loop ---
@@ -4071,6 +4076,7 @@ public sealed class Game : IGame
         BorisDeliveryJobActive = _borisDeliveryJobActive,
         WarehouseAmbushersDead = _warehouseAmbushersDead,
         FoldedPaperMessageRead = _foldedPaperMessageRead,
+        NoteMessageRead = _noteMessageRead,
         WarehouseCrateOpened = _warehouseCrateOpened,
         WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
         HasTrashBagTent = _hasTrashBagTent,
@@ -4111,6 +4117,7 @@ public sealed class Game : IGame
             _borisDeliveryJobActive = snapshot.BorisDeliveryJobActive;
             _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
+            _noteMessageRead = snapshot.NoteMessageRead;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _hasTrashBagTent = snapshot.HasTrashBagTent;
             _tentBuiltInPhase = snapshot.TentBuiltInPhase;
@@ -4211,6 +4218,7 @@ public sealed class Game : IGame
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
+        _noteMessageRead = false;
         _warehouseKeypad.Reset();
         _buildFeedback = "";
         ResetDeathLines();
@@ -4245,6 +4253,7 @@ public sealed class Game : IGame
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
+        _noteMessageRead = false;
         _warehouseKeypad.Reset();
         EnterPhase(Phase.WarehouseInterior);
     }
@@ -5297,14 +5306,43 @@ public sealed class Game : IGame
         if (!GameItems.IsFoldedPaper(_dialogItemName))
             return;
 
-        _foldedPaperMessageRead = true;
-        _foldedPaperReader.Open();
+        _activeNoteReadItemName = _dialogItemName;
+
+        if (string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
+            _noteMessageRead = true;
+        else
+            _foldedPaperMessageRead = true;
+
+        string title = string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
+            ? "NOTE"
+            : "FOLDED NOTE";
+        _foldedPaperReader.Open(title);
     }
 
-    private void CloseFoldedPaperReader() => _foldedPaperReader.Close();
+    private Texture2D GetActiveNoteReadTexture() =>
+        string.Equals(_activeNoteReadItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
+            ? _crateNoteTexture
+            : _foldedPaperNoteTexture;
+
+    private void CloseFoldedPaperReader()
+    {
+        _foldedPaperReader.Close();
+        _activeNoteReadItemName = "";
+    }
 
     private string GetFoldedPaperDialogText()
     {
+        if (string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_noteMessageRead)
+            {
+                return "A creased half-sheet folded into the straw packing. Block letters, no signature.\n\n" +
+                    "Press READ to study the note.";
+            }
+
+            return "You've studied the note. Press READ again to look at it.";
+        }
+
         if (!_foldedPaperMessageRead)
         {
             return "A half-sheet torn from a ledger, creased and smudged. Someone wrote this in a hurry.\n\n" +
@@ -7254,7 +7292,7 @@ public sealed class Game : IGame
 
         if (_foldedPaperReader.IsOpen)
         {
-            _foldedPaperReader.Draw(_uiFont, _foldedPaperNoteTexture, _screenWidth, _screenHeight);
+            _foldedPaperReader.Draw(_uiFont, GetActiveNoteReadTexture(), _screenWidth, _screenHeight);
         }
 
         if (_showBuildDialog)
