@@ -3164,6 +3164,15 @@ public sealed class Game : IGame
         _warehouseCrateClickRect.Width > 0 &&
         Raylib.CheckCollisionPointRec(_itemUseCursorPos, _warehouseCrateClickRect);
 
+    private void GetItemUseMovementBounds(out int boundsX, out int boundsY, out int boundsW, out int boundsH)
+    {
+        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
+        boundsX = 0;
+        boundsY = GameConstants.TopBarHeight;
+        boundsW = artX + artW;
+        boundsH = _screenHeight - GameConstants.ActionBarHeight - boundsY;
+    }
+
     private void StartItemUseMode()
     {
         if (_dialogItemIndex < 0 || !CanShowItemUseAction(_dialogItemName, _dialogItemIndex))
@@ -3185,10 +3194,10 @@ public sealed class Game : IGame
         string itemName = _dialogItemName;
         int slotIndex = _dialogItemIndex;
         CloseItemDialog();
-        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
-        var artBounds = new Rectangle(artX, artY, artW, artH);
+        GetItemUseMovementBounds(out int boundsX, out int boundsY, out int boundsW, out int boundsH);
+        var movementBounds = new Rectangle(boundsX, boundsY, boundsW, boundsH);
         Vector2 mouse = Raylib.GetMousePosition();
-        _itemUseCursorPos = ClampPointToRectangle(mouse, artBounds);
+        _itemUseCursorPos = ClampPointToRectangle(mouse, movementBounds);
         _itemUseActive = true;
         _itemUseItemName = itemName;
         _itemUseSlotIndex = slotIndex;
@@ -3215,7 +3224,7 @@ public sealed class Game : IGame
         return new Vector2(x, y);
     }
 
-    private void UpdateItemUseCursor(float dt, Rectangle artBounds)
+    private void UpdateItemUseCursor(float dt, Rectangle movementBounds)
     {
         if (InputManager.IsGamepadConnected)
         {
@@ -3226,12 +3235,12 @@ public sealed class Game : IGame
             {
                 _itemUseCursorPos.X += stickX * ItemUseMoveSpeed * dt;
                 _itemUseCursorPos.Y += stickY * ItemUseMoveSpeed * dt;
-                _itemUseCursorPos = ClampPointToRectangle(_itemUseCursorPos, artBounds);
+                _itemUseCursorPos = ClampPointToRectangle(_itemUseCursorPos, movementBounds);
                 return;
             }
         }
 
-        _itemUseCursorPos = ClampPointToRectangle(Raylib.GetMousePosition(), artBounds);
+        _itemUseCursorPos = ClampPointToRectangle(Raylib.GetMousePosition(), movementBounds);
     }
 
     private void UpdateWarehouseCrateClickRect(Rectangle artBounds)
@@ -3313,14 +3322,16 @@ public sealed class Game : IGame
             return;
         }
 
-        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
-        var artBounds = new Rectangle(artX, artY, artW, artH);
-        UpdateItemUseCursor(dt, artBounds);
+        GetItemUseMovementBounds(out int boundsX, out int boundsY, out int boundsW, out int boundsH);
+        var movementBounds = new Rectangle(boundsX, boundsY, boundsW, boundsH);
+        UpdateItemUseCursor(dt, movementBounds);
 
         _warehouseCrateHotspotHovered = false;
         _warehouseCrateClickRect = default;
         if (_phase == Phase.WarehouseInterior)
         {
+            GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
+            var artBounds = new Rectangle(artX, artY, artW, artH);
             UpdateWarehouseCrateClickRect(artBounds);
             _warehouseCrateHotspotHovered = ItemUseCursorOverWarehouseCrate();
         }
