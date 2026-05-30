@@ -17,7 +17,7 @@ public static class LayoutConstants
     public const int StatValueSize = 24;
     public const int StatNoteSize = 18;
 
-    // Central scene narrative card (right side)
+    // Central scene narrative log (right sidebar)
     public const int NarrativeLongSize = 25;
 
     // Buttons (action bar, dialogs, sidebar)

@@ -372,7 +372,7 @@ public sealed class Game : IGame
     private Rectangle _gloveCompartmentClickRect;
     private bool _gloveCompartmentHovered;
 
-    // Scene narrative card (right side of room photo)
+    // Scene narrative card (right sidebar — click to collapse or expand)
     private bool _narrativeCollapsed;
     private Rectangle _narrativeCardRect;
     private bool _narrativeCardHovered;
@@ -6853,6 +6853,22 @@ public sealed class Game : IGame
         const int btnH = 36;
         int quitY = y + h - GameConstants.SidebarPadding - btnH;
         DrawQuitSidebarButton(quitY, tx);
+
+        if (GamePhase.ShowsSceneNarrative(_phase))
+        {
+            const int logTopGap = 16;
+            const int logBottomGap = 16;
+            int logY = cy + logTopGap;
+            int availableW = w - GameConstants.SidebarPadding * 2;
+            int maxLogHeight = quitY - logY - logBottomGap;
+
+            if (maxLogHeight >= NarrativeCollapsedHeight)
+                DrawSidebarNarrative(tx, logY, availableW, maxLogHeight, GetSceneNarrative());
+            else
+                _narrativeCardRect = default;
+        }
+        else
+            _narrativeCardRect = default;
     }
 
     private void DrawQuitSidebarButton(int y, int x)
@@ -7235,10 +7251,7 @@ public sealed class Game : IGame
         Raylib.DrawRectangle(artX, artY, 22, artH, new Color(0, 0, 0, 55));
         Raylib.DrawRectangle(artX + artW - 22, artY, 22, artH, new Color(0, 0, 0, 55));
 
-        // === Main narrative / flavor text box — clean, anchored to the right side of the image ===
-        DrawRightSideNarrative(artX, artY, artW, artH, GetSceneNarrative());
-
-        // Dropped items on top of overlays/narrative so they stay visible and clickable
+        // Dropped items on top of scene overlays so they stay visible and clickable
         DrawDroppedItemsInScene(artX, artY, artW, artH);
 
         // Temporary action result toast (centered low in the image)
@@ -7284,9 +7297,6 @@ public sealed class Game : IGame
         int artH = h - GameConstants.ScenePadding * 2;
 
         DrawSceneBackground(artX, artY, artW, artH);
-
-        // The right-side narrative card
-        DrawRightSideNarrative(artX, artY, artW, artH, OpeningNarrative);
 
         DrawDroppedItemsInScene(artX, artY, artW, artH);
 
@@ -7432,11 +7442,8 @@ public sealed class Game : IGame
         }
     }
 
-    private const int NarrativeMaxCardWidth = 320;
-    private const int NarrativeCardEdgeInset = 0;
-    private const int NarrativeCardTopInset = 0;
-    private const int NarrativeHorizontalPadding = 18;
-    private const int NarrativeVerticalPadding = 16;
+    private const int NarrativeHorizontalPadding = 14;
+    private const int NarrativeVerticalPadding = 14;
     private const int NarrativeCollapsedHeight = 36;
     private const int NarrativeCaretCornerPad = 8;
     private const int NarrativeCaretTextReserve = 14;
@@ -7483,10 +7490,9 @@ public sealed class Game : IGame
             : (Palette.NarrativeCardBg, Palette.NarrativeCardBorder);
 
     /// <summary>
-    /// Draws the main scene narrative ("You pushed deeper...") in a card whose size
-    /// is computed from the actual measured text. Click the card to collapse or expand it.
+    /// Draws the scene narrative log in the right sidebar. Click the card to collapse or expand it.
     /// </summary>
-    private void DrawRightSideNarrative(int artX, int artY, int artW, int artH, string narrativeText)
+    private void DrawSidebarNarrative(int panelX, int startY, int availableWidth, int maxHeight, string narrativeText)
     {
         Font font = _uiFont;
         float fontSize = LayoutConstants.NarrativeLongSize;
@@ -7494,7 +7500,7 @@ public sealed class Game : IGame
         int lineHeight = (int)(fontSize * 1.42f);
         int blankLineHeight = lineHeight / 2;
 
-        int textMaxWidth = NarrativeMaxCardWidth - NarrativeHorizontalPadding * 2 - NarrativeCaretTextReserve;
+        int textMaxWidth = availableWidth - NarrativeHorizontalPadding * 2 - NarrativeCaretTextReserve;
 
         var (wrappedLines, textHeight) = GameTextLayout.WrapForBox(
             narrativeText,
@@ -7504,19 +7510,18 @@ public sealed class Game : IGame
             textMaxWidth,
             lineHeight);
 
-        int expandedCardW = NarrativeMaxCardWidth;
         int expandedCardH = textHeight + NarrativeVerticalPadding * 2;
-        int cardX = artX + artW - expandedCardW - NarrativeCardEdgeInset;
-        int cardY = artY + NarrativeCardTopInset;
+        int cardX = panelX;
+        int cardY = startY;
 
         if (_narrativeCollapsed)
         {
-            _narrativeCardRect = new Rectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight);
+            _narrativeCardRect = new Rectangle(cardX, cardY, availableWidth, NarrativeCollapsedHeight);
 
             (Color bg, Color border) = GetNarrativeCardColors(_narrativeCardHovered);
-            Raylib.DrawRectangle(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, bg);
-            Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, NarrativeCollapsedHeight, border);
-            DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: true, _narrativeCardHovered);
+            Raylib.DrawRectangle(cardX, cardY, availableWidth, NarrativeCollapsedHeight, bg);
+            Raylib.DrawRectangleLines(cardX, cardY, availableWidth, NarrativeCollapsedHeight, border);
+            DrawNarrativeCardCaret(cardX, cardY, availableWidth, collapsed: true, _narrativeCardHovered);
 
             const string collapsedLabel = "…";
             float collapsedLabelSize = 22f;
@@ -7533,19 +7538,25 @@ public sealed class Game : IGame
             return;
         }
 
-        _narrativeCardRect = new Rectangle(cardX, cardY, expandedCardW, expandedCardH);
+        int cardH = Math.Min(expandedCardH, maxHeight);
+        _narrativeCardRect = new Rectangle(cardX, cardY, availableWidth, cardH);
 
         (Color cardBg, Color cardBorder) = GetNarrativeCardColors(_narrativeCardHovered);
-        Raylib.DrawRectangle(cardX, cardY, expandedCardW, expandedCardH, cardBg);
-        Raylib.DrawRectangleLines(cardX, cardY, expandedCardW, expandedCardH, cardBorder);
-        DrawNarrativeCardCaret(cardX, cardY, expandedCardW, collapsed: false, _narrativeCardHovered);
+        Raylib.DrawRectangle(cardX, cardY, availableWidth, cardH, cardBg);
+        Raylib.DrawRectangleLines(cardX, cardY, availableWidth, cardH, cardBorder);
+        DrawNarrativeCardCaret(cardX, cardY, availableWidth, collapsed: false, _narrativeCardHovered);
 
         int textLeft = cardX + NarrativeHorizontalPadding;
         int textTop = cardY + NarrativeVerticalPadding;
+        int textBottom = cardY + cardH - NarrativeVerticalPadding;
 
         int y = textTop;
         for (int i = 0; i < wrappedLines.Count; i++)
         {
+            int advance = string.IsNullOrEmpty(wrappedLines[i]) ? blankLineHeight : lineHeight;
+            if (y + advance > textBottom)
+                break;
+
             Raylib.DrawTextEx(
                 font,
                 wrappedLines[i],
@@ -7554,7 +7565,7 @@ public sealed class Game : IGame
                 spacing,
                 Palette.TextPrimary);
 
-            y += string.IsNullOrEmpty(wrappedLines[i]) ? blankLineHeight : lineHeight;
+            y += advance;
         }
     }
 
