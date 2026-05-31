@@ -41,14 +41,16 @@ internal static class GasGaugeCatalog
         if (needleTexture.Id == 0)
             return;
 
-        float destX = faceRect.X + faceRect.Width * (NeedleSrcX / TextureWidth);
-        float destY = faceRect.Y + faceRect.Height * (NeedleSrcY / TextureHeight);
         float destW = faceRect.Width * (NeedleSrcW / TextureWidth);
         float destH = faceRect.Height * (NeedleSrcH / TextureHeight);
         float originX = destW * (NeedlePivotSrcX / NeedleSrcW);
         float originY = destH * (NeedlePivotSrcY / NeedleSrcH);
 
-        var needleDest = new Rectangle(destX, destY, destW, destH);
+        // dest.x/y is the rotation pivot in screen space; place the hub center there.
+        float hubX = faceRect.X + faceRect.Width * (NeedleSrcX + NeedlePivotSrcX) / TextureWidth;
+        float hubY = faceRect.Y + faceRect.Height * (NeedleSrcY + NeedlePivotSrcY) / TextureHeight;
+
+        var needleDest = new Rectangle(hubX, hubY, destW, destH);
         var needleSrc = new Rectangle(NeedleSrcX, NeedleSrcY, NeedleSrcW, NeedleSrcH);
         float rotation = GetNeedleRotation(level);
         Raylib.DrawTexturePro(
