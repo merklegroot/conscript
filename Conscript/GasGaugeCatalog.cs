@@ -9,6 +9,9 @@ internal static class GasGaugeCatalog
     public const string FaceFile = "truck-gas-gauge-face.png";
     public const string NeedleFile = "truck-gas-gauge-needle.png";
 
+    public const int TextureWidth = 1536;
+    public const int TextureHeight = 1024;
+
     public const int LevelCount = 5;
     public const int DefaultLevel = 2;
 
@@ -18,45 +21,34 @@ internal static class GasGaugeCatalog
     /// <summary>Needle points to F (lower-right) when level is full.</summary>
     public const float NeedleRotationFull = -135f;
 
-    /// <summary>Needle sprite crop in the needle texture (pixels).</summary>
+    /// <summary>Needle shaft crop in the needle texture — hub ring is on the face art.</summary>
     public const float NeedleSrcX = 707f;
     public const float NeedleSrcY = 19f;
     public const float NeedleSrcW = 120f;
-    public const float NeedleSrcH = 976f;
+    public const float NeedleSrcH = 860f;
     public const float NeedlePivotSrcX = 59.5f;
-    public const float NeedlePivotSrcY = 720f;
+    public const float NeedlePivotSrcY = 859f;
 
-    /// <summary>Needle tip position on the gauge face when pointing straight up, normalized 0–1.</summary>
-    public const float FaceNeedleTipYRatio = 0.020f;
-
-    /// <summary>Needle hub position on the gauge face, normalized 0–1.</summary>
-    public const float FacePivotXRatio = 0.500f;
-    public const float FacePivotYRatio = 0.622f;
+    /// <summary>Shaft pivot on the shared gauge canvas (face + needle PNGs are aligned).</summary>
+    public const float FacePivotXRatio = (NeedleSrcX + NeedlePivotSrcX) / TextureWidth;
+    public const float FacePivotYRatio = (NeedleSrcY + NeedlePivotSrcY) / TextureHeight;
 
     public static void DrawNeedle(
         Texture2D needleTexture,
         Rectangle faceRect,
-        int level,
-        float faceHubXRatio,
-        float faceHubYRatio)
+        int level)
     {
         if (needleTexture.Id == 0)
             return;
 
-        float hubX = faceRect.X + faceRect.Width * faceHubXRatio;
-        float hubY = faceRect.Y + faceRect.Height * faceHubYRatio;
+        float destX = faceRect.X + faceRect.Width * (NeedleSrcX / TextureWidth);
+        float destY = faceRect.Y + faceRect.Height * (NeedleSrcY / TextureHeight);
+        float destW = faceRect.Width * (NeedleSrcW / TextureWidth);
+        float destH = faceRect.Height * (NeedleSrcH / TextureHeight);
+        float originX = destW * (NeedlePivotSrcX / NeedleSrcW);
+        float originY = destH * (NeedlePivotSrcY / NeedleSrcH);
 
-        // Scale from tip to hub on the face — must not grow with hub Y or Y offsets cancel out.
-        float needleDestH = faceRect.Height * (faceHubYRatio - FaceNeedleTipYRatio);
-        float needleDestW = needleDestH * (NeedleSrcW / NeedleSrcH);
-        float originX = needleDestW * (NeedlePivotSrcX / NeedleSrcW);
-        float originY = needleDestH * (NeedlePivotSrcY / NeedleSrcH);
-
-        var needleDest = new Rectangle(
-            hubX - originX,
-            hubY - originY,
-            needleDestW,
-            needleDestH);
+        var needleDest = new Rectangle(destX, destY, destW, destH);
         var needleSrc = new Rectangle(NeedleSrcX, NeedleSrcY, NeedleSrcW, NeedleSrcH);
         float rotation = GetNeedleRotation(level);
         Raylib.DrawTexturePro(

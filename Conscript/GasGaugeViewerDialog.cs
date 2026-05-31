@@ -14,8 +14,6 @@ internal sealed class GasGaugeViewerDialog
     private bool _closeHovered;
     private bool _prevHovered;
     private bool _nextHovered;
-    private bool _hasPivotMarker;
-    private Vector2 _pivotMarkerNormalized;
 
     public bool IsOpen { get; private set; }
 
@@ -25,7 +23,6 @@ internal sealed class GasGaugeViewerDialog
         _closeHovered = false;
         _prevHovered = false;
         _nextHovered = false;
-        _hasPivotMarker = false;
     }
 
     public void Close()
@@ -34,7 +31,6 @@ internal sealed class GasGaugeViewerDialog
         _closeHovered = false;
         _prevHovered = false;
         _nextHovered = false;
-        _hasPivotMarker = false;
     }
 
     public void Update(Vector2 mouse, bool leftClicked, ref int level, Action? onLevelChanged)
@@ -77,17 +73,6 @@ internal sealed class GasGaugeViewerDialog
             return;
         }
 
-        if (Raylib.CheckCollisionPointRec(mouse, _faceRect))
-        {
-            _pivotMarkerNormalized = new Vector2(
-                (mouse.X - _faceRect.X) / _faceRect.Width,
-                (mouse.Y - _faceRect.Y) / _faceRect.Height);
-            _hasPivotMarker = true;
-            Raylib.SetClipboardText(
-                $"({_pivotMarkerNormalized.X:F3}, {_pivotMarkerNormalized.Y:F3})");
-            return;
-        }
-
         if (!Raylib.CheckCollisionPointRec(mouse, _panelRect))
             Close();
     }
@@ -105,7 +90,7 @@ internal sealed class GasGaugeViewerDialog
 
         int faceSize = maxFaceSize;
         int panelW = faceSize + 32;
-        int panelH = faceSize + 156;
+        int panelH = faceSize + 148;
         int panelX = (screenWidth - panelW) / 2;
         int panelY = (screenHeight - panelH) / 2 - 8;
         _panelRect = new Rectangle(panelX, panelY, panelW, panelH);
@@ -116,29 +101,17 @@ internal sealed class GasGaugeViewerDialog
         Raylib.DrawTextEx(font, "FUEL GAUGE",
             new Vector2(panelX + 20, panelY + 14), 22, 0.7f, Palette.TextPrimary);
 
-        const string pivotHint = "Click gauge face to mark pivot (copies coords)";
-        int hintSize = 12;
-        Raylib.DrawTextEx(font, pivotHint,
-            new Vector2(panelX + 20, panelY + 36), hintSize, 0.45f, Palette.TextSecondary);
-
         int faceX = panelX + (panelW - faceSize) / 2;
-        int faceY = panelY + 52;
+        int faceY = panelY + 44;
         _faceRect = new Rectangle(faceX, faceY, faceSize, faceSize);
 
-        Raylib.DrawRectangleRec(_faceRect, new Color(8, 8, 10, 255));
+        FlushDrawBatch();
 
-        var faceSrc = new Rectangle(0, 0, faceTexture.Width, faceTexture.Height);
-        Raylib.DrawTexturePro(faceTexture, faceSrc, _faceRect, Vector2.Zero, 0f, Color.WHITE);
+        DrawGaugeFace(faceTexture);
+        FlushDrawBatch();
 
-        if (needleTexture.Id != 0)
-        {
-            GetActiveHubRatios(out float hubXRatio, out float hubYRatio);
-            GasGaugeCatalog.DrawNeedle(needleTexture, _faceRect, level, hubXRatio, hubYRatio);
-        }
-
-        DrawNeedleHubMarker();
-        if (_hasPivotMarker)
-            DrawPivotReticle(font);
+        DrawGaugeNeedle(needleTexture, level);
+        FlushDrawBatch();
 
         string levelLabel = GasGaugeCatalog.GetLevelLabel(level);
         int labelSize = 16;
@@ -164,54 +137,21 @@ internal sealed class GasGaugeViewerDialog
         GameDialogUi.DrawDialogButton(_closeRect, "CLOSE", _closeHovered, font);
     }
 
-    private void GetActiveHubRatios(out float hubXRatio, out float hubYRatio)
+    private static void FlushDrawBatch() => Rlgl.DrawRenderBatchActive();
+
+    private void DrawGaugeFace(Texture2D faceTexture)
     {
-        if (_hasPivotMarker)
-        {
-            hubXRatio = _pivotMarkerNormalized.X;
-            hubYRatio = _pivotMarkerNormalized.Y;
+        Raylib.DrawRectangleRec(_faceRect, new Color(8, 8, 10, 255));
+
+        var faceSrc = new Rectangle(0, 0, faceTexture.Width, faceTexture.Height);
+        Raylib.DrawTexturePro(faceTexture, faceSrc, _faceRect, Vector2.Zero, 0f, Color.WHITE);
+    }
+
+    private void DrawGaugeNeedle(Texture2D needleTexture, int level)
+    {
+        if (needleTexture.Id == 0)
             return;
-        }
 
-        hubXRatio = GasGaugeCatalog.FacePivotXRatio;
-        hubYRatio = GasGaugeCatalog.FacePivotYRatio;
-    }
-
-    private void DrawNeedleHubMarker()
-    {
-        GetActiveHubRatios(out float hubXRatio, out float hubYRatio);
-        float x = _faceRect.X + _faceRect.Width * hubXRatio;
-        float y = _faceRect.Y + _faceRect.Height * hubYRatio;
-        var hubColor = new Color(255, 140, 60, 220);
-
-        Raylib.DrawCircleLines((int)x, (int)y, 6f, hubColor);
-        Raylib.DrawCircle((int)x, (int)y, 2f, hubColor);
-    }
-
-    private void DrawPivotReticle(Font font)
-    {
-        float x = _faceRect.X + _pivotMarkerNormalized.X * _faceRect.Width;
-        float y = _faceRect.Y + _pivotMarkerNormalized.Y * _faceRect.Height;
-        const float arm = 14f;
-        var reticleColor = new Color(120, 220, 255, 255);
-        var ringColor = new Color(120, 220, 255, 180);
-
-        Raylib.DrawLineEx(new Vector2(x - arm, y), new Vector2(x + arm, y), 2f, reticleColor);
-        Raylib.DrawLineEx(new Vector2(x, y - arm), new Vector2(x, y + arm), 2f, reticleColor);
-        Raylib.DrawCircleLines((int)x, (int)y, 8f, ringColor);
-        Raylib.DrawCircle((int)x, (int)y, 2f, reticleColor);
-
-        string coords = $"({_pivotMarkerNormalized.X:F3}, {_pivotMarkerNormalized.Y:F3}) — copied";
-        int coordSize = 14;
-        Vector2 coordMeasure = Raylib.MeasureTextEx(font, coords, coordSize, 0.5f);
-        float coordX = x - coordMeasure.X / 2f;
-        float coordY = y + arm + 6f;
-        if (coordY + coordMeasure.Y > _faceRect.Y + _faceRect.Height - 4f)
-            coordY = y - arm - coordMeasure.Y - 6f;
-
-        var bg = new Rectangle(coordX - 6f, coordY - 2f, coordMeasure.X + 12f, coordMeasure.Y + 4f);
-        Raylib.DrawRectangleRec(bg, new Color(8, 10, 14, 220));
-        Raylib.DrawRectangleLinesEx(bg, 1f, ringColor);
-        Raylib.DrawTextEx(font, coords, new Vector2(coordX, coordY), coordSize, 0.5f, Palette.TextPrimary);
+        GasGaugeCatalog.DrawNeedle(needleTexture, _faceRect, level);
     }
 }
