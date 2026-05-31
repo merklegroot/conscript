@@ -24,7 +24,7 @@ internal static class GasGaugeCatalog
     public const float NeedleSrcW = 120f;
     public const float NeedleSrcH = 976f;
     public const float NeedlePivotSrcX = 59.5f;
-    public const float NeedlePivotSrcY = 975f;
+    public const float NeedlePivotSrcY = 720f;
 
     /// <summary>Needle tip position on the gauge face when pointing straight up, normalized 0–1.</summary>
     public const float FaceNeedleTipYRatio = 0.020f;
@@ -46,6 +46,7 @@ internal static class GasGaugeCatalog
         float hubX = faceRect.X + faceRect.Width * faceHubXRatio;
         float hubY = faceRect.Y + faceRect.Height * faceHubYRatio;
 
+        // Scale from tip to hub on the face — must not grow with hub Y or Y offsets cancel out.
         float needleDestH = faceRect.Height * (faceHubYRatio - FaceNeedleTipYRatio);
         float needleDestW = needleDestH * (NeedleSrcW / NeedleSrcH);
         float originX = needleDestW * (NeedlePivotSrcX / NeedleSrcW);
