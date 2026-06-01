@@ -178,7 +178,7 @@ public sealed class Game : IGame
     private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private readonly GasGaugeViewerDialog _gasGaugeViewer = new();
-    private int _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
+    private float _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
     private Rectangle _gasGaugeClickRect;
     private bool _gasGaugeHotspotHovered;
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
@@ -3079,6 +3079,7 @@ public sealed class Game : IGame
             case ChoiceDriveToWarehouse:
                 _actionMessage = "You pull out onto the industrial roads, headlights cutting the rain toward the west yards.";
                 _actionMessageTimer = 2.8f;
+                _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
                 AdvanceTime();
                 EnterPhase(Phase.WarehouseTruck);
                 return;
@@ -4268,7 +4269,7 @@ public sealed class Game : IGame
         WarehouseAmbushersDead = _warehouseAmbushersDead,
         FoldedPaperMessageRead = _foldedPaperMessageRead,
         NoteMessageRead = _noteMessageRead,
-        GasGaugeLevel = _gasGaugeLevel,
+        GasGaugeFuel = _gasGaugeFuel,
         WarehouseCrateOpened = _warehouseCrateOpened,
         WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
         HasTrashBagTent = _hasTrashBagTent,
@@ -4310,7 +4311,7 @@ public sealed class Game : IGame
             _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
-            _gasGaugeLevel = snapshot.GasGaugeLevel;
+            _gasGaugeFuel = snapshot.GasGaugeFuel;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _hasTrashBagTent = snapshot.HasTrashBagTent;
             _tentBuiltInPhase = snapshot.TentBuiltInPhase;
@@ -4414,7 +4415,7 @@ public sealed class Game : IGame
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
-        _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
+        _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _buildFeedback = "";
         ResetDeathLines();
@@ -4448,7 +4449,7 @@ public sealed class Game : IGame
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
-        _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
+        _gasGaugeFuel = GasGaugeCatalog.AlmostEmptyFuel;
         _warehouseKeypad.Reset();
         EnterPhase(Phase.DeliveryTruck);
     }
@@ -4718,6 +4719,7 @@ public sealed class Game : IGame
         CloseCafeOwnerDialog();
         _borisDeliveryJobActive = true;
         ResetGloveCompartmentLoot();
+        _gasGaugeFuel = GasGaugeCatalog.AlmostEmptyFuel;
         _actionMessage = "Boris slides keys across the counter. \"Get in the truck. " +
                          CafeOwnerDialog.WarehouseName + ", bay three. Move.\"";
         _actionMessageTimer = 2.8f;
@@ -7673,7 +7675,7 @@ public sealed class Game : IGame
 
         if (_gasGaugeViewer.IsOpen)
         {
-            _gasGaugeViewer.Draw(_uiFont, _gasGaugeLevel, _screenWidth, _screenHeight);
+            _gasGaugeViewer.Draw(_uiFont, _gasGaugeFuel, _screenWidth, _screenHeight);
         }
 
         if (_showBuildDialog)

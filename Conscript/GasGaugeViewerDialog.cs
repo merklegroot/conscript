@@ -45,7 +45,7 @@ internal sealed class GasGaugeViewerDialog
             Close();
     }
 
-    public void Draw(Font font, int level, int screenWidth, int screenHeight)
+    public void Draw(Font font, float fuel, int screenWidth, int screenHeight)
     {
         if (!IsOpen)
             return;
@@ -92,9 +92,9 @@ internal sealed class GasGaugeViewerDialog
         _faceRect = new Rectangle(faceX, gaugeY, faceSize, gaugeH);
 
         Raylib.DrawRectangleRec(_faceRect, new Color(8, 8, 10, 255));
-        GasGaugeCatalog.DrawInRect(_faceRect, level, font);
+        GasGaugeCatalog.DrawInRect(_faceRect, fuel, font);
 
-        string levelLabel = GasGaugeCatalog.GetLevelLabel(level);
+        string levelLabel = GasGaugeCatalog.GetLevelLabel(fuel);
         int labelW = (int)Raylib.MeasureTextEx(font, levelLabel, labelSize, 0.55f).X;
         Raylib.DrawTextEx(font, levelLabel,
             new Vector2(panelX + (panelW - labelW) / 2, contentBottom),
