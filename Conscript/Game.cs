@@ -1919,19 +1919,12 @@ public sealed class Game : IGame
                 else
                     _gloveCompartmentHovered = false;
 
-                if (_phase == Phase.DeliveryTruck)
+                if (_phase is Phase.DeliveryTruck or Phase.WarehouseTruck)
                 {
                     GetCinematicArtBounds(out int gaugeArtX, out int gaugeArtY, out int gaugeArtW, out int gaugeArtH);
                     var gaugeArtBounds = new Rectangle(gaugeArtX, gaugeArtY, gaugeArtW, gaugeArtH);
                     _gasGaugeHotspotHovered = false;
-                    float gaugeW = DeliveryTruckHotspots.GasGaugeX2 - DeliveryTruckHotspots.GasGaugeX1;
-                    float gaugeH = DeliveryTruckHotspots.GasGaugeY2 - DeliveryTruckHotspots.GasGaugeY1;
-                    _gasGaugeClickRect = SceneRegion.ToScreenRect(
-                        DeliveryTruckHotspots.GasGaugeX1,
-                        DeliveryTruckHotspots.GasGaugeY1,
-                        gaugeW,
-                        gaugeH,
-                        gaugeArtBounds);
+                    _gasGaugeClickRect = ComputeTruckGasGaugeClickRect(_phase, gaugeArtBounds);
 
                     if (Raylib.CheckCollisionPointRec(mouse, _gasGaugeClickRect))
                     {
@@ -5529,7 +5522,7 @@ public sealed class Game : IGame
 
     private void OpenGasGaugeViewer()
     {
-        if (_phase != Phase.DeliveryTruck)
+        if (_phase is not (Phase.DeliveryTruck or Phase.WarehouseTruck))
             return;
 
         _gasGaugeViewer.Open();
@@ -7274,20 +7267,13 @@ public sealed class Game : IGame
         }
     }
 
-    private void DrawDeliveryTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
+    private void DrawTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
     {
-        if (_phase != Phase.DeliveryTruck)
+        if (_phase is not (Phase.DeliveryTruck or Phase.WarehouseTruck))
             return;
 
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        float gaugeW = DeliveryTruckHotspots.GasGaugeX2 - DeliveryTruckHotspots.GasGaugeX1;
-        float gaugeH = DeliveryTruckHotspots.GasGaugeY2 - DeliveryTruckHotspots.GasGaugeY1;
-        Rectangle r = SceneRegion.ToScreenRect(
-            DeliveryTruckHotspots.GasGaugeX1,
-            DeliveryTruckHotspots.GasGaugeY1,
-            gaugeW,
-            gaugeH,
-            artBounds);
+        Rectangle r = ComputeTruckGasGaugeClickRect(_phase, artBounds);
 
         bool hovered = _gasGaugeHotspotHovered;
         Color fill = hovered
@@ -8275,8 +8261,8 @@ public sealed class Game : IGame
 
         if (GamePhase.IsInTruckCab(_phase))
         {
-            DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
-            DrawDeliveryTruckGasGaugeHotspot(artX, artY, artW, artH);
+            DrawTruckGloveCompartmentHotspot(artX, artY, artW, artH);
+            DrawTruckGasGaugeHotspot(artX, artY, artW, artH);
         }
 
         if (_phase == Phase.WarehouseAftermath)
@@ -8412,31 +8398,63 @@ public sealed class Game : IGame
         DrawTopRightButtons();
     }
 
-    private static Rectangle ComputeTruckGloveBoxClickRect(Phase phase, int artX, int artY, int artW, int artH)
+    private static Rectangle ComputeTruckGasGaugeClickRect(Phase phase, Rectangle artBounds)
     {
+        float x1;
+        float y1;
+        float x2;
+        float y2;
+
         if (phase == Phase.WarehouseTruck)
         {
-            // Parked at the loading bay — cab interior frames the bottom; glove box lower right
-            int x = artX + (int)(artW * 0.68f);
-            int y = artY + (int)(artH * 0.74f);
-            int w = (int)(artW * 0.26f);
-            int h = (int)(artH * 0.18f);
-            return new Rectangle(x, y, w, h);
+            x1 = WarehouseTruckHotspots.GasGaugeX1;
+            y1 = WarehouseTruckHotspots.GasGaugeY1;
+            x2 = WarehouseTruckHotspots.GasGaugeX2;
+            y2 = WarehouseTruckHotspots.GasGaugeY2;
+        }
+        else
+        {
+            x1 = DeliveryTruckHotspots.GasGaugeX1;
+            y1 = DeliveryTruckHotspots.GasGaugeY1;
+            x2 = DeliveryTruckHotspots.GasGaugeX2;
+            y2 = DeliveryTruckHotspots.GasGaugeY2;
         }
 
+        return SceneRegion.ToScreenRect(x1, y1, x2 - x1, y2 - y1, artBounds);
+    }
+
+    private static Rectangle ComputeTruckGloveBoxClickRect(Phase phase, int artX, int artY, int artW, int artH)
+    {
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        float gloveW = DeliveryTruckHotspots.GloveBoxX2 - DeliveryTruckHotspots.GloveBoxX1;
-        float gloveH = DeliveryTruckHotspots.GloveBoxY2 - DeliveryTruckHotspots.GloveBoxY1;
+        float gloveX1;
+        float gloveY1;
+        float gloveX2;
+        float gloveY2;
+
+        if (phase == Phase.WarehouseTruck)
+        {
+            gloveX1 = WarehouseTruckHotspots.GloveBoxX1;
+            gloveY1 = WarehouseTruckHotspots.GloveBoxY1;
+            gloveX2 = WarehouseTruckHotspots.GloveBoxX2;
+            gloveY2 = WarehouseTruckHotspots.GloveBoxY2;
+        }
+        else
+        {
+            gloveX1 = DeliveryTruckHotspots.GloveBoxX1;
+            gloveY1 = DeliveryTruckHotspots.GloveBoxY1;
+            gloveX2 = DeliveryTruckHotspots.GloveBoxX2;
+            gloveY2 = DeliveryTruckHotspots.GloveBoxY2;
+        }
 
         return SceneRegion.ToScreenRect(
-            DeliveryTruckHotspots.GloveBoxX1,
-            DeliveryTruckHotspots.GloveBoxY1,
-            gloveW,
-            gloveH,
+            gloveX1,
+            gloveY1,
+            gloveX2 - gloveX1,
+            gloveY2 - gloveY1,
             artBounds);
     }
 
-    private void DrawDeliveryTruckGloveCompartmentHotspot(int artX, int artY, int artW, int artH)
+    private void DrawTruckGloveCompartmentHotspot(int artX, int artY, int artW, int artH)
     {
         if (!GloveCompartmentHasRemainingLoot() || _gloveCompartmentClickRect.Width <= 0)
             return;
