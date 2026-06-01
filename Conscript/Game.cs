@@ -114,12 +114,14 @@ public sealed class Game : IGame
     private Rectangle _debugStartButtonRect;
     private Rectangle _areaSelectButtonRect;
     private Rectangle _controllerButtonRect;
+    private Rectangle _copyRoomIdButtonRect;
     private bool _undoHovered;
     private bool _redoHovered;
     private bool _restartHovered;
     private bool _debugStartHovered;
     private bool _areaSelectHovered;
     private bool _controllerHovered;
+    private bool _copyRoomIdHovered;
 
     private readonly List<GameStateSnapshot> _undoStack = new();
     private readonly List<GameStateSnapshot> _redoStack = new();
@@ -1408,6 +1410,7 @@ public sealed class Game : IGame
         _debugStartHovered = Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect);
         _areaSelectHovered = Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect);
         _controllerHovered = Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect);
+        _copyRoomIdHovered = Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect);
         if (leftClicked && _undoHovered)
         {
             UndoLastAction();
@@ -1448,6 +1451,15 @@ public sealed class Game : IGame
                 CloseControllerDebug();
             else
                 OpenControllerDebug();
+            return;
+        }
+
+        if (leftClicked && _copyRoomIdHovered)
+        {
+            string roomId = _phase.ToString();
+            Raylib.SetClipboardText(roomId);
+            _actionMessage = $"{roomId} copied to clipboard";
+            _actionMessageTimer = 2.5f;
             return;
         }
 
@@ -1576,7 +1588,8 @@ public sealed class Game : IGame
                 !Raylib.CheckCollisionPointRec(mouse, _restartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) &&
-                !Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect))
+                !Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect))
             {
                 CloseControllerDebug();
                 return;
@@ -2403,6 +2416,7 @@ public sealed class Game : IGame
             Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect) ||
             (_showControllerDebug && (
                 Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect) ||
                 Raylib.CheckCollisionPointRec(mouse, _controllerDebugPrevRect) ||
@@ -4163,13 +4177,20 @@ public sealed class Game : IGame
     {
         const float size = 20f;
         const float gap = 6f;
+        const float colGap = 6f;
         const float margin = 26f;
-        float x = _screenWidth - margin - size;
-        _restartButtonRect = new Rectangle(x, 10f, size, size);
-        _debugStartButtonRect = new Rectangle(x, 10f + size + gap, size, size);
-        _areaSelectButtonRect = new Rectangle(x, 10f + (size + gap) * 2f, size, size);
-        _controllerButtonRect = new Rectangle(x, 10f + (size + gap) * 3f, size, size);
+        float col0X = _screenWidth - margin - size;
+        float col1X = col0X - colGap - size;
+
+        _restartButtonRect = new Rectangle(col0X, 10f, size, size);
+        _debugStartButtonRect = new Rectangle(col0X, 10f + (size + gap), size, size);
+        _areaSelectButtonRect = new Rectangle(col0X, 10f + (size + gap) * 2f, size, size);
+        _controllerButtonRect = new Rectangle(col0X, 10f + (size + gap) * 3f, size, size);
+        _copyRoomIdButtonRect = new Rectangle(col1X, 10f, size, size);
     }
+
+    private float TopRightToolbarLeftEdge() =>
+        _copyRoomIdButtonRect.Width > 0 ? _copyRoomIdButtonRect.X : _restartButtonRect.X;
 
     private void UpdateHistoryButtonsLayout()
     {
@@ -4402,8 +4423,7 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to a reproducible debug snapshot inside Warehouse 14 with a crowbar for crate testing.
-    /// Resets inventory and warehouse progress for interior/dialog testing.
+    /// Jump to the warehouse truck cab at Bay 3 (fuel gauge hotspot testing).
     /// </summary>
     private void DebugStartGame()
     {
@@ -4421,17 +4441,16 @@ public sealed class Game : IGame
 
         _phaseBeforeCafe = Phase.IndustrialDistrict;
         _borisDeliveryJobActive = true;
-        _warehouseAmbushersDead = true;
+        _warehouseAmbushersDead = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
-        _gloveBoxLootTaken[0] = true;
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
         _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.WarehouseInterior);
+        EnterPhase(Phase.WarehouseTruck);
     }
 
     // --- Inventory & ground items ---
@@ -5718,6 +5737,9 @@ public sealed class Game : IGame
             _showControllerDebug || _controllerHovered,
             GameToolbarIcons.DrawController);
 
+    private void DrawCopyRoomIdButton() =>
+        GameDialogUi.DrawToolbarTextButton(_copyRoomIdButtonRect, _copyRoomIdHovered, _uiFont, "ID", 10f);
+
     // =====================================================================
     // CONTROLLER DEBUG — live gamepad buttons, axes, and sticks
     // =====================================================================
@@ -5748,6 +5770,7 @@ public sealed class Game : IGame
 
     private void DrawTopRightButtons()
     {
+        DrawCopyRoomIdButton();
         DrawRestartButton();
         DrawDebugStartButton();
         DrawAreaSelectButton();
@@ -7785,9 +7808,7 @@ public sealed class Game : IGame
         int seasonW = (int)Raylib.MeasureTextEx(font, seasonLine, LayoutConstants.TopInfoFontSize, 0.8f).X;
         float totalWidth = iconSize + iconTextGap + seasonW;
 
-        float rightEdge = _restartButtonRect.Width > 0
-            ? _restartButtonRect.X - 10f
-            : _screenWidth - 26f;
+        float rightEdge = TopRightToolbarLeftEdge() - 10f;
         float iconCenterX = rightEdge - totalWidth + iconSize / 2f;
         float iconCenterY = row1Y + 8f;   // vertically centered with the text
 
