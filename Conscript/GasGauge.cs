@@ -95,20 +95,29 @@ internal static class GasGauge
 
     private static void DrawTicks(Vector2 pivot, float radius)
     {
-        for (var i = 0; i <= 10; i++)
+        // Majors at E, 1/4, 1/2, 3/4, F; one minor midway between each pair.
+        const int stepsBetweenMajors = 2;
+
+        for (var i = 0; i <= 4 * stepsBetweenMajors; i++)
         {
-            var t = ToDialLevel(i / 10f);
-            var major = i % 2 == 0;
-            var inner = radius - (major ? 36f : 26f);
-            var outer = radius - 12f;
-            var color = major ? TickMajorColor : TickColor;
-            var width = major ? 2.5f : 1.5f;
-            Raylib.DrawLineEx(
-                PointOnArc(pivot, inner, t),
-                PointOnArc(pivot, outer, t),
-                width,
-                color);
+            var level = i / (4f * stepsBetweenMajors);
+            var major = i % stepsBetweenMajors == 0;
+            DrawTickMark(pivot, radius, level, major);
         }
+    }
+
+    private static void DrawTickMark(Vector2 pivot, float radius, float level, bool major)
+    {
+        var t = ToDialLevel(level);
+        var inner = radius - (major ? 36f : 26f);
+        var outer = radius - 12f;
+        var color = major ? TickMajorColor : TickColor;
+        var width = major ? 2.5f : 1.5f;
+        Raylib.DrawLineEx(
+            PointOnArc(pivot, inner, t),
+            PointOnArc(pivot, outer, t),
+            width,
+            color);
     }
 
     private static void DrawLabels(Vector2 pivot, float radius, Font labelFont)
