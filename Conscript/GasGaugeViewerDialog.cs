@@ -77,9 +77,9 @@ internal sealed class GasGaugeViewerDialog
             Close();
     }
 
-    public void Draw(Font font, Texture2D faceTexture, Texture2D needleTexture, int level, int screenWidth, int screenHeight)
+    public void Draw(Font font, int level, int screenWidth, int screenHeight)
     {
-        if (!IsOpen || faceTexture.Id == 0)
+        if (!IsOpen)
             return;
 
         GameDialogUi.DrawModalBackdrop(screenWidth, screenHeight, alpha: 200);
@@ -105,13 +105,8 @@ internal sealed class GasGaugeViewerDialog
         int faceY = panelY + 44;
         _faceRect = new Rectangle(faceX, faceY, faceSize, faceSize);
 
-        FlushDrawBatch();
-
-        DrawGaugeFace(faceTexture);
-        FlushDrawBatch();
-
-        DrawGaugeNeedle(needleTexture, level);
-        FlushDrawBatch();
+        Raylib.DrawRectangleRec(_faceRect, new Color(8, 8, 10, 255));
+        GasGaugeCatalog.DrawInRect(_faceRect, level, font);
 
         string levelLabel = GasGaugeCatalog.GetLevelLabel(level);
         int labelSize = 16;
@@ -135,23 +130,5 @@ internal sealed class GasGaugeViewerDialog
         GameDialogUi.DrawDialogButton(_prevRect, "◀", _prevHovered, font);
         GameDialogUi.DrawDialogButton(_nextRect, "▶", _nextHovered, font);
         GameDialogUi.DrawDialogButton(_closeRect, "CLOSE", _closeHovered, font);
-    }
-
-    private static void FlushDrawBatch() => Rlgl.DrawRenderBatchActive();
-
-    private void DrawGaugeFace(Texture2D faceTexture)
-    {
-        Raylib.DrawRectangleRec(_faceRect, new Color(8, 8, 10, 255));
-
-        var faceSrc = new Rectangle(0, 0, faceTexture.Width, faceTexture.Height);
-        Raylib.DrawTexturePro(faceTexture, faceSrc, _faceRect, Vector2.Zero, 0f, Color.WHITE);
-    }
-
-    private void DrawGaugeNeedle(Texture2D needleTexture, int level)
-    {
-        if (needleTexture.Id == 0)
-            return;
-
-        GasGaugeCatalog.DrawNeedle(needleTexture, _faceRect, level);
     }
 }

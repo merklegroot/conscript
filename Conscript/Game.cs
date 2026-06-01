@@ -176,8 +176,6 @@ public sealed class Game : IGame
     private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private readonly GasGaugeViewerDialog _gasGaugeViewer = new();
-    private Texture2D _gasGaugeFaceTexture;
-    private Texture2D _gasGaugeNeedleTexture;
     private int _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
     private Rectangle _gasGaugeClickRect;
     private bool _gasGaugeHotspotHovered;
@@ -1024,8 +1022,6 @@ public sealed class Game : IGame
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
         _foldedPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.FoldedPaperNoteFile);
         _crateNoteTexture = EmbeddedTextureLoader.Load(GameItems.CrateNoteFile);
-        _gasGaugeFaceTexture = EmbeddedTextureLoader.Load(GasGaugeCatalog.FaceFile);
-        _gasGaugeNeedleTexture = EmbeddedTextureLoader.Load(GasGaugeCatalog.NeedleFile);
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1084,8 +1080,6 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _titleLogoTexture);
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
         UnloadTextureIfLoaded(ref _crateNoteTexture);
-        UnloadTextureIfLoaded(ref _gasGaugeFaceTexture);
-        UnloadTextureIfLoaded(ref _gasGaugeNeedleTexture);
     }
 
     // --- Main loop ---
@@ -7658,13 +7652,7 @@ public sealed class Game : IGame
 
         if (_gasGaugeViewer.IsOpen)
         {
-            _gasGaugeViewer.Draw(
-                _uiFont,
-                _gasGaugeFaceTexture,
-                _gasGaugeNeedleTexture,
-                _gasGaugeLevel,
-                _screenWidth,
-                _screenHeight);
+            _gasGaugeViewer.Draw(_uiFont, _gasGaugeLevel, _screenWidth, _screenHeight);
         }
 
         if (_showBuildDialog)
