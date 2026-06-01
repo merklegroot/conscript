@@ -12,10 +12,17 @@ internal static class GasGaugeCatalog
     public static float GetLevelNormalized(int level) =>
         Math.Clamp(level, 0, LevelCount - 1) / (float)(LevelCount - 1);
 
+    public const float PlateOverhang = 12f;
+    public const float HubRadius = 16f;
+
+    /// <summary>Vertical extent of the drawn gauge from pivot (plate above, hub below).</summary>
+    public static float GetVisualHeight(float radius) => radius + PlateOverhang + HubRadius;
+
     public static void DrawInRect(Rectangle rect, int level, Font labelFont)
     {
         float radius = rect.Width * 0.5f - 14f;
-        var pivot = new Vector2(rect.X + rect.Width * 0.5f, rect.Y + rect.Height - 12f);
+        float pivotY = rect.Y + rect.Height * 0.5f + (radius - 4f) * 0.5f;
+        var pivot = new Vector2(rect.X + rect.Width * 0.5f, pivotY);
         GasGauge.Draw(pivot, radius, GetLevelNormalized(level), labelFont);
     }
 
