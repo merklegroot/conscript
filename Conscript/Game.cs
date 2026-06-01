@@ -45,6 +45,7 @@ public sealed class Game : IGame
     private Texture2D _warehouseAftermathBackground;
     private Texture2D _warehouseClosedDoorTexture;
     private Texture2D _warehouseInteriorBackground;
+    private Texture2D _gasStationBackground;
     private Texture2D _cafeOwnerPortraitTexture;
     private Texture2D _tentBackground;
     private Texture2D _trashBagTentTexture;
@@ -90,6 +91,7 @@ public sealed class Game : IGame
     private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
     private const string ChoiceFight = "FIGHT";
     private const string ChoiceBackToLoadingBay = "BACK TO THE BAY";
+    private const string ChoiceWalkToGasStation = "WALK TO GAS STATION";
     private const string ChoiceWait = "WAIT";
     private const string ChoiceTryAgain = "Try again";
     private const string ChoiceOpenDoor = "Open the door";
@@ -158,6 +160,7 @@ public sealed class Game : IGame
         WarehouseAmbush,  // Outside the cab — met by bratdvas; Boris betrayed you
         WarehouseAftermath, // Molotov blast — bratdvas dead, bay scorched
         WarehouseInterior, // Inside the hangar — entered via bay keypad
+        GasStation,    // All-night fuel stop off the industrial roads
         ForestEntry,  // Edge of the pines just beyond the apartment blocks
         ForestStream, // Forest stream — between the forest entry and deep forest
         Forest,       // Deep forest survival
@@ -498,6 +501,12 @@ public sealed class Game : IGame
         "Through the cracked roll-up door, rain and distant firelight stain the wet concrete.\n" +
         "Whoever ran this bay left in a hurry — or never left at all.";
 
+    private const string GasStationNarrative =
+        "A lone gas station blazes under sodium lights at the edge of the yards.\n" +
+        "Pumps stand in the rain, no attendant behind the grimy glass.\n" +
+        "Distant orange glow still stains the clouds toward the warehouse.\n" +
+        "Your truck is back there on empty — if you mean to run, you need fuel.";
+
     private const string CommercialDistrictNarrative =
         "Shopfronts line the side streets under harsh neon.\n" +
         "Foot traffic is thin, but every window might hide a watcher.\n" +
@@ -700,7 +709,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseAftermath:
-                _choices = new[] { ChoiceGetBackInTruck, ChoiceWait };
+                _choices = new[] { ChoiceGetBackInTruck, ChoiceWalkToGasStation, ChoiceWait };
                 _selectedIndex = 0;
                 _day = 0;
                 _timeOfDay = "Night";
@@ -708,6 +717,17 @@ public sealed class Game : IGame
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _season = "Early Autumn";
                 _temperatureF = 24;
+                break;
+
+            case Phase.GasStation:
+                _choices = new[] { ChoiceBackToLoadingBay, ChoiceWait };
+                _selectedIndex = 0;
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Gas Station";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _season = "Early Autumn";
+                _temperatureF = 22;
                 break;
 
             case Phase.WarehouseInterior:
@@ -750,6 +770,7 @@ public sealed class Game : IGame
             Phase.WarehouseAmbush   => _warehouseAmbushBackground,
             Phase.WarehouseAftermath => _warehouseAftermathBackground,
             Phase.WarehouseInterior => _warehouseInteriorBackground,
+            Phase.GasStation        => _gasStationBackground,
             Phase.ForestEntry  => _forestEntryBackground,
             Phase.Forest       => _forestBackground,
             Phase.ForestStream => _forestStreamBackground,
@@ -933,7 +954,7 @@ public sealed class Game : IGame
     private bool SceneUsesTimeOfDayLighting() =>
         GamePhase.IsOutdoor(_phase) || _phase == Phase.Tent || _phase == Phase.DeliveryTruck
         || _phase is Phase.WarehouseTruck or Phase.WarehouseAmbush or Phase.WarehouseAftermath
-        or Phase.WarehouseInterior;
+        or Phase.WarehouseInterior or Phase.GasStation;
 
     /// <summary>
     /// Multiplicative tint for outdoor background photos by time of day.
@@ -1018,6 +1039,7 @@ public sealed class Game : IGame
         _warehouseAftermathBackground = LoadTextureOrFallback("warehouse-14-aftermath.png", _warehouseAmbushBackground);
         _warehouseClosedDoorTexture = EmbeddedTextureLoader.Load(WarehouseAftermathHotspots.ClosedDoorImageFile);
         _warehouseInteriorBackground = LoadTextureOrFallback("warehouse-14-interior.png", _warehouseAftermathBackground);
+        _gasStationBackground = LoadTextureOrFallback("gas-station.png", _commercialDistrictBackground);
         _cafeOwnerPortraitTexture = EmbeddedTextureLoader.Load("cafe-owner-portrait.png");
         _tentBackground      = EmbeddedTextureLoader.Load("tent-interior.png");
         _trashBagTentTexture = EmbeddedTextureLoader.Load("trash-bag-tent.png");
@@ -1076,6 +1098,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _warehouseAftermathBackground);
         UnloadTextureIfLoaded(ref _warehouseClosedDoorTexture);
         UnloadTextureIfLoaded(ref _warehouseInteriorBackground);
+        UnloadTextureIfLoaded(ref _gasStationBackground);
         UnloadTextureIfLoaded(ref _cafeOwnerPortraitTexture);
         UnloadTextureIfLoaded(ref _tentBackground);
         UnloadTextureIfLoaded(ref _trashBagTentTexture);
@@ -2678,6 +2701,10 @@ public sealed class Game : IGame
                     HandleWarehouseAftermathChoice(index);
                     break;
 
+                case Phase.GasStation:
+                    HandleGasStationChoice(index);
+                    break;
+
                 case Phase.WarehouseInterior:
                     HandleWarehouseInteriorChoice(index);
                     break;
@@ -3164,6 +3191,36 @@ public sealed class Game : IGame
         {
             case ChoiceGetBackInTruck:
                 EnterWarehouseTruck();
+                return;
+
+            case ChoiceWalkToGasStation:
+                _actionMessage = "You cut across the wet yards toward the sodium glow of a gas station.";
+                _actionMessageTimer = 2.4f;
+                AdvanceTime();
+                EnterPhase(Phase.GasStation);
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleGasStationChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceBackToLoadingBay:
+                _actionMessage = "You trudge back through the rain toward the scorched loading bay.";
+                _actionMessageTimer = 2.4f;
+                AdvanceTime();
+                EnterPhase(Phase.WarehouseAftermath);
                 return;
 
             case ChoiceWait:
@@ -4142,6 +4199,9 @@ public sealed class Game : IGame
                 break;
             case Phase.WarehouseAftermath:
                 _actionMessage = "You stay low beside the truck. The fire crackles; the bratdvas don't move.";
+                break;
+            case Phase.GasStation:
+                _actionMessage = "You stand under the awning, listening to rain drum on the pumps.";
                 break;
             case Phase.WarehouseInterior:
                 _actionMessage = "You stand in the aisle between the pallets, listening to rain on the roof.";
@@ -7613,6 +7673,7 @@ public sealed class Game : IGame
             case Phase.WarehouseAmbush:
             case Phase.WarehouseAftermath:
             case Phase.WarehouseInterior:
+            case Phase.GasStation:
             case Phase.ForestEntry:
             case Phase.Forest:
             case Phase.ForestStream:
@@ -8129,6 +8190,7 @@ public sealed class Game : IGame
             Phase.WarehouseAmbush    => WarehouseAmbushNarrative,
             Phase.WarehouseAftermath => WarehouseAftermathNarrative,
             Phase.WarehouseInterior  => WarehouseInteriorNarrative,
+            Phase.GasStation         => GasStationNarrative,
             Phase.CommercialDistrict => CommercialDistrictNarrative,
             Phase.Store   => StoreNarrative,
             Phase.ForestEntry  => ForestEntryNarrative,

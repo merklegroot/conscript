@@ -24,6 +24,7 @@ internal static class GamePhase
             or Game.Phase.IndustrialDistrict or Game.Phase.CommercialDistrict or Game.Phase.Store
             or Game.Phase.Cafe or Game.Phase.DeliveryTruck or Game.Phase.WarehouseTruck
             or Game.Phase.WarehouseAmbush or Game.Phase.WarehouseAftermath or Game.Phase.WarehouseInterior
+            or Game.Phase.GasStation
             or Game.Phase.ForestEntry or Game.Phase.Forest
             or Game.Phase.ForestStream or Game.Phase.Tent;
 }
