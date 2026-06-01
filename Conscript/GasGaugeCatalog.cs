@@ -21,17 +21,9 @@ internal static class GasGaugeCatalog
     /// <summary>Needle points to F (lower-right) when level is full.</summary>
     public const float NeedleRotationFull = -135f;
 
-    /// <summary>Needle shaft crop in the needle texture — hub ring is on the face art.</summary>
-    public const float NeedleSrcX = 707f;
-    public const float NeedleSrcY = 19f;
-    public const float NeedleSrcW = 120f;
-    public const float NeedleSrcH = 860f;
-    public const float NeedlePivotSrcX = 59.5f;
-    public const float NeedlePivotSrcY = 859f;
-
-    /// <summary>Shaft pivot on the shared gauge canvas (face + needle PNGs are aligned).</summary>
-    public const float FacePivotXRatio = (NeedleSrcX + NeedlePivotSrcX) / TextureWidth;
-    public const float FacePivotYRatio = (NeedleSrcY + NeedlePivotSrcY) / TextureHeight;
+    /// <summary>Needle hub on the shared 1536×1024 gauge canvas (face + needle PNGs align 1:1).</summary>
+    public const float HubPivotX = 766.5f;
+    public const float HubPivotY = 906f;
 
     public static void DrawNeedle(
         Texture2D needleTexture,
@@ -41,24 +33,24 @@ internal static class GasGaugeCatalog
         if (needleTexture.Id == 0)
             return;
 
-        float destW = faceRect.Width * (NeedleSrcW / TextureWidth);
-        float destH = faceRect.Height * (NeedleSrcH / TextureHeight);
-        float originX = destW * (NeedlePivotSrcX / NeedleSrcW);
-        float originY = destH * (NeedlePivotSrcY / NeedleSrcH);
+        var needleSrc = new Rectangle(0, 0, TextureWidth, TextureHeight);
+        var origin = new Vector2(
+            faceRect.Width * (HubPivotX / TextureWidth),
+            faceRect.Height * (HubPivotY / TextureHeight));
 
-        // dest.x/y is the rotation pivot in screen space; place the hub center there.
-        float hubX = faceRect.X + faceRect.Width * (NeedleSrcX + NeedlePivotSrcX) / TextureWidth;
-        float hubY = faceRect.Y + faceRect.Height * (NeedleSrcY + NeedlePivotSrcY) / TextureHeight;
+        // DrawTexturePro dest is the pivot in screen space; scale the full needle canvas like the face.
+        var needleDest = new Rectangle(
+            faceRect.X + origin.X,
+            faceRect.Y + origin.Y,
+            faceRect.Width,
+            faceRect.Height);
 
-        var needleDest = new Rectangle(hubX, hubY, destW, destH);
-        var needleSrc = new Rectangle(NeedleSrcX, NeedleSrcY, NeedleSrcW, NeedleSrcH);
-        float rotation = GetNeedleRotation(level);
         Raylib.DrawTexturePro(
             needleTexture,
             needleSrc,
             needleDest,
-            new Vector2(originX, originY),
-            rotation,
+            origin,
+            GetNeedleRotation(level),
             Color.WHITE);
     }
 
