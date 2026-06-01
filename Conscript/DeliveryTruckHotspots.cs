@@ -10,8 +10,8 @@ internal static class DeliveryTruckHotspots
     public const float GloveBoxY2 = 0.729f;
 
     /// <summary>Fuel gauge on the cab dashboard.</summary>
-    public const float GasGaugeX1 = 0.239f;
-    public const float GasGaugeY1 = 0.620f;
-    public const float GasGaugeX2 = 0.561f;
-    public const float GasGaugeY2 = 0.708f;
+    public const float GasGaugeX1 = 0.408f;
+    public const float GasGaugeY1 = 0.622f;
+    public const float GasGaugeX2 = 0.478f;
+    public const float GasGaugeY2 = 0.707f;
 }
