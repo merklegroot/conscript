@@ -1500,7 +1500,7 @@ public sealed class Game : IGame
 
         if (_gasGaugeViewer.IsOpen)
         {
-            _gasGaugeViewer.Update(mouse, leftClicked, ref _gasGaugeLevel, RecordGasGaugeLevelChange);
+            _gasGaugeViewer.Update(mouse, leftClicked);
             return;
         }
 
@@ -5515,8 +5515,6 @@ public sealed class Game : IGame
     }
 
     private void CloseGasGaugeViewer() => _gasGaugeViewer.Close();
-
-    private void RecordGasGaugeLevelChange() => RecordHistorySnapshot();
 
     private string GetFoldedPaperDialogText()
     {

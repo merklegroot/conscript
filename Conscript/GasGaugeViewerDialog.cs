@@ -9,11 +9,7 @@ internal sealed class GasGaugeViewerDialog
     private Rectangle _panelRect;
     private Rectangle _faceRect;
     private Rectangle _closeRect;
-    private Rectangle _prevRect;
-    private Rectangle _nextRect;
     private bool _closeHovered;
-    private bool _prevHovered;
-    private bool _nextHovered;
 
     public bool IsOpen { get; private set; }
 
@@ -21,26 +17,20 @@ internal sealed class GasGaugeViewerDialog
     {
         IsOpen = true;
         _closeHovered = false;
-        _prevHovered = false;
-        _nextHovered = false;
     }
 
     public void Close()
     {
         IsOpen = false;
         _closeHovered = false;
-        _prevHovered = false;
-        _nextHovered = false;
     }
 
-    public void Update(Vector2 mouse, bool leftClicked, ref int level, Action? onLevelChanged)
+    public void Update(Vector2 mouse, bool leftClicked)
     {
         if (!IsOpen)
             return;
 
         _closeHovered = Raylib.CheckCollisionPointRec(mouse, _closeRect);
-        _prevHovered = Raylib.CheckCollisionPointRec(mouse, _prevRect);
-        _nextHovered = Raylib.CheckCollisionPointRec(mouse, _nextRect);
 
         if (!leftClicked)
             return;
@@ -48,28 +38,6 @@ internal sealed class GasGaugeViewerDialog
         if (_closeHovered)
         {
             Close();
-            return;
-        }
-
-        if (_prevHovered)
-        {
-            if (level > 0)
-            {
-                level--;
-                onLevelChanged?.Invoke();
-            }
-
-            return;
-        }
-
-        if (_nextHovered)
-        {
-            if (level < GasGaugeCatalog.LevelCount - 1)
-            {
-                level++;
-                onLevelChanged?.Invoke();
-            }
-
             return;
         }
 
@@ -96,7 +64,7 @@ internal sealed class GasGaugeViewerDialog
 
         int faceSize = maxFaceSize;
         int panelW = faceSize + 32;
-        int panelH = faceSize + 148;
+        int panelH = faceSize + 108;
         int panelX = (screenWidth - panelW) / 2;
         int panelY = (screenHeight - panelH) / 2 - 8;
         _panelRect = new Rectangle(panelX, panelY, panelW, panelH);
@@ -132,18 +100,10 @@ internal sealed class GasGaugeViewerDialog
             new Vector2(panelX + (panelW - labelW) / 2, contentBottom),
             labelSize, 0.55f, Palette.TextSecondary);
 
-        int btnW = 52;
-        int gap = 10;
-        int closeW = 100;
-        int rowW = btnW * 2 + gap + closeW + gap;
-        int rowX = panelX + (panelW - rowW) / 2;
+        const int closeW = 100;
+        int closeX = panelX + (panelW - closeW) / 2;
+        _closeRect = new Rectangle(closeX, btnY, closeW, btnH);
 
-        _prevRect = new Rectangle(rowX, btnY, btnW, btnH);
-        _nextRect = new Rectangle(rowX + btnW + gap, btnY, btnW, btnH);
-        _closeRect = new Rectangle(rowX + (btnW + gap) * 2, btnY, closeW, btnH);
-
-        GameDialogUi.DrawDialogButton(_prevRect, "◀", _prevHovered, font);
-        GameDialogUi.DrawDialogButton(_nextRect, "▶", _nextHovered, font);
         GameDialogUi.DrawDialogButton(_closeRect, "CLOSE", _closeHovered, font);
     }
 }
