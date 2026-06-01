@@ -149,3 +149,19 @@ Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay i
   - Installed via `scripts/install_scene_image.py` (JPEG → 1536×1024 PNG).
   - Wired in `Conscript/Game.cs` as the background for `Phase.WarehouseAmbush` (fallback to `warehouse-14.png`).
 
+## `gas-station.png`
+
+- **asset**: `Conscript/img/gas-station.png`
+- **date**: 2026-05-29
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage` + `scripts/install_scene_image.py`
+- **source**: `gas-station-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic nighttime scene at a lonely post-Soviet gas station on the edge of industrial yards in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Eye-level view across a wet asphalt forecourt with two or three weathered fuel pumps under a battered metal canopy, sodium orange and cool fluorescent light on rain-slick concrete, small glass kiosk with grimy windows and dim interior glow, chain-link fence and dark warehouse silhouettes in the distance, faint orange fire glow staining low clouds on the horizon. Empty station, no people, no vehicles at pumps, no readable text, no logos, no brand names on pumps. Moody gritty post-Soviet atmosphere, cool rain vs warm station lights, subtle film grain. Wide landscape 3:2 aspect ratio, photorealistic.
+```
+
+- **notes**:
+  - `Phase.GasStation` — walk from warehouse aftermath; distant fire glow toward the yards.
+

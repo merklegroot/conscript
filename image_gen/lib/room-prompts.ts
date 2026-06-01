@@ -76,7 +76,7 @@ export const ROOM_PROMPTS: Record<string, RoomPrompt> = {
       "Cinematic photorealistic nighttime scene at a Soviet-era warehouse loading bay in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Ground-level view on wet concrete near an old green delivery truck with open cab door on the right, corrugated roll-up door ahead — showing violent explosion aftermath. Roiling orange fire and thick black smoke billowing from the doorway, scorched blackened metal door, shattered windows, burning pallets and debris scattered across the ground, rain hissing on hot embers. Floodlights cutting through rain and smoke, long reflections in puddles, chain-link fence beyond. Moody gritty post-Soviet atmosphere, dramatic firelight vs cool rain, subtle film grain. Wide landscape 3:2. No readable text, no signage, no logos. the bodies of two bratdva mobsters are lying on the ground.",
   },
   GasStation: {
-    source: "inferred",
+    source: "verified",
     prompt:
       "Cinematic photorealistic nighttime scene at a lonely post-Soviet gas station on the edge of industrial yards in Ulan-Ude, Republic of Buryatia, early autumn, heavy rain. Wet asphalt forecourt, two or three fuel pumps under a battered canopy, sodium and fluorescent light on rain-slick concrete, small kiosk with grimy windows, chain-link fence and dark warehouse silhouettes in the distance, faint orange glow on low clouds from a fire far off. Empty, no people, no vehicles at the pumps. Moody gritty atmosphere, cool rain vs warm station lights, subtle film grain. Wide landscape 3:2. No readable text, no logos, no brand names on pumps." +
       PROMPT_SUFFIX,

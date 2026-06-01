@@ -4477,7 +4477,7 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to the delivery truck cab (fuel gauge hotspot testing).
+    /// Jump to the gas station after the warehouse aftermath.
     /// </summary>
     private void DebugStartGame()
     {
@@ -4495,16 +4495,16 @@ public sealed class Game : IGame
 
         _phaseBeforeCafe = Phase.IndustrialDistrict;
         _borisDeliveryJobActive = true;
-        _warehouseAmbushersDead = false;
+        _warehouseAmbushersDead = true;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
-        _gasGaugeFuel = GasGaugeCatalog.AlmostEmptyFuel;
+        _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.DeliveryTruck);
+        EnterPhase(Phase.GasStation);
     }
 
     // --- Inventory & ground items ---
