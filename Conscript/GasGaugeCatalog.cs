@@ -3,7 +3,7 @@ using Raylib_cs;
 
 namespace Conscript;
 
-/// <summary>Fuel gauge levels and layout for the warehouse truck cab viewer.</summary>
+/// <summary>Fuel gauge levels and layout for the delivery truck cab viewer.</summary>
 internal static class GasGaugeCatalog
 {
     public const int LevelCount = 5;

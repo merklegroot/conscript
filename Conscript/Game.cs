@@ -1919,16 +1919,16 @@ public sealed class Game : IGame
                 else
                     _gloveCompartmentHovered = false;
 
-                if (_phase == Phase.WarehouseTruck)
+                if (_phase == Phase.DeliveryTruck)
                 {
                     GetCinematicArtBounds(out int gaugeArtX, out int gaugeArtY, out int gaugeArtW, out int gaugeArtH);
                     var gaugeArtBounds = new Rectangle(gaugeArtX, gaugeArtY, gaugeArtW, gaugeArtH);
                     _gasGaugeHotspotHovered = false;
-                    float gaugeW = WarehouseTruckHotspots.GasGaugeX2 - WarehouseTruckHotspots.GasGaugeX1;
-                    float gaugeH = WarehouseTruckHotspots.GasGaugeY2 - WarehouseTruckHotspots.GasGaugeY1;
+                    float gaugeW = DeliveryTruckHotspots.GasGaugeX2 - DeliveryTruckHotspots.GasGaugeX1;
+                    float gaugeH = DeliveryTruckHotspots.GasGaugeY2 - DeliveryTruckHotspots.GasGaugeY1;
                     _gasGaugeClickRect = SceneRegion.ToScreenRect(
-                        WarehouseTruckHotspots.GasGaugeX1,
-                        WarehouseTruckHotspots.GasGaugeY1,
+                        DeliveryTruckHotspots.GasGaugeX1,
+                        DeliveryTruckHotspots.GasGaugeY1,
                         gaugeW,
                         gaugeH,
                         gaugeArtBounds);
@@ -4423,7 +4423,7 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to the warehouse truck cab at Bay 3 (fuel gauge hotspot testing).
+    /// Jump to the delivery truck cab (fuel gauge hotspot testing).
     /// </summary>
     private void DebugStartGame()
     {
@@ -4450,7 +4450,7 @@ public sealed class Game : IGame
         _noteMessageRead = false;
         _gasGaugeLevel = GasGaugeCatalog.DefaultLevel;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.WarehouseTruck);
+        EnterPhase(Phase.DeliveryTruck);
     }
 
     // --- Inventory & ground items ---
@@ -5527,7 +5527,7 @@ public sealed class Game : IGame
 
     private void OpenGasGaugeViewer()
     {
-        if (_phase != Phase.WarehouseTruck)
+        if (_phase != Phase.DeliveryTruck)
             return;
 
         _gasGaugeViewer.Open();
@@ -7272,17 +7272,17 @@ public sealed class Game : IGame
         }
     }
 
-    private void DrawWarehouseTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
+    private void DrawDeliveryTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
     {
-        if (_phase != Phase.WarehouseTruck)
+        if (_phase != Phase.DeliveryTruck)
             return;
 
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        float gaugeW = WarehouseTruckHotspots.GasGaugeX2 - WarehouseTruckHotspots.GasGaugeX1;
-        float gaugeH = WarehouseTruckHotspots.GasGaugeY2 - WarehouseTruckHotspots.GasGaugeY1;
+        float gaugeW = DeliveryTruckHotspots.GasGaugeX2 - DeliveryTruckHotspots.GasGaugeX1;
+        float gaugeH = DeliveryTruckHotspots.GasGaugeY2 - DeliveryTruckHotspots.GasGaugeY1;
         Rectangle r = SceneRegion.ToScreenRect(
-            WarehouseTruckHotspots.GasGaugeX1,
-            WarehouseTruckHotspots.GasGaugeY1,
+            DeliveryTruckHotspots.GasGaugeX1,
+            DeliveryTruckHotspots.GasGaugeY1,
             gaugeW,
             gaugeH,
             artBounds);
@@ -8272,10 +8272,10 @@ public sealed class Game : IGame
             DrawWarehouseClosedDoorOverlay(artX, artY, artW, artH);
 
         if (GamePhase.IsInTruckCab(_phase))
+        {
             DrawDeliveryTruckGloveCompartmentHotspot(artX, artY, artW, artH);
-
-        if (_phase == Phase.WarehouseTruck)
-            DrawWarehouseTruckGasGaugeHotspot(artX, artY, artW, artH);
+            DrawDeliveryTruckGasGaugeHotspot(artX, artY, artW, artH);
+        }
 
         if (_phase == Phase.WarehouseAftermath)
         {

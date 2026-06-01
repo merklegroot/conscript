@@ -73,7 +73,7 @@ Single thin illuminated orange fuel gauge needle pointer ONLY, pointing straight
 ```
 
 - **notes**:
-  - Face + rotated needle shown in `GasGaugeViewerDialog` when clicking the fuel gauge hotspot in `Phase.WarehouseTruck`.
+  - Procedural gauge in `GasGaugeViewerDialog` when clicking the fuel gauge hotspot in `Phase.DeliveryTruck` (`delivery-truck-cab.png`).
   - Five discrete levels (empty → full); ◀ ▶ arrows rotate the needle between E and F.
 
 ## `warehouse-closed-door.png`
