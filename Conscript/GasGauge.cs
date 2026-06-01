@@ -21,6 +21,7 @@ internal static class GasGauge
     private static readonly Color HubRingColor = new(72, 76, 86, 255);
     private static readonly Color LabelColor = new(180, 176, 168, 255);
     private static readonly Color RedZoneColor = new(168, 48, 44, 90);
+    private static readonly Color EmptyTickColor = new(200, 56, 48, 255);
     private static readonly Color OutlineColor = new(100, 104, 114, 255);
 
     private const float ArcStartDeg = 180f;
@@ -109,10 +110,11 @@ internal static class GasGauge
     private static void DrawTickMark(Vector2 pivot, float radius, float level, bool major)
     {
         var t = ToDialLevel(level);
+        var isEmpty = level <= 0.0001f;
         var inner = radius - (major ? 36f : 26f);
         var outer = radius - 12f;
-        var color = major ? TickMajorColor : TickColor;
-        var width = major ? 2.5f : 1.5f;
+        var color = isEmpty ? EmptyTickColor : major ? TickMajorColor : TickColor;
+        var width = isEmpty ? 3.5f : major ? 2.5f : 1.5f;
         Raylib.DrawLineEx(
             PointOnArc(pivot, inner, t),
             PointOnArc(pivot, outer, t),
