@@ -41,8 +41,11 @@ internal static class ShopCatalogs
         if (Array.Exists(StoreCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)))
             return StoreCatalog.GetFlavorText(name);
 
-        if (Array.Exists(GasStationCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)))
+        if (Array.Exists(GasStationCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)) ||
+            string.Equals(name, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase))
+        {
             return GasStationCatalog.GetFlavorText(name);
+        }
 
         return null;
     }
@@ -52,8 +55,11 @@ internal static class ShopCatalogs
         if (Array.Exists(StoreCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)))
             return StoreCatalog.FormatItemHint(name);
 
-        if (Array.Exists(GasStationCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)))
+        if (Array.Exists(GasStationCatalog.Entries, e => string.Equals(e, name, StringComparison.OrdinalIgnoreCase)) ||
+            string.Equals(name, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase))
+        {
             return GasStationCatalog.FormatItemHint(name);
+        }
 
         return null;
     }

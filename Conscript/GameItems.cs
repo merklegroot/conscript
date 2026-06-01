@@ -31,6 +31,7 @@ internal static class GameItems
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
     public const string GasCan = "Gas Can";
+    public const string FilledGasCan = "Filled Gas Can";
 
     public const string FoldedPaperMessage =
         "For the last time, Vitya,\n" +
@@ -66,6 +67,7 @@ internal static class GameItems
         [Firewood]        = "items.firewood.png",
         [Rocks]           = "items.rocks.png",
         [GasCan]          = "items.gas-can.png",
+        [FilledGasCan]    = "items.gas-can.png",
     };
 
     public static int GetMaxCharges(string itemName)
@@ -105,4 +107,9 @@ internal static class GameItems
         string.Equals(name, Crowbar, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, Molotov, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, LitMolotov, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsGasCanItem(string? name) =>
+        !string.IsNullOrEmpty(name) &&
+        (string.Equals(name, GasCan, StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(name, FilledGasCan, StringComparison.OrdinalIgnoreCase));
 }
