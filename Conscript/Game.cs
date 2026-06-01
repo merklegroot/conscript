@@ -82,6 +82,7 @@ public sealed class Game : IGame
     private const string ChoiceGoToUnclesHouse = "GO TO UNCLE'S HOUSE";
     private const string ChoiceConvenienceStore = "CONVENIENCE STORE";
     private const string ChoiceBrowseShelves = "BROWSE SHELVES";
+    private const string ChoiceBrowseKiosk = "BROWSE KIOSK";
     private const string ChoiceLeaveStore = "LEAVE THE WAY YOU CAME";
     private const string ChoiceCafe = "КАФЕ";
     private const string ChoiceTalkToOwner = "TALK TO THE OWNER";
@@ -250,8 +251,9 @@ public sealed class Game : IGame
     private Rectangle _dialogDropRect;
     private bool _dialogDropHovered;
 
-    // Convenience store buy menu (modal) — list left, item detail + buy right
+    // Shop buy menu (modal) — convenience store shelves or gas station kiosk
     private bool _showStoreBuyMenu;
+    private ShopKind _shopBuyKind;
     private int _storeBuyHighlightedIndex;  // list cursor (keyboard, controller, or mouse hover)
     private int _storeBuyDetailIndex = -1;  // item shown in the right panel (click or keyboard/controller nav)
     private string _storeBuyFeedback = "";
@@ -720,7 +722,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.GasStation:
-                _choices = new[] { ChoiceBackToLoadingBay, ChoiceWait };
+                _choices = new[] { ChoiceBrowseKiosk, ChoiceBackToLoadingBay, ChoiceWait };
                 _selectedIndex = 0;
                 _day = 0;
                 _timeOfDay = "Night";
@@ -1230,15 +1232,20 @@ public sealed class Game : IGame
 
         if (_showStoreBuyMenu)
         {
-            if (InputManager.IsVerticalNavUpPressed())
+            int shopCount = ShopCatalogs.GetEntries(_shopBuyKind).Length;
+            if (shopCount > 0)
             {
-                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + StoreCatalog.Entries.Length) % StoreCatalog.Entries.Length;
-                _storeBuyDetailIndex = _storeBuyHighlightedIndex;
-            }
-            if (InputManager.IsVerticalNavDownPressed())
-            {
-                _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % StoreCatalog.Entries.Length;
-                _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+                if (InputManager.IsVerticalNavUpPressed())
+                {
+                    _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex - 1 + shopCount) % shopCount;
+                    _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+                }
+
+                if (InputManager.IsVerticalNavDownPressed())
+                {
+                    _storeBuyHighlightedIndex = (_storeBuyHighlightedIndex + 1) % shopCount;
+                    _storeBuyDetailIndex = _storeBuyHighlightedIndex;
+                }
             }
         }
 
@@ -1365,9 +1372,9 @@ public sealed class Game : IGame
             else if (_showStoreBuyMenu)
             {
                 if (_storeBuyPurchaseHovered && _storeBuyDetailIndex >= 0)
-                    TryBuyStoreItem(_storeBuyDetailIndex);
+                    TryBuyShopItem(_storeBuyDetailIndex);
                 else if (_storeBuyDetailIndex == _storeBuyHighlightedIndex && _storeBuyDetailIndex >= 0)
-                    TryBuyStoreItem(_storeBuyDetailIndex);
+                    TryBuyShopItem(_storeBuyDetailIndex);
                 else
                     _storeBuyDetailIndex = _storeBuyHighlightedIndex;
             }
@@ -2238,7 +2245,8 @@ public sealed class Game : IGame
         // === Store buy menu input (when open) ===
         if (_showStoreBuyMenu)
         {
-            for (int i = 0; i < StoreCatalog.Entries.Length; i++)
+            string[] shopEntries = ShopCatalogs.GetEntries(_shopBuyKind);
+            for (int i = 0; i < shopEntries.Length; i++)
             {
                 if (Raylib.CheckCollisionPointRec(mouse, _storeBuyItemRects[i]))
                 {
@@ -2251,7 +2259,7 @@ public sealed class Game : IGame
 
             if (leftClicked && _storeBuyPurchaseHovered && _storeBuyDetailIndex >= 0)
             {
-                TryBuyStoreItem(_storeBuyDetailIndex);
+                TryBuyShopItem(_storeBuyDetailIndex);
                 return;
             }
 
@@ -3216,6 +3224,10 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceBrowseKiosk:
+                OpenGasStationBuyMenu();
+                return;
+
             case ChoiceBackToLoadingBay:
                 _actionMessage = "You trudge back through the rain toward the scorched loading bay.";
                 _actionMessageTimer = 2.4f;
@@ -5711,8 +5723,9 @@ public sealed class Game : IGame
         return false; // backpack full
     }
 
-    private void OpenStoreBuyMenu()
+    private void OpenShopBuyMenu(ShopKind kind)
     {
+        _shopBuyKind = kind;
         _showStoreBuyMenu = true;
         _storeBuyHighlightedIndex = 0;
         _storeBuyDetailIndex = -1;
@@ -5721,6 +5734,10 @@ public sealed class Game : IGame
         _storeBuyCloseHovered = false;
         _storeBuyPurchaseHovered = false;
     }
+
+    private void OpenStoreBuyMenu() => OpenShopBuyMenu(ShopKind.Store);
+
+    private void OpenGasStationBuyMenu() => OpenShopBuyMenu(ShopKind.GasStation);
 
     private void CloseStoreBuyMenu()
     {
@@ -5732,20 +5749,44 @@ public sealed class Game : IGame
         _storeBuyPurchaseHovered = false;
     }
 
-    private bool CanBuyStoreItem(int index)
+    private bool CanBuyShopItem(int index)
     {
-        if (index < 0 || index >= StoreCatalog.Entries.Length)
+        string[] entries = ShopCatalogs.GetEntries(_shopBuyKind);
+        if (index < 0 || index >= entries.Length)
             return false;
 
-        return _backpack.Any(s => string.IsNullOrEmpty(s));
+        if (!_backpack.Any(s => string.IsNullOrEmpty(s)))
+            return false;
+
+        string name = entries[index];
+        if (_shopBuyKind == ShopKind.GasStation &&
+            string.Equals(name, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
+            HasBackpackItem(GameItems.GasCan))
+        {
+            return false;
+        }
+
+        return true;
     }
 
-    private void TryBuyStoreItem(int index)
+    private void TryBuyShopItem(int index)
     {
-        if (index < 0 || index >= StoreCatalog.Entries.Length)
+        string[] entries = ShopCatalogs.GetEntries(_shopBuyKind);
+        if (index < 0 || index >= entries.Length)
             return;
 
-        string name = StoreCatalog.Entries[index];
+        string name = entries[index];
+
+        if (!CanBuyShopItem(index))
+        {
+            _storeBuyFeedback = _shopBuyKind == ShopKind.GasStation &&
+                string.Equals(name, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
+                HasBackpackItem(GameItems.GasCan)
+                ? "You already have a gas can."
+                : "Backpack is full.";
+            _storeBuyFeedbackTimer = 1.6f;
+            return;
+        }
 
         if (!TryAddToBackpack(name))
         {
@@ -5849,13 +5890,13 @@ public sealed class Game : IGame
             string groundLine = turns == 1
                 ? "On the ground here. About one turn left before you lose track of it."
                 : $"On the ground here. About {turns} turns left before you lose track of it.";
-            if (GameItems.IsBuildingMaterial(_dialogItemName))
-                return groundLine + "\n\n" + StoreCatalog.GetFlavorText(_dialogItemName);
+            if (ShopCatalogs.GetFlavorTextForItem(_dialogItemName) is string shopFlavor)
+                return groundLine + "\n\n" + shopFlavor;
             return groundLine;
         }
 
-        if (GameItems.IsBuildingMaterial(_dialogItemName))
-            return StoreCatalog.GetFlavorText(_dialogItemName);
+        if (ShopCatalogs.GetFlavorTextForItem(_dialogItemName) is string flavor)
+            return flavor;
 
         if (GameItems.IsFoldedPaper(_dialogItemName))
             return GetFoldedPaperDialogText();
@@ -6001,11 +6042,10 @@ public sealed class Game : IGame
             textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
         }
 
-        if (GameItems.IsBuildingMaterial(_dialogItemName))
+        if (ShopCatalogs.GetItemHintForItem(_dialogItemName) is string shopHint)
         {
             textY += 4;
-            string buildingTag = StoreCatalog.FormatItemHint(_dialogItemName);
-            Raylib.DrawTextEx(font, buildingTag, new Vector2(innerX, textY), 13, 0.45f, Palette.TextDim);
+            Raylib.DrawTextEx(font, shopHint, new Vector2(innerX, textY), 13, 0.45f, Palette.TextDim);
             textY += 18;
         }
 
@@ -6573,7 +6613,7 @@ public sealed class Game : IGame
 
         Font font = _uiFont;
 
-        string title = "SHELVES";
+        string title = ShopCatalogs.GetTitle(_shopBuyKind);
         int titleSize = 28;
         Raylib.DrawTextEx(font, title,
             new Vector2(panelX + 24, panelY + 18),
@@ -6601,12 +6641,13 @@ public sealed class Game : IGame
         int rowHeight = 44;
         const int iconSize = 28;
 
-        for (int i = 0; i < StoreCatalog.Entries.Length; i++)
+        string[] shopEntries = ShopCatalogs.GetEntries(_shopBuyKind);
+        for (int i = 0; i < shopEntries.Length; i++)
         {
-            string name = StoreCatalog.Entries[i];
+            string name = shopEntries[i];
 
             int rowY = contentTop + i * rowHeight;
-            bool hasSpace = _backpack.Any(s => string.IsNullOrEmpty(s));
+            bool canBuy = CanBuyShopItem(i);
             bool rowHovered = Raylib.CheckCollisionPointRec(Raylib.GetMousePosition(), _storeBuyItemRects[i]);
             bool rowHighlighted = i == _storeBuyHighlightedIndex;
             bool rowConfirmed = _storeBuyDetailIndex >= 0 && i == _storeBuyDetailIndex;
@@ -6618,12 +6659,12 @@ public sealed class Game : IGame
             else if (rowHovered || rowHighlighted)
                 Raylib.DrawRectangle(listX, rowY, listW, rowHeight - 4, new Color(48, 46, 40, 180));
 
-            Color tint = hasSpace ? Color.WHITE : new Color(120, 118, 112, 255);
+            Color tint = canBuy ? Color.WHITE : new Color(120, 118, 112, 255);
             int iconY = rowY + (rowHeight - 4 - iconSize) / 2;
             Raylib.DrawRectangle(listX + 6, iconY - 1, iconSize + 2, iconSize + 2, new Color(18, 17, 15, 255));
             DrawItemIcon(name, new Rectangle(listX + 7, iconY, iconSize, iconSize), tint);
 
-            Color nameColor = hasSpace ? Palette.TextPrimary : Palette.TextMuted;
+            Color nameColor = canBuy ? Palette.TextPrimary : Palette.TextMuted;
             Raylib.DrawTextEx(font, name, new Vector2(listX + 42, rowY + 6), 18, 0.6f, nameColor);
         }
 
@@ -6655,8 +6696,9 @@ public sealed class Game : IGame
             return;
         }
 
-        string name = StoreCatalog.Entries[_storeBuyDetailIndex];
-        bool canBuy = CanBuyStoreItem(_storeBuyDetailIndex);
+        string[] shopEntries = ShopCatalogs.GetEntries(_shopBuyKind);
+        string name = shopEntries[_storeBuyDetailIndex];
+        bool canBuy = CanBuyShopItem(_storeBuyDetailIndex);
 
         const int iconSize = 64;
         int iconX = x + (w - iconSize) / 2;
@@ -6673,7 +6715,7 @@ public sealed class Game : IGame
             titleSize, 0.75f, Palette.TextPrimary);
 
         int textY = iconY + iconSize + 36;
-        string flavor = StoreCatalog.GetFlavorText(name);
+        string flavor = ShopCatalogs.GetFlavorText(_shopBuyKind, name);
         int flavorSize = 16;
         float flavorSpacing = 0.55f;
         int flavorLineHeight = 22;
@@ -6685,13 +6727,18 @@ public sealed class Game : IGame
         }
 
         textY += 4;
-        string itemHint = StoreCatalog.FormatItemHint(name);
+        string itemHint = ShopCatalogs.FormatItemHint(_shopBuyKind, name);
         Raylib.DrawTextEx(font, itemHint, new Vector2(x + 4, textY), 15, 0.5f, Palette.TextDim);
         textY += 22;
 
         if (!canBuy)
         {
-            Raylib.DrawTextEx(font, "Backpack is full.", new Vector2(x + 4, textY), 15, 0.5f, new Color(200, 130, 110, 255));
+            string blocked = _shopBuyKind == ShopKind.GasStation &&
+                string.Equals(name, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
+                HasBackpackItem(GameItems.GasCan)
+                ? "You already have a gas can."
+                : "Backpack is full.";
+            Raylib.DrawTextEx(font, blocked, new Vector2(x + 4, textY), 15, 0.5f, new Color(200, 130, 110, 255));
         }
 
         int btnW = 108;

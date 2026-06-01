@@ -30,6 +30,7 @@ internal static class GameItems
     public const string Knife = "Knife";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
+    public const string GasCan = "Gas Can";
 
     public const string FoldedPaperMessage =
         "For the last time, Vitya,\n" +
@@ -64,6 +65,7 @@ internal static class GameItems
         [Rabbit]          = "items.rabbit.png",
         [Firewood]        = "items.firewood.png",
         [Rocks]           = "items.rocks.png",
+        [GasCan]          = "items.gas-can.png",
     };
 
     public static int GetMaxCharges(string itemName)
