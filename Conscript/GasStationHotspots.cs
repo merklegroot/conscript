@@ -15,6 +15,11 @@ internal static class GasStationHotspots
     public const float Pump2X2 = 0.657f;
     public const float Pump2Y2 = 0.636f;
 
+    public const float KioskX1 = 0.747f;
+    public const float KioskY1 = 0.377f;
+    public const float KioskX2 = 0.986f;
+    public const float KioskY2 = 0.630f;
+
     public static void GetPumpRegion(int pumpIndex, out float x1, out float y1, out float x2, out float y2)
     {
         if (pumpIndex == 0)

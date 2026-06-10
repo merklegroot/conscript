@@ -118,6 +118,7 @@ public sealed class Game : IGame
     private Rectangle _areaSelectButtonRect;
     private Rectangle _controllerButtonRect;
     private Rectangle _copyRoomIdButtonRect;
+    private Rectangle _debugRoomListButtonRect;
     private bool _undoHovered;
     private bool _redoHovered;
     private bool _restartHovered;
@@ -125,6 +126,10 @@ public sealed class Game : IGame
     private bool _areaSelectHovered;
     private bool _controllerHovered;
     private bool _copyRoomIdHovered;
+    private bool _debugRoomListHovered;
+    private bool _showDebugRoomList;
+    private DebugRoomListDrawing.Layout _debugRoomListLayout;
+    private int _debugRoomListHoveredIndex = -1;
 
     private readonly List<GameStateSnapshot> _undoStack = new();
     private readonly List<GameStateSnapshot> _redoStack = new();
@@ -187,6 +192,8 @@ public sealed class Game : IGame
     private bool _gasGaugeHotspotHovered;
     private readonly Rectangle[] _gasPumpClickRects = new Rectangle[GasStationHotspots.PumpCount];
     private int _hoveredGasPumpIndex = -1;
+    private Rectangle _gasKioskClickRect;
+    private bool _gasKioskHotspotHovered;
     private CafeOwnerDialog.Stage _cafeOwnerDialogStage = CafeOwnerDialog.Stage.Main;
 
     // Day/night cycle — eight turns per day (~3 hours each); day increments at Morning.
@@ -1443,6 +1450,7 @@ public sealed class Game : IGame
         _areaSelectHovered = Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect);
         _controllerHovered = Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect);
         _copyRoomIdHovered = Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect);
+        _debugRoomListHovered = Raylib.CheckCollisionPointRec(mouse, _debugRoomListButtonRect);
         if (leftClicked && _undoHovered)
         {
             UndoLastAction();
@@ -1492,6 +1500,22 @@ public sealed class Game : IGame
             Raylib.SetClipboardText(roomId);
             _actionMessage = $"{roomId} copied to clipboard";
             _actionMessageTimer = 2.5f;
+            return;
+        }
+
+        if (leftClicked && _debugRoomListHovered)
+        {
+            if (_showDebugRoomList)
+                CloseDebugRoomList();
+            else
+                _showDebugRoomList = true;
+
+            return;
+        }
+
+        if (_showDebugRoomList)
+        {
+            UpdateDebugRoomListInput(mouse, leftClicked);
             return;
         }
 
@@ -1621,7 +1645,8 @@ public sealed class Game : IGame
                 !Raylib.CheckCollisionPointRec(mouse, _debugStartButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) &&
                 !Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) &&
-                !Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect))
+                !Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect) &&
+                !Raylib.CheckCollisionPointRec(mouse, _debugRoomListButtonRect))
             {
                 CloseControllerDebug();
                 return;
@@ -2010,12 +2035,30 @@ public sealed class Game : IGame
                         break;
                     }
                 }
+
+                float kioskW = GasStationHotspots.KioskX2 - GasStationHotspots.KioskX1;
+                float kioskH = GasStationHotspots.KioskY2 - GasStationHotspots.KioskY1;
+                _gasKioskClickRect = SceneRegion.ToScreenRect(
+                    GasStationHotspots.KioskX1,
+                    GasStationHotspots.KioskY1,
+                    kioskW,
+                    kioskH,
+                    pumpArtBounds);
+                _gasKioskHotspotHovered = Raylib.CheckCollisionPointRec(mouse, _gasKioskClickRect);
+
+                if (leftClicked && _gasKioskHotspotHovered)
+                {
+                    OpenGasStationBuyMenu();
+                    return;
+                }
             }
             else
             {
                 _hoveredGasPumpIndex = -1;
                 for (int p = 0; p < GasStationHotspots.PumpCount; p++)
                     _gasPumpClickRects[p] = default;
+                _gasKioskClickRect = default;
+                _gasKioskHotspotHovered = false;
             }
 
             if (_phase == Phase.WarehouseAftermath)
@@ -2479,6 +2522,8 @@ public sealed class Game : IGame
             Raylib.CheckCollisionPointRec(mouse, _areaSelectButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _controllerButtonRect) ||
             Raylib.CheckCollisionPointRec(mouse, _copyRoomIdButtonRect) ||
+            Raylib.CheckCollisionPointRec(mouse, _debugRoomListButtonRect) ||
+            (_showDebugRoomList && _debugRoomListHoveredIndex >= 0) ||
             (_showControllerDebug && (
                 Raylib.CheckCollisionPointRec(mouse, _controllerDebugCloseRect) ||
                 Raylib.CheckCollisionPointRec(mouse, _controllerDebugPrevRect) ||
@@ -2502,6 +2547,9 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_hoveredGasPumpIndex >= 0)
+                overClickable = true;
+
+            if (_gasKioskHotspotHovered)
                 overClickable = true;
 
             if (_hoveredBodyIndex >= 0)
@@ -4294,6 +4342,7 @@ public sealed class Game : IGame
         _areaSelectButtonRect = new Rectangle(col0X, 10f + (size + gap) * 2f, size, size);
         _controllerButtonRect = new Rectangle(col0X, 10f + (size + gap) * 3f, size, size);
         _copyRoomIdButtonRect = new Rectangle(col1X, 10f, size, size);
+        _debugRoomListButtonRect = new Rectangle(col1X, 10f + (size + gap), size, size);
     }
 
     private float TopRightToolbarLeftEdge() =>
@@ -4341,6 +4390,7 @@ public sealed class Game : IGame
         CloseWarehouseCrateDialog();
         StopItemUseMode();
         CloseControllerDebug();
+        CloseDebugRoomList();
         CloseQuitConfirm();
         _sceneAreaSelect.Close();
     }
@@ -4490,7 +4540,7 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showStoreBuyMenu || _showGloveBoxMenu || _showCrateLootMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
-        || _itemUseActive || _showControllerDebug || _showQuitConfirm
+        || _itemUseActive || _showControllerDebug || _showQuitConfirm || _showDebugRoomList
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen
         || _gasGaugeViewer.IsOpen;
 
@@ -4498,8 +4548,8 @@ public sealed class Game : IGame
         !_showStoreBuyMenu && !_showGloveBoxMenu && !_showCrateLootMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
-        && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen && !_foldedPaperReader.IsOpen
-        && !_gasGaugeViewer.IsOpen;
+        && !_showDebugRoomList && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen
+        && !_foldedPaperReader.IsOpen && !_gasGaugeViewer.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -4880,6 +4930,48 @@ public sealed class Game : IGame
         _controllerDebugPrevHovered = false;
         _controllerDebugNextHovered = false;
         Array.Clear(_controllerDebugTabHovered);
+    }
+
+    private void CloseDebugRoomList()
+    {
+        _showDebugRoomList = false;
+        _debugRoomListHoveredIndex = -1;
+    }
+
+    private void DebugJumpToRoom(Phase phase)
+    {
+        CloseDebugRoomList();
+        EnterPhase(phase);
+    }
+
+    private void UpdateDebugRoomListInput(Vector2 mouse, bool leftClicked)
+    {
+        if (InputManager.IsCancelPressed())
+        {
+            CloseDebugRoomList();
+            return;
+        }
+
+        GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
+        _debugRoomListLayout = DebugRoomListDrawing.ComputeLayout(artX, artY, artW, artH);
+
+        _debugRoomListHoveredIndex = -1;
+        for (int i = 0; i < DebugRoomCatalog.Rooms.Length; i++)
+        {
+            if (!Raylib.CheckCollisionPointRec(mouse, _debugRoomListLayout.RowRects[i]))
+                continue;
+
+            _debugRoomListHoveredIndex = i;
+            if (leftClicked)
+            {
+                Phase target = DebugRoomCatalog.Rooms[i].Phase;
+                DebugJumpToRoom(target);
+                _actionMessage = $"Debug: {target}";
+                _actionMessageTimer = 2.5f;
+            }
+
+            break;
+        }
     }
 
     private void CycleControllerDebugPad(int delta)
@@ -5925,6 +6017,14 @@ public sealed class Game : IGame
     private void DrawCopyRoomIdButton() =>
         GameDialogUi.DrawToolbarTextButton(_copyRoomIdButtonRect, _copyRoomIdHovered, _uiFont, "ID", 10f);
 
+    private void DrawDebugRoomListButton() =>
+        GameDialogUi.DrawToolbarTextButton(
+            _debugRoomListButtonRect,
+            _showDebugRoomList || _debugRoomListHovered,
+            _uiFont,
+            "RM",
+            10f);
+
     // =====================================================================
     // CONTROLLER DEBUG — live gamepad buttons, axes, and sticks
     // =====================================================================
@@ -5956,6 +6056,7 @@ public sealed class Game : IGame
     private void DrawTopRightButtons()
     {
         DrawCopyRoomIdButton();
+        DrawDebugRoomListButton();
         DrawRestartButton();
         DrawDebugStartButton();
         DrawAreaSelectButton();
@@ -7506,6 +7607,45 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawGasStationKioskHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.GasStation)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float kioskW = GasStationHotspots.KioskX2 - GasStationHotspots.KioskX1;
+        float kioskH = GasStationHotspots.KioskY2 - GasStationHotspots.KioskY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            GasStationHotspots.KioskX1,
+            GasStationHotspots.KioskY1,
+            kioskW,
+            kioskH,
+            artBounds);
+
+        bool hovered = _gasKioskHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "KIOSK";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawTruckGasGaugeHotspot(int artX, int artY, int artW, int artH)
     {
         if (_phase is not (Phase.DeliveryTruck or Phase.WarehouseTruck))
@@ -8492,6 +8632,13 @@ public sealed class Game : IGame
 
         GetCinematicArtBounds(out int artX, out int artY, out int artW, out int artH);
 
+        if (_showDebugRoomList)
+        {
+            DebugRoomListDrawing.Draw(
+                artX, artY, artW, artH, font, _phase, _debugRoomListLayout, _debugRoomListHoveredIndex);
+            return;
+        }
+
         DrawSceneBackground(artX, artY, artW, artH);
 
         if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
@@ -8507,7 +8654,10 @@ public sealed class Game : IGame
         }
 
         if (_phase == Phase.GasStation)
+        {
             DrawGasStationPumpHotspots(artX, artY, artW, artH);
+            DrawGasStationKioskHotspot(artX, artY, artW, artH);
+        }
 
         if (_phase == Phase.WarehouseAftermath)
         {
