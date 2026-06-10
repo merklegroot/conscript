@@ -5983,8 +5983,9 @@ public sealed class Game : IGame
 
         RecordHistorySnapshot();
 
-        _storeBuyFeedback = $"Bought {name}";
-        _storeBuyFeedbackTimer = 1.2f;
+        _actionMessage = $"Bought {name}";
+        _actionMessageTimer = 2.5f;
+        CloseStoreBuyMenu();
     }
 
     private void DrawUndoButton() =>
