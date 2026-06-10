@@ -2016,30 +2016,6 @@ public sealed class Game : IGame
             {
                 GetCinematicArtBounds(out int pumpArtX, out int pumpArtY, out int pumpArtW, out int pumpArtH);
                 var pumpArtBounds = new Rectangle(pumpArtX, pumpArtY, pumpArtW, pumpArtH);
-                _hoveredGasPumpIndex = -1;
-
-                for (int p = 0; p < GasStationHotspots.PumpCount; p++)
-                {
-                    GasStationHotspots.GetPumpRegion(p, out float px1, out float py1, out float px2, out float py2);
-                    _gasPumpClickRects[p] = SceneRegion.ToScreenRect(
-                        px1,
-                        py1,
-                        px2 - px1,
-                        py2 - py1,
-                        pumpArtBounds);
-
-                    if (Raylib.CheckCollisionPointRec(mouse, _gasPumpClickRects[p]))
-                    {
-                        _hoveredGasPumpIndex = p;
-                        if (leftClicked)
-                        {
-                            TryUseGasPump();
-                            return;
-                        }
-
-                        break;
-                    }
-                }
 
                 float kioskW = GasStationHotspots.KioskX2 - GasStationHotspots.KioskX1;
                 float kioskH = GasStationHotspots.KioskY2 - GasStationHotspots.KioskY1;
@@ -2551,9 +2527,6 @@ public sealed class Game : IGame
             if (_gasGaugeHotspotHovered)
                 overClickable = true;
 
-            if (_hoveredGasPumpIndex >= 0)
-                overClickable = true;
-
             if (_gasKioskHotspotHovered)
                 overClickable = true;
 
@@ -2610,6 +2583,9 @@ public sealed class Game : IGame
             overClickable = true;
 
         if (_itemUseActive && _itemUsePointerInsideBounds && _cafeBorisHotspotHovered)
+            overClickable = true;
+
+        if (_itemUseActive && _itemUsePointerInsideBounds && _hoveredGasPumpIndex >= 0)
             overClickable = true;
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
@@ -3835,6 +3811,37 @@ public sealed class Game : IGame
         _cafeBorisClickRect.Width > 0 &&
         Raylib.CheckCollisionPointRec(_itemUseCursorPos, _cafeBorisClickRect);
 
+    private void UpdateGasPumpClickRects(Rectangle artBounds)
+    {
+        for (int p = 0; p < GasStationHotspots.PumpCount; p++)
+        {
+            GasStationHotspots.GetPumpRegion(p, out float px1, out float py1, out float px2, out float py2);
+            _gasPumpClickRects[p] = SceneRegion.ToScreenRect(
+                px1,
+                py1,
+                px2 - px1,
+                py2 - py1,
+                artBounds);
+        }
+    }
+
+    private bool ItemUseCursorOverGasPump()
+    {
+        if (_phase != Phase.GasStation)
+            return false;
+
+        for (int p = 0; p < GasStationHotspots.PumpCount; p++)
+        {
+            if (_gasPumpClickRects[p].Width > 0 &&
+                Raylib.CheckCollisionPointRec(_itemUseCursorPos, _gasPumpClickRects[p]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void UpdateCafeBorisClickRect(Rectangle artBounds)
     {
         float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
@@ -4007,6 +4014,13 @@ public sealed class Game : IGame
             return "Nothing here yields to the crowbar.";
         }
 
+        if (string.Equals(itemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase))
+        {
+            return _phase == Phase.GasStation
+                ? "Click a fuel pump to fill the can."
+                : "There is no pump here.";
+        }
+
         return itemName switch
         {
             GameItems.Knife => "You sweep the blade through the air. Nothing here needs cutting.",
@@ -4039,6 +4053,14 @@ public sealed class Game : IGame
             return;
         }
 
+        if (_phase == Phase.GasStation &&
+            string.Equals(_itemUseItemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
+            ItemUseCursorOverGasPump())
+        {
+            TryFillGasCanAtPump(_itemUseSlotIndex);
+            return;
+        }
+
         _actionMessage = GetItemUseFailureMessage(_itemUseItemName);
         _actionMessageTimer = ActionMessageDuration;
         StopItemUseMode();
@@ -4060,6 +4082,7 @@ public sealed class Game : IGame
         _warehouseCrateClickRect = default;
         _cafeBorisHotspotHovered = false;
         _cafeBorisClickRect = default;
+        _hoveredGasPumpIndex = -1;
 
         if (_itemUsePointerInsideBounds)
         {
@@ -4077,6 +4100,20 @@ public sealed class Game : IGame
                 UpdateCafeBorisClickRect(artBounds);
                 _cafeBorisHotspotHovered = ItemUseCursorOverCafeBoris();
             }
+
+            if (_phase == Phase.GasStation &&
+                string.Equals(_itemUseItemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateGasPumpClickRects(artBounds);
+                for (int p = 0; p < GasStationHotspots.PumpCount; p++)
+                {
+                    if (Raylib.CheckCollisionPointRec(_itemUseCursorPos, _gasPumpClickRects[p]))
+                    {
+                        _hoveredGasPumpIndex = p;
+                        break;
+                    }
+                }
+            }
         }
 
         if (_itemUsePointerInsideBounds && (leftClicked || InputManager.IsConfirmPressed()))
@@ -4088,6 +4125,10 @@ public sealed class Game : IGame
         if (string.Equals(_itemUseItemName, GameItems.Crowbar, StringComparison.OrdinalIgnoreCase) &&
             _phase == Phase.WarehouseInterior && !_warehouseCrateOpened)
             return "Click the crate to pry it open · Esc to cancel";
+
+        if (string.Equals(_itemUseItemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
+            _phase == Phase.GasStation)
+            return "Click a pump to fill the can · Esc to cancel";
 
         return "Click to try it · Esc to cancel";
     }
@@ -5237,17 +5278,6 @@ public sealed class Game : IGame
         EnterPhase(_phaseOutdoorBeforeTent);
     }
 
-    private int FindEmptyGasCanSlot()
-    {
-        for (int i = 0; i < _backpack.Length; i++)
-        {
-            if (string.Equals(_backpack[i], GameItems.GasCan, StringComparison.OrdinalIgnoreCase))
-                return i;
-        }
-
-        return -1;
-    }
-
     private bool HasAnyGasCanInBackpack()
     {
         for (int i = 0; i < _backpack.Length; i++)
@@ -5259,30 +5289,24 @@ public sealed class Game : IGame
         return false;
     }
 
-    private void TryUseGasPump()
+    private void TryFillGasCanAtPump(int slotIndex)
     {
-        int emptySlot = FindEmptyGasCanSlot();
-        if (emptySlot >= 0)
-        {
-            _backpack[emptySlot] = GameItems.FilledGasCan;
-            _backpackItemCharges[emptySlot] = null;
-            RecordHistorySnapshot();
-            _actionMessage = "You fill the jerry can at the pump. Diesel sloshes to the rim.";
-            _actionMessageTimer = 2.6f;
-            AdvanceTime();
-            return;
-        }
-
-        if (HasAnyGasCanInBackpack())
+        if (slotIndex < 0 || slotIndex >= _backpack.Length ||
+            !string.Equals(_backpack[slotIndex], GameItems.GasCan, StringComparison.OrdinalIgnoreCase))
         {
             _actionMessage = "Your gas can is already full.";
             _actionMessageTimer = 2.2f;
+            StopItemUseMode();
+            return;
         }
-        else
-        {
-            _actionMessage = "You need an empty gas can from the kiosk.";
-            _actionMessageTimer = 2.4f;
-        }
+
+        RecordHistorySnapshot();
+        _backpack[slotIndex] = GameItems.FilledGasCan;
+        _backpackItemCharges[slotIndex] = null;
+        _actionMessage = "You fill the jerry can at the pump. Diesel sloshes to the rim.";
+        _actionMessageTimer = 2.6f;
+        AdvanceTime();
+        StopItemUseMode();
     }
 
     private bool HasBackpackItem(string itemName) =>
@@ -7572,22 +7596,19 @@ public sealed class Game : IGame
 
     private void DrawGasStationPumpHotspots(int artX, int artY, int artW, int artH)
     {
-        if (_phase != Phase.GasStation)
+        if (_phase != Phase.GasStation ||
+            !_itemUseActive ||
+            !string.Equals(_itemUseItemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase))
+        {
             return;
+        }
 
         var artBounds = new Rectangle(artX, artY, artW, artH);
-        bool canFill = FindEmptyGasCanSlot() >= 0;
+        UpdateGasPumpClickRects(artBounds);
 
         for (int p = 0; p < GasStationHotspots.PumpCount; p++)
         {
-            GasStationHotspots.GetPumpRegion(p, out float px1, out float py1, out float px2, out float py2);
-            Rectangle r = SceneRegion.ToScreenRect(
-                px1,
-                py1,
-                px2 - px1,
-                py2 - py1,
-                artBounds);
-
+            Rectangle r = _gasPumpClickRects[p];
             bool hovered = _hoveredGasPumpIndex == p;
             Color fill = hovered
                 ? new Color(200, 185, 120, 40)
@@ -7600,7 +7621,7 @@ public sealed class Game : IGame
 
             if (hovered)
             {
-                string label = canFill ? "FILL CAN" : "PUMP";
+                const string label = "FILL CAN";
                 Font font = _uiFont;
                 float fontSize = 13f;
                 Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
