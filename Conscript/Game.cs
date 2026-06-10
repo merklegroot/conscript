@@ -1196,6 +1196,11 @@ public sealed class Game : IGame
                 CloseControllerDebug();
                 return;
             }
+            if (_showDebugRoomList)
+            {
+                CloseDebugRoomList();
+                return;
+            }
             if (_showQuitConfirm)
             {
                 CloseQuitConfirm();
@@ -7978,7 +7983,17 @@ public sealed class Game : IGame
         switch (_phase)
         {
             case Phase.Opening:
-                DrawOpening();
+                if (_showDebugRoomList)
+                {
+                    DrawTopBar();
+                    DrawLeftSidebar();
+                    DrawRightSidebar();
+                    DrawCinematicScene();
+                    DrawActionBar();
+                }
+                else
+                    DrawOpening();
+
                 break;
 
             case Phase.Outside:
@@ -8634,6 +8649,7 @@ public sealed class Game : IGame
 
         if (_showDebugRoomList)
         {
+            _debugRoomListLayout = DebugRoomListDrawing.ComputeLayout(artX, artY, artW, artH);
             DebugRoomListDrawing.Draw(
                 artX, artY, artW, artH, font, _phase, _debugRoomListLayout, _debugRoomListHoveredIndex);
             return;
