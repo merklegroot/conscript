@@ -12,6 +12,9 @@ internal static class GasGaugeCatalog
     /// <summary>Just above empty when Boris hands over the truck.</summary>
     public const float AlmostEmptyFuel = 0.06f;
 
+    /// <summary>Full tank after pouring in a filled jerry can.</summary>
+    public const float FullFuel = 1f;
+
     public const float PlateOverhang = 12f;
     public const float HubRadius = 16f;
 

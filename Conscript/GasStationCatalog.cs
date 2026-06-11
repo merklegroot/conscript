@@ -21,7 +21,7 @@ internal static class GasStationCatalog
             _ when string.Equals(name, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) =>
                 "Goes in your backpack. Fill it at a pump.",
             _ when string.Equals(name, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase) =>
-                "Ready to pour into the truck.",
+                "Pour into the truck at the loading bay.",
             _ => "Goes in your backpack."
         };
 }

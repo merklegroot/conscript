@@ -2118,14 +2118,7 @@ public sealed class Game : IGame
                 }
 
                 _warehouseTruckHotspotHovered = false;
-                float truckW = WarehouseAftermathHotspots.TruckX2 - WarehouseAftermathHotspots.TruckX1;
-                float truckH = WarehouseAftermathHotspots.TruckY2 - WarehouseAftermathHotspots.TruckY1;
-                _warehouseTruckClickRect = SceneRegion.ToScreenRect(
-                    WarehouseAftermathHotspots.TruckX1,
-                    WarehouseAftermathHotspots.TruckY1,
-                    truckW,
-                    truckH,
-                    bodyArtBounds);
+                UpdateWarehouseTruckClickRect(bodyArtBounds);
 
                 if (Raylib.CheckCollisionPointRec(mouse, _warehouseTruckClickRect))
                 {
@@ -2586,6 +2579,9 @@ public sealed class Game : IGame
             overClickable = true;
 
         if (_itemUseActive && _itemUsePointerInsideBounds && _hoveredGasPumpIndex >= 0)
+            overClickable = true;
+
+        if (_itemUseActive && _itemUsePointerInsideBounds && _warehouseTruckHotspotHovered)
             overClickable = true;
 
         if (_showItemDialog && AllowsSidebarAndSceneInput())
@@ -3842,6 +3838,26 @@ public sealed class Game : IGame
         return false;
     }
 
+    private static bool CanRefillTruckFromOutside(Phase phase) =>
+        phase == Phase.WarehouseAftermath;
+
+    private void UpdateWarehouseTruckClickRect(Rectangle artBounds)
+    {
+        float truckW = WarehouseAftermathHotspots.TruckX2 - WarehouseAftermathHotspots.TruckX1;
+        float truckH = WarehouseAftermathHotspots.TruckY2 - WarehouseAftermathHotspots.TruckY1;
+        _warehouseTruckClickRect = SceneRegion.ToScreenRect(
+            WarehouseAftermathHotspots.TruckX1,
+            WarehouseAftermathHotspots.TruckY1,
+            truckW,
+            truckH,
+            artBounds);
+    }
+
+    private bool ItemUseCursorOverWarehouseTruck() =>
+        CanRefillTruckFromOutside(_phase) &&
+        _warehouseTruckClickRect.Width > 0 &&
+        Raylib.CheckCollisionPointRec(_itemUseCursorPos, _warehouseTruckClickRect);
+
     private void UpdateCafeBorisClickRect(Rectangle artBounds)
     {
         float borisW = CafeHotspots.BorisX2 - CafeHotspots.BorisX1;
@@ -4021,6 +4037,13 @@ public sealed class Game : IGame
                 : "There is no pump here.";
         }
 
+        if (string.Equals(itemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase))
+        {
+            return CanRefillTruckFromOutside(_phase)
+                ? "Click the truck to pour diesel into the tank."
+                : "The truck is back at the loading bay.";
+        }
+
         return itemName switch
         {
             GameItems.Knife => "You sweep the blade through the air. Nothing here needs cutting.",
@@ -4061,6 +4084,14 @@ public sealed class Game : IGame
             return;
         }
 
+        if (CanRefillTruckFromOutside(_phase) &&
+            string.Equals(_itemUseItemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase) &&
+            ItemUseCursorOverWarehouseTruck())
+        {
+            TryRefillTruckFromGasCan(_itemUseSlotIndex);
+            return;
+        }
+
         _actionMessage = GetItemUseFailureMessage(_itemUseItemName);
         _actionMessageTimer = ActionMessageDuration;
         StopItemUseMode();
@@ -4083,6 +4114,8 @@ public sealed class Game : IGame
         _cafeBorisHotspotHovered = false;
         _cafeBorisClickRect = default;
         _hoveredGasPumpIndex = -1;
+        _warehouseTruckHotspotHovered = false;
+        _warehouseTruckClickRect = default;
 
         if (_itemUsePointerInsideBounds)
         {
@@ -4114,6 +4147,13 @@ public sealed class Game : IGame
                     }
                 }
             }
+
+            if (CanRefillTruckFromOutside(_phase) &&
+                string.Equals(_itemUseItemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateWarehouseTruckClickRect(artBounds);
+                _warehouseTruckHotspotHovered = ItemUseCursorOverWarehouseTruck();
+            }
         }
 
         if (_itemUsePointerInsideBounds && (leftClicked || InputManager.IsConfirmPressed()))
@@ -4129,6 +4169,10 @@ public sealed class Game : IGame
         if (string.Equals(_itemUseItemName, GameItems.GasCan, StringComparison.OrdinalIgnoreCase) &&
             _phase == Phase.GasStation)
             return "Click a pump to fill the can · Esc to cancel";
+
+        if (string.Equals(_itemUseItemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase) &&
+            CanRefillTruckFromOutside(_phase))
+            return "Click the truck to pour diesel · Esc to cancel";
 
         return "Click to try it · Esc to cancel";
     }
@@ -5305,6 +5349,38 @@ public sealed class Game : IGame
         _backpackItemCharges[slotIndex] = null;
         _actionMessage = "You fill the jerry can at the pump. Diesel sloshes to the rim.";
         _actionMessageTimer = 2.6f;
+        AdvanceTime();
+        StopItemUseMode();
+    }
+
+    private void TryRefillTruckFromGasCan(int slotIndex)
+    {
+        if (!CanRefillTruckFromOutside(_phase))
+            return;
+
+        if (slotIndex < 0 || slotIndex >= _backpack.Length ||
+            !string.Equals(_backpack[slotIndex], GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase))
+        {
+            _actionMessage = "You need a full jerry can.";
+            _actionMessageTimer = 2.2f;
+            StopItemUseMode();
+            return;
+        }
+
+        if (_gasGaugeFuel >= GasGaugeCatalog.FullFuel - 0.001f)
+        {
+            _actionMessage = "The tank is already full.";
+            _actionMessageTimer = 2.2f;
+            StopItemUseMode();
+            return;
+        }
+
+        RecordHistorySnapshot();
+        _gasGaugeFuel = GasGaugeCatalog.FullFuel;
+        _backpack[slotIndex] = GameItems.GasCan;
+        _backpackItemCharges[slotIndex] = null;
+        _actionMessage = "You pour diesel into the truck's tank from outside. Rain hisses on the hot metal.";
+        _actionMessageTimer = 2.8f;
         AdvanceTime();
         StopItemUseMode();
     }
@@ -7560,34 +7636,64 @@ public sealed class Game : IGame
 
     private void DrawWarehouseTruckHotspot(int artX, int artY, int artW, int artH)
     {
-        var artBounds = new Rectangle(artX, artY, artW, artH);
-        float truckW = WarehouseAftermathHotspots.TruckX2 - WarehouseAftermathHotspots.TruckX1;
-        float truckH = WarehouseAftermathHotspots.TruckY2 - WarehouseAftermathHotspots.TruckY1;
-        Rectangle r = SceneRegion.ToScreenRect(
-            WarehouseAftermathHotspots.TruckX1,
-            WarehouseAftermathHotspots.TruckY1,
-            truckW,
-            truckH,
-            artBounds);
+        if (_phase != Phase.WarehouseAftermath)
+            return;
 
-        bool hovered = _warehouseTruckHotspotHovered;
-        Color fill = hovered
+        bool refilling = _itemUseActive &&
+            string.Equals(_itemUseItemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase);
+        if (refilling)
+        {
+            var artBounds = new Rectangle(artX, artY, artW, artH);
+            UpdateWarehouseTruckClickRect(artBounds);
+            Rectangle r = _warehouseTruckClickRect;
+            bool hovered = _warehouseTruckHotspotHovered;
+            Color fill = hovered
+                ? new Color(200, 185, 120, 40)
+                : new Color(200, 185, 120, 16);
+            Raylib.DrawRectangleRec(r, fill);
+            Color border = hovered
+                ? new Color(220, 200, 130, 200)
+                : new Color(180, 165, 110, 90);
+            Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+            if (hovered)
+            {
+                const string label = "REFILL TANK";
+                Font font = _uiFont;
+                float fontSize = 13f;
+                Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+                float lx = r.X + (r.Width - size.X) / 2f;
+                float ly = r.Y - size.Y - 4f;
+                Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                    new Color(8, 10, 14, 210));
+                Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+            }
+
+            return;
+        }
+
+        var bounds = new Rectangle(artX, artY, artW, artH);
+        UpdateWarehouseTruckClickRect(bounds);
+        Rectangle truckRect = _warehouseTruckClickRect;
+
+        bool truckHovered = _warehouseTruckHotspotHovered;
+        Color truckFill = truckHovered
             ? new Color(140, 165, 200, 40)
             : new Color(140, 165, 200, 16);
-        Raylib.DrawRectangleRec(r, fill);
-        Color border = hovered
+        Raylib.DrawRectangleRec(truckRect, truckFill);
+        Color truckBorder = truckHovered
             ? new Color(170, 195, 230, 200)
             : new Color(120, 145, 180, 90);
-        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+        Raylib.DrawRectangleLinesEx(truckRect, truckHovered ? 2f : 1f, truckBorder);
 
-        if (hovered)
+        if (truckHovered)
         {
             const string label = "TRUCK";
             Font font = _uiFont;
             float fontSize = 13f;
             Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
-            float lx = r.X + (r.Width - size.X) / 2f;
-            float ly = r.Y - size.Y - 4f;
+            float lx = truckRect.X + (truckRect.Width - size.X) / 2f;
+            float ly = truckRect.Y - size.Y - 4f;
             Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
                 new Color(8, 10, 14, 210));
             Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
