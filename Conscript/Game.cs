@@ -4954,7 +4954,9 @@ public sealed class Game : IGame
 
         if (_cafeOwnerDialogStage == CafeOwnerDialog.Stage.Main)
         {
-            if (optionIndex == CafeOwnerDialog.WorkOptionIndex && !_borisDeliveryJobActive)
+            if (optionIndex == CafeOwnerDialog.WorkOptionIndex &&
+                !_borisDeliveryJobActive &&
+                !_warehouseAmbushersDead)
             {
                 _cafeOwnerDialogStage = CafeOwnerDialog.Stage.DeliveryOffer;
                 _cafeOwnerSelectedOption = -1;
@@ -6751,7 +6753,10 @@ public sealed class Game : IGame
         Raylib.DrawLine(contentX, panelY + 64, panelX + panelW - 22, panelY + 64, Palette.SubtleBorder);
 
         string response = CafeOwnerDialog.GetResponseText(
-            _cafeOwnerDialogStage, _cafeOwnerSelectedOption, _borisDeliveryJobActive);
+            _cafeOwnerDialogStage,
+            _cafeOwnerSelectedOption,
+            _borisDeliveryJobActive,
+            _warehouseAmbushersDead);
         int responseY = panelY + 74;
         DrawWrappedDialogText(font, response, contentX, responseY, contentW, 16, 0.55f, Palette.TextSecondary);
 
