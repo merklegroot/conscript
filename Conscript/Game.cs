@@ -88,6 +88,7 @@ public sealed class Game : IGame
     private const string ChoiceTalkToOwner = "TALK TO THE OWNER";
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
+    private const string ChoiceDriveBackToTown = "DRIVE BACK TO TOWN";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
     private const string ChoiceGetBackInTruck = "GET BACK IN THE TRUCK";
     private const string ChoiceFight = "FIGHT";
@@ -699,7 +700,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.WarehouseTruck:
-                _choices = new[] { ChoiceGetOutOfTruck, ChoiceWait };
+                _choices = new[] { ChoiceDriveBackToTown, ChoiceGetOutOfTruck, ChoiceWait };
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = $"{CafeOwnerDialog.WarehouseName} — Bay 3";
@@ -3194,6 +3195,21 @@ public sealed class Game : IGame
 
         switch (_choices[index])
         {
+            case ChoiceDriveBackToTown:
+                if (_gasGaugeFuel <= GasGaugeCatalog.EmptyFuel + 0.001f)
+                {
+                    _actionMessage = "You turn the key. The starter grinds, coughs once, and dies — the tank is empty.";
+                    _actionMessageTimer = 2.8f;
+                    AdvanceTime();
+                    return;
+                }
+
+                _actionMessage = "You ease out of the bay and follow the rain-slick roads back toward town.";
+                _actionMessageTimer = 2.8f;
+                AdvanceTime();
+                EnterPhase(Phase.Town);
+                return;
+
             case ChoiceGetOutOfTruck:
                 _actionMessage = "You push the door open and climb down from the cab.";
                 _actionMessageTimer = 2.1f;
