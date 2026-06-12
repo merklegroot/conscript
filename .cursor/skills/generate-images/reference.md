@@ -19,6 +19,7 @@
 | `town.png` | Town | `TownNarrative` |
 | `industrial.png` | Industrial District | `IndustrialDistrictNarrative` |
 | `cafe.png` | Кафе (from industrial) | `CafeNarrative` |
+| `cafe-basement.png` | Кафе — Basement | `CafeBasementNarrative` |
 | `cafe-owner-portrait.png` | Boris dialog portrait (3:4) | `CafeOwnerDialog` |
 | `commercial.png` | Commercial District | `CommercialDistrictNarrative` |
 | `store.png` | Convenience store | `StoreNarrative` |

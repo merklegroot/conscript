@@ -23,6 +23,7 @@ export const GAME_ROOMS: GameRoom[] = [
   },
   { phase: "Store", name: "Convenience Store", imageFile: "store.png" },
   { phase: "Cafe", name: "Кафе", imageFile: "cafe.png" },
+  { phase: "CafeBasement", name: "Кафе — Basement", imageFile: "cafe-basement.png" },
   {
     phase: "DeliveryTruck",
     name: "Delivery Truck",

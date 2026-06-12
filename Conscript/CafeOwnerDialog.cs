@@ -12,6 +12,7 @@ internal static class CafeOwnerDialog
     public const int MainOptionCount = 3;
     public const int DeliveryOptionCount = 2;
     public const int WorkOptionIndex = 0;
+    public const int HideoutOptionIndex = 1;
 
     public const string Title = "БОРИС";
     public const string Subtitle = "Bratva — café owner";
@@ -55,8 +56,10 @@ internal static class CafeOwnerDialog
     [
         "\"Work?\" He laughs, but it's brittle. \"I sent you to die and you're asking for a job? " +
         "Either you're the luckiest fool in Buryatia or the stupidest. Sit. Don't touch anything.\"",
-        "\"Lie low?\" His eyes flick to the door. \"Half the bratva heard about the bay by now. " +
-        "You walk in here like nothing happened — what do you want from me, a blanket and a blessing?\"",
+        "He exhales through his nose and looks at the floor, then at you. \"Lie low.\" A beat. " +
+        "\"Fine. There's a cellar under the kitchen — coal bins, old crates, a mattress if you're lucky. " +
+        "Nobody goes down there. You keep your head down, you don't exist to anyone upstairs, " +
+        "and one word about the bay and I lock you in and throw away the key.\"",
         "\"Passing through.\" He goes very quiet. \"You killed my people, took my truck, and you're passing through my café. " +
         "Drink your tea before I decide what that costs you.\""
     ];
@@ -64,6 +67,10 @@ internal static class CafeOwnerDialog
     public const string ActiveJobReplyAfterBetrayal =
         "His jaw tightens. \"My men don't answer their phones. The bay's still smoking. " +
         "And you drove back like it was a grocery run.\" He doesn't sit. \"We have nothing left to discuss about that delivery.\"";
+
+    public const string HideoutAlreadyGrantedReply =
+        "\"You're already renting my cellar.\" He jerks his chin toward the back. \"Go downstairs if you need to. " +
+        "And don't make me regret it.\"";
 
     public static readonly string[] DeliveryPlayerLines =
     [
@@ -81,7 +88,8 @@ internal static class CafeOwnerDialog
         Stage stage,
         int selectedOption,
         bool deliveryJobActive,
-        bool warehouseAmbushersDead)
+        bool warehouseAmbushersDead,
+        bool cafeBasementUnlocked)
     {
         if (stage == Stage.DeliveryOffer)
         {
@@ -103,6 +111,13 @@ internal static class CafeOwnerDialog
             return warehouseAmbushersDead
                 ? ActiveJobReplyAfterBetrayal
                 : "\"You're already on the delivery. Drive to " + WarehouseName + " — bay three. Don't keep me waiting.\"";
+        }
+
+        if (warehouseAmbushersDead &&
+            selectedOption == HideoutOptionIndex &&
+            cafeBasementUnlocked)
+        {
+            return HideoutAlreadyGrantedReply;
         }
 
         if (warehouseAmbushersDead && selectedOption < MainOptionCount)

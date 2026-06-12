@@ -53,6 +53,11 @@ export const ROOM_PROMPTS: Record<string, RoomPrompt> = {
       "Dim interior of a dingy workers' café (кафе) on an industrial side street, post-Soviet Siberia. Steam over cheap tea glasses on Formica tables, yellowed walls, nicotine haze, single warm pendant light, empty stools, diesel and cigarette atmosphere, tense underworld mood. No faces, no readable signage." +
       PROMPT_SUFFIX,
   },
+  CafeBasement: {
+    source: "verified",
+    prompt:
+      "Cinematic photorealistic interior of a low Soviet-era café cellar basement at night, Ulan-Ude post-Soviet industrial district, early autumn hideout mood. Eye-level view down concrete steps into a cramped underground room: damp stained concrete walls, exposed rusted pipes and water lines on the ceiling, coal dust on the floor, old wooden crates stacked against walls, a stained thin mattress on a pallet in the corner, empty coal bins, a single bare incandescent bulb on a cord casting warm amber light with deep shadows. Faint warm glow from floorboards above suggesting the café kitchen overhead. Gritty utilitarian decay, subtle film grain, claustrophobic but livable. Wide landscape 3:2 composition. No people, no readable text, no logos.",
+  },
   DeliveryTruck: {
     source: "inferred",
     prompt:

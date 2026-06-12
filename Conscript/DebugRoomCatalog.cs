@@ -18,6 +18,7 @@ internal static class DebugRoomCatalog
         new() { Phase = Game.Phase.CommercialDistrict, DisplayName = "Commercial District" },
         new() { Phase = Game.Phase.Store, DisplayName = "Convenience Store" },
         new() { Phase = Game.Phase.Cafe, DisplayName = "Кафе" },
+        new() { Phase = Game.Phase.CafeBasement, DisplayName = "Кафе — Basement" },
         new() { Phase = Game.Phase.DeliveryTruck, DisplayName = "Delivery Truck" },
         new() { Phase = Game.Phase.WarehouseTruck, DisplayName = "Warehouse 14 — Bay 3" },
         new() { Phase = Game.Phase.WarehouseAmbush, DisplayName = "Warehouse 14 — Ambush" },

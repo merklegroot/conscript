@@ -165,3 +165,19 @@ Cinematic photorealistic nighttime scene at a lonely post-Soviet gas station on 
 - **notes**:
   - `Phase.GasStation` — walk from warehouse aftermath; distant fire glow toward the yards.
 
+## `cafe-basement.png`
+
+- **asset**: `Conscript/img/cafe-basement.png`
+- **date**: 2026-06-11
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage` + `scripts/install_scene_image.py`
+- **source**: `cafe-basement-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic interior of a low Soviet-era café cellar basement at night, Ulan-Ude post-Soviet industrial district, early autumn hideout mood. Eye-level view down concrete steps into a cramped underground room: damp stained concrete walls, exposed rusted pipes and water lines on the ceiling, coal dust on the floor, old wooden crates stacked against walls, a stained thin mattress on a pallet in the corner, empty coal bins, a single bare incandescent bulb on a cord casting warm amber light with deep shadows. Faint warm glow from floorboards above suggesting the café kitchen overhead. Gritty utilitarian decay, subtle film grain, claustrophobic but livable. Wide landscape 3:2 composition. No people, no readable text, no logos.
+```
+
+- **notes**:
+  - `Phase.CafeBasement` — Boris grants cellar hideout after warehouse betrayal; entered via **GO TO THE BASEMENT** in the café.
+

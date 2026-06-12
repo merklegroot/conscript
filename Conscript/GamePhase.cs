@@ -22,7 +22,7 @@ internal static class GamePhase
     public static bool ShowsSceneNarrative(Game.Phase phase) =>
         phase is Game.Phase.Opening or Game.Phase.Outside or Game.Phase.Town
             or Game.Phase.IndustrialDistrict or Game.Phase.CommercialDistrict or Game.Phase.Store
-            or Game.Phase.Cafe or Game.Phase.DeliveryTruck or Game.Phase.WarehouseTruck
+            or Game.Phase.Cafe or Game.Phase.CafeBasement or Game.Phase.DeliveryTruck or Game.Phase.WarehouseTruck
             or Game.Phase.WarehouseAmbush or Game.Phase.WarehouseAftermath or Game.Phase.WarehouseInterior
             or Game.Phase.GasStation
             or Game.Phase.ForestEntry or Game.Phase.Forest

@@ -39,6 +39,7 @@ public sealed class Game : IGame
     private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
     private Texture2D _cafeBackground;
+    private Texture2D _cafeBasementBackground;
     private Texture2D _deliveryTruckBackground;
     private Texture2D _warehouseBackground;
     private Texture2D _warehouseAmbushBackground;
@@ -87,6 +88,8 @@ public sealed class Game : IGame
     private const string ChoiceCafe = "КАФЕ";
     private const string ChoiceTalkToOwner = "TALK TO THE OWNER";
     private const string ChoiceLeaveCafe = "LEAVE THE WAY YOU CAME";
+    private const string ChoiceGoToCafeBasement = "GO TO THE BASEMENT";
+    private const string ChoiceBackToCafe = "BACK UPSTAIRS";
     private const string ChoiceDriveToWarehouse = "DRIVE TO THE WAREHOUSE";
     private const string ChoiceDriveBackToTown = "DRIVE BACK TO TOWN";
     private const string ChoiceGetOutOfTruck = "GET OUT OF THE TRUCK";
@@ -162,6 +165,7 @@ public sealed class Game : IGame
         CommercialDistrict,  // Shops on the east side; forest access is south from here
         Store,     // Inside a late-night convenience store / kiosk
         Cafe,      // Workers' café off an industrial side street (Кафе)
+        CafeBasement, // Cellar hideout below the café — Boris grants access after the warehouse
         DeliveryTruck, // Behind the wheel on Boris's warehouse run
         WarehouseTruck,   // Warehouse 14 loading bay — still inside the truck cab
         WarehouseAmbush,  // Outside the cab — met by bratdvas; Boris betrayed you
@@ -181,6 +185,7 @@ public sealed class Game : IGame
     private Phase _phaseBeforeCafe = Phase.IndustrialDistrict;
     private bool _borisDeliveryJobActive;
     private bool _warehouseAmbushersDead;
+    private bool _cafeBasementUnlocked;
     private bool _foldedPaperMessageRead;
     private bool _noteMessageRead;
     private Texture2D _foldedPaperNoteTexture;
@@ -485,6 +490,12 @@ public sealed class Game : IGame
         "Boris watches the room like he owns everyone in it.\n" +
         "He might help you disappear — or sell you out for pocket change.";
 
+    private const string CafeBasementNarrative =
+        "Concrete steps lead down into a low cellar under the kitchen.\n" +
+        "Coal dust, stacked crates, and a stained mattress in the corner.\n" +
+        "Pipes knock in the walls. Footsteps creak on the floor above.\n" +
+        "Boris said nobody would look for you here. For now, that has to be enough.";
+
     private const string DeliveryTruckNarrative =
         "You sit in the cab of an old ZIL with the engine ticking.\n" +
         $"Boris wants this load at {CafeOwnerDialog.WarehouseName} — loading bay three, west yards.\n" +
@@ -675,18 +686,23 @@ public sealed class Game : IGame
                 break;
 
             case Phase.Cafe:
-                _choices = new[]
-                {
-                    ChoiceTalkToOwner,
-                    ChoiceLeaveCafe,
-                    ChoiceWait
-                };
+                RefreshCafeActionChoices();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Кафе";
                 _city = "Ulan-Ude, Republic of Buryatia";
                 _season = "Early Autumn";
                 _temperatureF = 28;
+                break;
+
+            case Phase.CafeBasement:
+                _choices = new[] { ChoiceBackToCafe, ChoiceWait };
+                _day = 0;
+                _timeOfDay = "Night";
+                _location = "Кафе — Basement";
+                _city = "Ulan-Ude, Republic of Buryatia";
+                _season = "Early Autumn";
+                _temperatureF = 24;
                 break;
 
             case Phase.DeliveryTruck:
@@ -777,6 +793,7 @@ public sealed class Game : IGame
             Phase.CommercialDistrict => _commercialDistrictBackground,
             Phase.Store        => _storeBackground,
             Phase.Cafe         => _cafeBackground,
+            Phase.CafeBasement => _cafeBasementBackground,
             Phase.DeliveryTruck => _deliveryTruckBackground,
             Phase.WarehouseTruck    => _warehouseBackground,
             Phase.WarehouseAmbush   => _warehouseAmbushBackground,
@@ -1045,6 +1062,7 @@ public sealed class Game : IGame
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
+        _cafeBasementBackground = LoadTextureOrFallback("cafe-basement.png", _cafeBackground);
         _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
         _warehouseAmbushBackground = LoadTextureOrFallback("warehouse-14-ambush.png", _warehouseBackground);
@@ -1104,6 +1122,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _forestStreamBackground);
         UnloadTextureIfLoaded(ref _storeBackground);
         UnloadTextureIfLoaded(ref _cafeBackground);
+        UnloadTextureIfLoaded(ref _cafeBasementBackground);
         UnloadTextureIfLoaded(ref _deliveryTruckBackground);
         UnloadTextureIfLoaded(ref _warehouseBackground);
         UnloadTextureIfLoaded(ref _warehouseAmbushBackground);
@@ -2760,6 +2779,10 @@ public sealed class Game : IGame
                     HandleCafeChoice(index);
                     break;
 
+                case Phase.CafeBasement:
+                    HandleCafeBasementChoice(index);
+                    break;
+
                 case Phase.DeliveryTruck:
                     HandleDeliveryTruckChoice(index);
                     break;
@@ -4344,6 +4367,13 @@ public sealed class Game : IGame
             CloseBodyLootMenu();
     }
 
+    private void RefreshCafeActionChoices()
+    {
+        _choices = _cafeBasementUnlocked
+            ? new[] { ChoiceTalkToOwner, ChoiceGoToCafeBasement, ChoiceLeaveCafe, ChoiceWait }
+            : new[] { ChoiceTalkToOwner, ChoiceLeaveCafe, ChoiceWait };
+    }
+
     private void HandleCafeChoice(int index)
     {
         if (index < 0 || index >= _choices.Length)
@@ -4355,6 +4385,16 @@ public sealed class Game : IGame
                 OpenCafeOwnerDialog();
                 return;
 
+            case ChoiceGoToCafeBasement:
+                if (!_cafeBasementUnlocked)
+                    return;
+
+                _actionMessage = "You slip through the kitchen door and take the stairs down into the cellar.";
+                _actionMessageTimer = 2.4f;
+                AdvanceTime();
+                EnterPhase(Phase.CafeBasement);
+                return;
+
             case ChoiceLeaveCafe:
                 CloseCafeOwnerDialog();
                 _actionMessage = "You step back out into the cold industrial dark.";
@@ -4362,6 +4402,29 @@ public sealed class Game : IGame
                 EnterPhase(_phaseBeforeCafe == Phase.IndustrialDistrict
                     ? _phaseBeforeCafe
                     : Phase.IndustrialDistrict);
+                return;
+
+            case ChoiceWait:
+                PerformIdle();
+                return;
+        }
+
+        AdvanceTime();
+        _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void HandleCafeBasementChoice(int index)
+    {
+        if (index < 0 || index >= _choices.Length)
+            return;
+
+        switch (_choices[index])
+        {
+            case ChoiceBackToCafe:
+                _actionMessage = "You climb the stairs and step back into the warm café.";
+                _actionMessageTimer = 2.2f;
+                AdvanceTime();
+                EnterPhase(Phase.Cafe);
                 return;
 
             case ChoiceWait:
@@ -4394,6 +4457,9 @@ public sealed class Game : IGame
                 break;
             case Phase.Cafe:
                 _actionMessage = "You keep your head down. The owner hasn't stopped watching you.";
+                break;
+            case Phase.CafeBasement:
+                _actionMessage = "You sit on the mattress and listen to the café above. Nothing moves down here.";
                 break;
             case Phase.DeliveryTruck:
                 _actionMessage = "The engine rumbles under you. The yards are a few minutes away.";
@@ -4529,6 +4595,7 @@ public sealed class Game : IGame
         PhaseBeforeCafe = _phaseBeforeCafe,
         BorisDeliveryJobActive = _borisDeliveryJobActive,
         WarehouseAmbushersDead = _warehouseAmbushersDead,
+        CafeBasementUnlocked = _cafeBasementUnlocked,
         FoldedPaperMessageRead = _foldedPaperMessageRead,
         NoteMessageRead = _noteMessageRead,
         GasGaugeFuel = _gasGaugeFuel,
@@ -4571,6 +4638,7 @@ public sealed class Game : IGame
             _phaseBeforeCafe = snapshot.PhaseBeforeCafe;
             _borisDeliveryJobActive = snapshot.BorisDeliveryJobActive;
             _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
+            _cafeBasementUnlocked = snapshot.CafeBasementUnlocked;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
             _gasGaugeFuel = snapshot.GasGaugeFuel;
@@ -4671,6 +4739,7 @@ public sealed class Game : IGame
         _tentBuiltInPhase = null;
         _borisDeliveryJobActive = false;
         _warehouseAmbushersDead = false;
+        _cafeBasementUnlocked = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
@@ -4686,7 +4755,7 @@ public sealed class Game : IGame
     }
 
     /// <summary>
-    /// Jump to the gas station after the warehouse aftermath.
+    /// Jump to the café after defeating Boris's men at the warehouse.
     /// </summary>
     private void DebugStartGame()
     {
@@ -4705,6 +4774,7 @@ public sealed class Game : IGame
         _phaseBeforeCafe = Phase.IndustrialDistrict;
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
+        _cafeBasementUnlocked = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
@@ -4713,7 +4783,7 @@ public sealed class Game : IGame
         _noteMessageRead = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
-        EnterPhase(Phase.GasStation);
+        EnterPhase(Phase.Cafe);
     }
 
     // --- Inventory & ground items ---
@@ -4966,6 +5036,14 @@ public sealed class Game : IGame
 
             _cafeOwnerSelectedOption = optionIndex;
             _cafeOwnerHighlightedIndex = optionIndex;
+
+            if (optionIndex == CafeOwnerDialog.HideoutOptionIndex &&
+                _warehouseAmbushersDead &&
+                !_cafeBasementUnlocked)
+            {
+                GrantCafeBasementHideout();
+            }
+
             return;
         }
 
@@ -4997,6 +5075,19 @@ public sealed class Game : IGame
         CloseCafeOwnerDialog();
         _actionMessage = "Boris turns back to the samovar. \"Then don't waste my time.\"";
         _actionMessageTimer = ActionMessageDuration;
+    }
+
+    private void GrantCafeBasementHideout()
+    {
+        RecordHistorySnapshot();
+        _cafeBasementUnlocked = true;
+
+        if (_phase == Phase.Cafe)
+            RefreshCafeActionChoices();
+
+        _actionMessage = "Boris jerks his chin toward the kitchen. \"Cellar stairs. Don't touch anything.\"";
+        _actionMessageTimer = 2.8f;
+        AdvanceTime();
     }
 
     private void TryPerformForage(int optionIndex)
@@ -6756,7 +6847,8 @@ public sealed class Game : IGame
             _cafeOwnerDialogStage,
             _cafeOwnerSelectedOption,
             _borisDeliveryJobActive,
-            _warehouseAmbushersDead);
+            _warehouseAmbushersDead,
+            _cafeBasementUnlocked);
         int responseY = panelY + 74;
         DrawWrappedDialogText(font, response, contentX, responseY, contentW, 16, 0.55f, Palette.TextSecondary);
 
@@ -8151,6 +8243,7 @@ public sealed class Game : IGame
             case Phase.CommercialDistrict:
             case Phase.Store:
             case Phase.Cafe:
+            case Phase.CafeBasement:
             case Phase.DeliveryTruck:
             case Phase.WarehouseTruck:
             case Phase.WarehouseAmbush:
@@ -8668,6 +8761,7 @@ public sealed class Game : IGame
             Phase.Town               => TownNarrative,
             Phase.IndustrialDistrict => IndustrialDistrictNarrative,
             Phase.Cafe               => CafeNarrative,
+            Phase.CafeBasement       => CafeBasementNarrative,
             Phase.DeliveryTruck      => DeliveryTruckNarrative,
             Phase.WarehouseTruck     => WarehouseTruckNarrative,
             Phase.WarehouseAmbush    => WarehouseAmbushNarrative,
