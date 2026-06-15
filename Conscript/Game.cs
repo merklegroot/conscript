@@ -188,8 +188,10 @@ public sealed class Game : IGame
     private bool _cafeBasementUnlocked;
     private bool _foldedPaperMessageRead;
     private bool _noteMessageRead;
+    private bool _blankPaperMessageRead;
     private Texture2D _foldedPaperNoteTexture;
     private Texture2D _crateNoteTexture;
+    private Texture2D _blankPaperNoteTexture;
     private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private readonly GasGaugeViewerDialog _gasGaugeViewer = new();
@@ -334,6 +336,18 @@ public sealed class Game : IGame
     private bool _cafeBasementKeypadHotspotHovered;
     private readonly NumericKeypadLockDialog _cafeBasementKeypad =
         new(CafeBasementHotspots.LockCode, CafeBasementHotspots.LockCode.Length);
+
+    // Café basement — storage crate with blank paper
+    private Rectangle _cafeBasementCrateClickRect;
+    private bool _cafeBasementCrateHotspotHovered;
+    private bool _cafeBasementCrateOpened;
+    private bool _cafeBasementCratePaperTaken;
+    private bool _showCafeBasementCrateDialog;
+    private Rectangle _cafeBasementCratePanelRect;
+    private Rectangle _cafeBasementCrateCloseRect;
+    private bool _cafeBasementCrateCloseHovered;
+    private Rectangle _cafeBasementCrateActionRect;
+    private bool _cafeBasementCrateActionHovered;
 
     // Warehouse interior — sealed crate
     private Rectangle _warehouseInteriorExitClickRect;
@@ -1084,6 +1098,7 @@ public sealed class Game : IGame
         _titleLogoTexture    = EmbeddedTextureLoader.Load("conscript-title.png");
         _foldedPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.FoldedPaperNoteFile);
         _crateNoteTexture = EmbeddedTextureLoader.Load(GameItems.CrateNoteFile);
+        _blankPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.BlankPaperNoteFile);
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1144,6 +1159,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _titleLogoTexture);
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
         UnloadTextureIfLoaded(ref _crateNoteTexture);
+        UnloadTextureIfLoaded(ref _blankPaperNoteTexture);
     }
 
     // --- Main loop ---
@@ -1217,6 +1233,11 @@ public sealed class Game : IGame
             if (_showWarehouseCrateDialog)
             {
                 CloseWarehouseCrateDialog();
+                return;
+            }
+            if (_showCafeBasementCrateDialog)
+            {
+                CloseCafeBasementCrateDialog();
                 return;
             }
             if (_itemUseActive)
@@ -1415,6 +1436,18 @@ public sealed class Game : IGame
             else if (_showWarehouseCrateDialog)
             {
                 CloseWarehouseCrateDialog();
+            }
+            else if (_showCafeBasementCrateDialog)
+            {
+                if (_cafeBasementCrateActionHovered)
+                {
+                    if (CafeBasementCrateDialog.CanOpen(_cafeBasementCrateOpened))
+                        TryOpenCafeBasementCrate();
+                    else if (CafeBasementCrateDialog.CanTake(_cafeBasementCrateOpened, _cafeBasementCratePaperTaken))
+                        TryTakeCafeBasementCratePaper();
+                }
+                else
+                    CloseCafeBasementCrateDialog();
             }
             else if (_showStoreBuyMenu)
             {
@@ -1832,6 +1865,37 @@ public sealed class Game : IGame
             if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _warehouseCratePanelRect))
             {
                 CloseWarehouseCrateDialog();
+                return;
+            }
+        }
+
+        // === Café basement crate dialog (modal) ===
+        if (_showCafeBasementCrateDialog)
+        {
+            _cafeBasementCrateCloseHovered = Raylib.CheckCollisionPointRec(mouse, _cafeBasementCrateCloseRect);
+            bool showAction = CafeBasementCrateDialog.CanOpen(_cafeBasementCrateOpened) ||
+                CafeBasementCrateDialog.CanTake(_cafeBasementCrateOpened, _cafeBasementCratePaperTaken);
+            _cafeBasementCrateActionHovered = showAction &&
+                Raylib.CheckCollisionPointRec(mouse, _cafeBasementCrateActionRect);
+
+            if (leftClicked && _cafeBasementCrateCloseHovered)
+            {
+                CloseCafeBasementCrateDialog();
+                return;
+            }
+
+            if (leftClicked && _cafeBasementCrateActionHovered)
+            {
+                if (CafeBasementCrateDialog.CanOpen(_cafeBasementCrateOpened))
+                    TryOpenCafeBasementCrate();
+                else if (CafeBasementCrateDialog.CanTake(_cafeBasementCrateOpened, _cafeBasementCratePaperTaken))
+                    TryTakeCafeBasementCratePaper();
+                return;
+            }
+
+            if (leftClicked && !Raylib.CheckCollisionPointRec(mouse, _cafeBasementCratePanelRect))
+            {
+                CloseCafeBasementCrateDialog();
                 return;
             }
         }
@@ -2346,6 +2410,26 @@ public sealed class Game : IGame
                         return;
                     }
                 }
+
+                _cafeBasementCrateHotspotHovered = false;
+                float basementCrateW = CafeBasementHotspots.CrateX2 - CafeBasementHotspots.CrateX1;
+                float basementCrateH = CafeBasementHotspots.CrateY2 - CafeBasementHotspots.CrateY1;
+                _cafeBasementCrateClickRect = SceneRegion.ToScreenRect(
+                    CafeBasementHotspots.CrateX1,
+                    CafeBasementHotspots.CrateY1,
+                    basementCrateW,
+                    basementCrateH,
+                    basementArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _cafeBasementCrateClickRect))
+                {
+                    _cafeBasementCrateHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        OpenCafeBasementCrateDialog();
+                        return;
+                    }
+                }
             }
             else
             {
@@ -2353,6 +2437,8 @@ public sealed class Game : IGame
                 _cafeBasementKeypadClickRect = default;
                 _cafeBasementDoorHotspotHovered = false;
                 _cafeBasementDoorClickRect = default;
+                _cafeBasementCrateHotspotHovered = false;
+                _cafeBasementCrateClickRect = default;
             }
 
             _hoveredDroppedItemListIndex = -1;
@@ -2649,7 +2735,8 @@ public sealed class Game : IGame
             if (_cafeBorisHotspotHovered)
                 overClickable = true;
 
-            if (_cafeBasementDoorHotspotHovered || _cafeBasementKeypadHotspotHovered)
+            if (_cafeBasementDoorHotspotHovered || _cafeBasementKeypadHotspotHovered ||
+                _cafeBasementCrateHotspotHovered)
                 overClickable = true;
 
             if (_hoveredDroppedItemListIndex >= 0)
@@ -2803,6 +2890,13 @@ public sealed class Game : IGame
         {
             if (_warehouseCrateCloseHovered ||
                 !Raylib.CheckCollisionPointRec(mouse, _warehouseCratePanelRect))
+                overClickable = true;
+        }
+
+        if (_showCafeBasementCrateDialog)
+        {
+            if (_cafeBasementCrateCloseHovered || _cafeBasementCrateActionHovered ||
+                !Raylib.CheckCollisionPointRec(mouse, _cafeBasementCratePanelRect))
                 overClickable = true;
         }
 
@@ -3901,6 +3995,64 @@ public sealed class Game : IGame
         _actionMessageTimer = 2.6f;
     }
 
+    private void OpenCafeBasementCrateDialog()
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        _showCafeBasementCrateDialog = true;
+        _cafeBasementCrateCloseHovered = false;
+        _cafeBasementCrateActionHovered = false;
+    }
+
+    private void CloseCafeBasementCrateDialog()
+    {
+        _showCafeBasementCrateDialog = false;
+        _cafeBasementCrateCloseHovered = false;
+        _cafeBasementCrateActionHovered = false;
+    }
+
+    private void TryOpenCafeBasementCrate()
+    {
+        if (_phase != Phase.CafeBasement || _cafeBasementCrateOpened)
+            return;
+
+        RecordHistorySnapshot();
+        _cafeBasementCrateOpened = true;
+        AdvanceTime();
+
+        if (TryAddToBackpack(GameItems.BlankPaper))
+        {
+            _cafeBasementCratePaperTaken = true;
+            _actionMessage = "You work the lid loose and take a blank sheet of paper from the straw packing.";
+            _actionMessageTimer = 3.0f;
+            CloseCafeBasementCrateDialog();
+            return;
+        }
+
+        _actionMessage = "You pry the lid open — a blank sheet inside. Your backpack is full.";
+        _actionMessageTimer = 3.2f;
+    }
+
+    private void TryTakeCafeBasementCratePaper()
+    {
+        if (_phase != Phase.CafeBasement || !_cafeBasementCrateOpened || _cafeBasementCratePaperTaken)
+            return;
+
+        if (!TryAddToBackpack(GameItems.BlankPaper))
+        {
+            _actionMessage = "Backpack is full — make space before taking the paper.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        RecordHistorySnapshot();
+        _cafeBasementCratePaperTaken = true;
+        _actionMessage = "You take the blank sheet of paper.";
+        _actionMessageTimer = ActionMessageDuration;
+        CloseCafeBasementCrateDialog();
+    }
+
     private void OpenWarehouseCrateDialog()
     {
         if (_phase != Phase.WarehouseInterior)
@@ -4694,6 +4846,7 @@ public sealed class Game : IGame
         CloseForageDialog();
         CloseCafeOwnerDialog();
         CloseWarehouseCrateDialog();
+        CloseCafeBasementCrateDialog();
         StopItemUseMode();
         CloseControllerDebug();
         CloseDebugRoomList();
@@ -4736,6 +4889,9 @@ public sealed class Game : IGame
         WarehouseCrateOpened = _warehouseCrateOpened,
         WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
         CafeBasementKeypadUnlocked = _cafeBasementKeypad.IsUnlocked,
+        CafeBasementCrateOpened = _cafeBasementCrateOpened,
+        CafeBasementCratePaperTaken = _cafeBasementCratePaperTaken,
+        BlankPaperMessageRead = _blankPaperMessageRead,
         HasTrashBagTent = _hasTrashBagTent,
         TentBuiltInPhase = _tentBuiltInPhase,
         CafeOwnerDialogStage = _cafeOwnerDialogStage,
@@ -4776,8 +4932,11 @@ public sealed class Game : IGame
             _cafeBasementUnlocked = snapshot.CafeBasementUnlocked;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
+            _blankPaperMessageRead = snapshot.BlankPaperMessageRead;
             _gasGaugeFuel = snapshot.GasGaugeFuel;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
+            _cafeBasementCrateOpened = snapshot.CafeBasementCrateOpened;
+            _cafeBasementCratePaperTaken = snapshot.CafeBasementCratePaperTaken;
             _hasTrashBagTent = snapshot.HasTrashBagTent;
             _tentBuiltInPhase = snapshot.TentBuiltInPhase;
             _cafeOwnerDialogStage = snapshot.CafeOwnerDialogStage;
@@ -4853,6 +5012,7 @@ public sealed class Game : IGame
     private bool BlocksActionBarNavigation() =>
         _showStoreBuyMenu || _showGloveBoxMenu || _showCrateLootMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
+        || _showCafeBasementCrateDialog
         || _itemUseActive || _showControllerDebug || _showQuitConfirm || _showDebugRoomList
         || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _cafeBasementKeypad.IsOpen
         || _foldedPaperReader.IsOpen
@@ -4861,7 +5021,7 @@ public sealed class Game : IGame
     private bool AllowsSidebarAndSceneInput() =>
         !_showStoreBuyMenu && !_showGloveBoxMenu && !_showCrateLootMenu && !_showBodyLootMenu
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
-        && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
+        && !_showWarehouseCrateDialog && !_showCafeBasementCrateDialog && !_itemUseActive && !_showQuitConfirm
         && !_showDebugRoomList && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen
         && !_cafeBasementKeypad.IsOpen && !_foldedPaperReader.IsOpen && !_gasGaugeViewer.IsOpen;
 
@@ -4880,12 +5040,15 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = false;
         _warehouseAmbushersDead = false;
         _cafeBasementUnlocked = false;
+        _cafeBasementCrateOpened = false;
+        _cafeBasementCratePaperTaken = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
+        _blankPaperMessageRead = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -4916,12 +5079,15 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
         _cafeBasementUnlocked = false;
+        _cafeBasementCrateOpened = false;
+        _cafeBasementCratePaperTaken = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
         ResetBodyLoot();
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
+        _blankPaperMessageRead = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -6113,19 +6279,27 @@ public sealed class Game : IGame
 
         if (string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
             _noteMessageRead = true;
+        else if (string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
+            _blankPaperMessageRead = true;
         else
             _foldedPaperMessageRead = true;
 
         string title = string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
             ? "NOTE"
-            : "FOLDED NOTE";
+            : string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase)
+                ? "BLANK PAPER"
+                : "FOLDED NOTE";
         _foldedPaperReader.Open(title);
     }
 
-    private Texture2D GetActiveNoteReadTexture() =>
-        string.Equals(_activeNoteReadItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
-            ? _crateNoteTexture
-            : _foldedPaperNoteTexture;
+    private Texture2D GetActiveNoteReadTexture()
+    {
+        if (string.Equals(_activeNoteReadItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
+            return _crateNoteTexture;
+        if (string.Equals(_activeNoteReadItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
+            return _blankPaperNoteTexture;
+        return _foldedPaperNoteTexture;
+    }
 
     private void CloseFoldedPaperReader()
     {
@@ -6154,6 +6328,17 @@ public sealed class Game : IGame
             }
 
             return "You've studied the note. Press READ again to look at it.";
+        }
+
+        if (string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!_blankPaperMessageRead)
+            {
+                return "A clean sheet torn from a ledger. The lines are still visible, but nothing is written on it.\n\n" +
+                    "Press READ to look at it.";
+            }
+
+            return "A blank sheet. Press READ again to look at it.";
         }
 
         if (!_foldedPaperMessageRead)
@@ -8240,6 +8425,49 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawCafeBasementCrateHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float crateW = CafeBasementHotspots.CrateX2 - CafeBasementHotspots.CrateX1;
+        float crateH = CafeBasementHotspots.CrateY2 - CafeBasementHotspots.CrateY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            CafeBasementHotspots.CrateX1,
+            CafeBasementHotspots.CrateY1,
+            crateW,
+            crateH,
+            artBounds);
+
+        bool hovered = _cafeBasementCrateHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            string label = !_cafeBasementCrateOpened
+                ? "CRATE"
+                : !_cafeBasementCratePaperTaken
+                    ? "SEARCH"
+                    : "OPENED";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawCafeBorisHotspot(int artX, int artY, int artW, int artH)
     {
         if (_phase != Phase.Cafe)
@@ -8439,6 +8667,75 @@ public sealed class Game : IGame
         GameDialogUi.DrawDialogButton(_warehouseCrateCloseRect, "CLOSE", _warehouseCrateCloseHovered, font);
     }
 
+    private void DrawCafeBasementCrateDialog()
+    {
+        int screenW = _screenWidth;
+        int screenH = _screenHeight;
+
+        GameDialogUi.DrawModalBackdrop(screenW, screenH);
+
+        string body = CafeBasementCrateDialog.GetBodyText(_cafeBasementCrateOpened, _cafeBasementCratePaperTaken);
+        bool canOpen = CafeBasementCrateDialog.CanOpen(_cafeBasementCrateOpened);
+        bool canTake = CafeBasementCrateDialog.CanTake(_cafeBasementCrateOpened, _cafeBasementCratePaperTaken);
+
+        Font font = _uiFont;
+        int panelW = 440;
+        const float bodySpacing = 0.6f;
+        int bodySize = 16;
+        int bodyLineHeight = 22;
+        int textMaxW = panelW - 48;
+        var (bodyLines, bodyHeight) = GameTextLayout.WrapForBox(body, font, bodySize, bodySpacing, textMaxW, bodyLineHeight);
+        int panelH = Math.Max(220, 124 + bodyHeight + 60);
+        int panelX = (screenW - panelW) / 2;
+        int panelY = (screenH - panelH) / 2 - 20;
+
+        _cafeBasementCratePanelRect = new Rectangle(panelX, panelY, panelW, panelH);
+
+        Raylib.DrawRectangle(panelX, panelY, panelW, panelH, Palette.CardBg);
+        Raylib.DrawRectangleLines(panelX, panelY, panelW, panelH, Palette.CardBorder);
+
+        string title = CafeBasementCrateDialog.Title;
+        int titleSize = 26;
+        int titleW = (int)Raylib.MeasureTextEx(font, title, titleSize, 0.8f).X;
+        Raylib.DrawTextEx(font, title,
+            new Vector2(panelX + (panelW - titleW) / 2, panelY + 18),
+            titleSize, 0.8f, Palette.TextPrimary);
+
+        Raylib.DrawLine(panelX + 40, panelY + 52, panelX + panelW - 40, panelY + 52, Palette.SubtleBorder);
+
+        int textY = panelY + 64;
+        foreach (string line in bodyLines)
+        {
+            int lineW = (int)Raylib.MeasureTextEx(font, line, bodySize, bodySpacing).X;
+            Raylib.DrawTextEx(font, line,
+                new Vector2(panelX + (panelW - lineW) / 2, textY),
+                bodySize, bodySpacing, Palette.TextSecondary);
+            textY += string.IsNullOrEmpty(line) ? bodyLineHeight / 2 : bodyLineHeight;
+        }
+
+        int btnH = 36;
+        int btnY = panelY + panelH - 52;
+        int btnW = 100;
+        int btnGap = 16;
+        int totalBtnW = canOpen || canTake ? btnW * 2 + btnGap : btnW;
+        int startX = panelX + (panelW - totalBtnW) / 2;
+
+        if (canOpen || canTake)
+        {
+            string actionLabel = canOpen ? "OPEN" : "TAKE";
+            _cafeBasementCrateActionRect = new Rectangle(startX, btnY, btnW, btnH);
+            _cafeBasementCrateCloseRect = new Rectangle(startX + btnW + btnGap, btnY, btnW, btnH);
+            GameDialogUi.DrawDialogButton(_cafeBasementCrateActionRect, actionLabel, _cafeBasementCrateActionHovered, font);
+            GameDialogUi.DrawDialogButton(_cafeBasementCrateCloseRect, "CLOSE", _cafeBasementCrateCloseHovered, font);
+        }
+        else
+        {
+            _cafeBasementCrateActionRect = default;
+            _cafeBasementCrateCloseRect = new Rectangle(startX, btnY, btnW, btnH);
+            GameDialogUi.DrawDialogButton(_cafeBasementCrateCloseRect, "CLOSE", _cafeBasementCrateCloseHovered, font);
+        }
+    }
+
     // --- Render ---
     private void Draw()
     {
@@ -8548,6 +8845,11 @@ public sealed class Game : IGame
         if (_showWarehouseCrateDialog)
         {
             DrawWarehouseCrateDialog();
+        }
+
+        if (_showCafeBasementCrateDialog)
+        {
+            DrawCafeBasementCrateDialog();
         }
 
         if (_showQuitConfirm)
@@ -9168,6 +9470,7 @@ public sealed class Game : IGame
         {
             DrawCafeBasementDoorHotspot(artX, artY, artW, artH);
             DrawCafeBasementKeypadHotspot(artX, artY, artW, artH);
+            DrawCafeBasementCrateHotspot(artX, artY, artW, artH);
         }
 
         // Light atmospheric snow (outdoor scenes only)

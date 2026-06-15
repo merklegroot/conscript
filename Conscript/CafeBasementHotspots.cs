@@ -1,6 +1,6 @@
 namespace Conscript;
 
-/// <summary>Clickable regions on cafe-basement.png — steel exit door and wall keypad.</summary>
+/// <summary>Clickable regions on cafe-basement.png — steel exit door, wall keypad, and storage crate.</summary>
 internal static class CafeBasementHotspots
 {
     /// <summary>Steel cellar door at the head of the stairs (top of scene).</summary>
@@ -14,6 +14,12 @@ internal static class CafeBasementHotspots
     public const float KeypadY1 = 0.06f;
     public const float KeypadX2 = 0.82f;
     public const float KeypadY2 = 0.24f;
+
+    /// <summary>Stacked wooden crate against the back wall — corners from area select.</summary>
+    public const float CrateX1 = 0.49f;
+    public const float CrateY1 = 0.42f;
+    public const float CrateX2 = 0.57f;
+    public const float CrateY2 = 0.58f;
 
     public const string LockCode = "1973";
 }

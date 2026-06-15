@@ -27,6 +27,7 @@ internal static class GameItems
     public const string Rag = "Rag";
     public const string FoldedPaper = "Folded Paper";
     public const string Note = "Note";
+    public const string BlankPaper = "Blank Paper";
     public const string Knife = "Knife";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
@@ -41,6 +42,7 @@ internal static class GameItems
 
     public const string CrateNoteFile = "crate-note.png";
     public const string FoldedPaperNoteFile = "folded-paper-note.png";
+    public const string BlankPaperNoteFile = "blank-sheet-note.png";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -53,6 +55,7 @@ internal static class GameItems
         [Rag]             = "items.rag.png",
         [FoldedPaper]     = FoldedPaperNoteFile,
         [Note]            = CrateNoteFile,
+        [BlankPaper]      = BlankPaperNoteFile,
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
@@ -89,12 +92,17 @@ internal static class GameItems
 
     public static bool IsFoldedPaper(string name) =>
         string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, Note, StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, Note, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, BlankPaper, StringComparison.OrdinalIgnoreCase);
 
-    public static string GetReadableNoteImageFile(string itemName) =>
-        string.Equals(itemName, Note, StringComparison.OrdinalIgnoreCase)
-            ? CrateNoteFile
-            : FoldedPaperNoteFile;
+    public static string GetReadableNoteImageFile(string itemName)
+    {
+        if (string.Equals(itemName, Note, StringComparison.OrdinalIgnoreCase))
+            return CrateNoteFile;
+        if (string.Equals(itemName, BlankPaper, StringComparison.OrdinalIgnoreCase))
+            return BlankPaperNoteFile;
+        return FoldedPaperNoteFile;
+    }
 
     /// <summary>Backpack items that should not show a USE action (empty containers, build-only materials).</summary>
     public static bool IsExcludedFromUse(string name) =>
