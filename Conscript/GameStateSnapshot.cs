@@ -20,6 +20,7 @@ internal sealed class GameStateSnapshot
     public required bool CafeBasementKeypadUnlocked { get; init; }
     public required bool CafeBasementCrateOpened { get; init; }
     public required bool CafeBasementCratePaperTaken { get; init; }
+    public required bool CafeBasementCoalTaken { get; init; }
     public required bool BlankPaperMessageRead { get; init; }
     public required bool HasTrashBagTent { get; init; }
     public required Game.Phase? TentBuiltInPhase { get; init; }

@@ -17,6 +17,7 @@ internal static class GameItems
     public const string Rabbit = "Rabbit";
     public const string Firewood = "Firewood";
     public const string Rocks = "Rocks";
+    public const string Coal = "Piece of Coal";
     public const int TrashBagsMaxUses = 3;
     public const int DuctTapeMaxUses = 3;
 
@@ -69,6 +70,7 @@ internal static class GameItems
         [Rabbit]          = "items.rabbit.png",
         [Firewood]        = "items.firewood.png",
         [Rocks]           = "items.rocks.png",
+        [Coal]            = "items/coal.png",
         [GasCan]          = "items.gas-can.png",
         [FilledGasCan]    = "items.gas-can.png",
     };

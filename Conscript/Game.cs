@@ -349,6 +349,11 @@ public sealed class Game : IGame
     private Rectangle _cafeBasementCrateActionRect;
     private bool _cafeBasementCrateActionHovered;
 
+    // Café basement — coal bins
+    private Rectangle _cafeBasementCoalBinClickRect;
+    private bool _cafeBasementCoalBinHotspotHovered;
+    private bool _cafeBasementCoalTaken;
+
     // Warehouse interior — sealed crate
     private Rectangle _warehouseInteriorExitClickRect;
     private bool _warehouseInteriorExitHotspotHovered;
@@ -2430,6 +2435,26 @@ public sealed class Game : IGame
                         return;
                     }
                 }
+
+                _cafeBasementCoalBinHotspotHovered = false;
+                float coalBinW = CafeBasementHotspots.CoalBinX2 - CafeBasementHotspots.CoalBinX1;
+                float coalBinH = CafeBasementHotspots.CoalBinY2 - CafeBasementHotspots.CoalBinY1;
+                _cafeBasementCoalBinClickRect = SceneRegion.ToScreenRect(
+                    CafeBasementHotspots.CoalBinX1,
+                    CafeBasementHotspots.CoalBinY1,
+                    coalBinW,
+                    coalBinH,
+                    basementArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _cafeBasementCoalBinClickRect))
+                {
+                    _cafeBasementCoalBinHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        TryTakeCafeBasementCoal();
+                        return;
+                    }
+                }
             }
             else
             {
@@ -2439,6 +2464,8 @@ public sealed class Game : IGame
                 _cafeBasementDoorClickRect = default;
                 _cafeBasementCrateHotspotHovered = false;
                 _cafeBasementCrateClickRect = default;
+                _cafeBasementCoalBinHotspotHovered = false;
+                _cafeBasementCoalBinClickRect = default;
             }
 
             _hoveredDroppedItemListIndex = -1;
@@ -2736,7 +2763,7 @@ public sealed class Game : IGame
                 overClickable = true;
 
             if (_cafeBasementDoorHotspotHovered || _cafeBasementKeypadHotspotHovered ||
-                _cafeBasementCrateHotspotHovered)
+                _cafeBasementCrateHotspotHovered || _cafeBasementCoalBinHotspotHovered)
                 overClickable = true;
 
             if (_hoveredDroppedItemListIndex >= 0)
@@ -4053,6 +4080,32 @@ public sealed class Game : IGame
         CloseCafeBasementCrateDialog();
     }
 
+    private void TryTakeCafeBasementCoal()
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        if (_cafeBasementCoalTaken)
+        {
+            _actionMessage = "You already took a piece from the bin.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        if (!TryAddToBackpack(GameItems.Coal))
+        {
+            _actionMessage = "Backpack is full — make space before taking the coal.";
+            _actionMessageTimer = ActionMessageDuration;
+            return;
+        }
+
+        RecordHistorySnapshot();
+        _cafeBasementCoalTaken = true;
+        _actionMessage = "You scoop a chunk of coal from the bin. It leaves black dust on your fingers.";
+        _actionMessageTimer = 3.0f;
+        AdvanceTime();
+    }
+
     private void OpenWarehouseCrateDialog()
     {
         if (_phase != Phase.WarehouseInterior)
@@ -4891,6 +4944,7 @@ public sealed class Game : IGame
         CafeBasementKeypadUnlocked = _cafeBasementKeypad.IsUnlocked,
         CafeBasementCrateOpened = _cafeBasementCrateOpened,
         CafeBasementCratePaperTaken = _cafeBasementCratePaperTaken,
+        CafeBasementCoalTaken = _cafeBasementCoalTaken,
         BlankPaperMessageRead = _blankPaperMessageRead,
         HasTrashBagTent = _hasTrashBagTent,
         TentBuiltInPhase = _tentBuiltInPhase,
@@ -4937,6 +4991,7 @@ public sealed class Game : IGame
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _cafeBasementCrateOpened = snapshot.CafeBasementCrateOpened;
             _cafeBasementCratePaperTaken = snapshot.CafeBasementCratePaperTaken;
+            _cafeBasementCoalTaken = snapshot.CafeBasementCoalTaken;
             _hasTrashBagTent = snapshot.HasTrashBagTent;
             _tentBuiltInPhase = snapshot.TentBuiltInPhase;
             _cafeOwnerDialogStage = snapshot.CafeOwnerDialogStage;
@@ -5042,6 +5097,7 @@ public sealed class Game : IGame
         _cafeBasementUnlocked = false;
         _cafeBasementCrateOpened = false;
         _cafeBasementCratePaperTaken = false;
+        _cafeBasementCoalTaken = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
@@ -5081,6 +5137,7 @@ public sealed class Game : IGame
         _cafeBasementUnlocked = false;
         _cafeBasementCrateOpened = false;
         _cafeBasementCratePaperTaken = false;
+        _cafeBasementCoalTaken = false;
         _warehouseCrateOpened = false;
         ResetGloveCompartmentLoot();
         ResetCrateLoot();
@@ -6652,6 +6709,8 @@ public sealed class Game : IGame
             _ when canDrink => GetBottledWaterDialogText(slot),
             _ when canFill && string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase) =>
                 "An empty plastic bottle. The stream is right here — you could fill it.",
+            _ when string.Equals(_dialogItemName, GameItems.Coal, StringComparison.OrdinalIgnoreCase) =>
+                "A jagged chunk of anthracite, still dusty from the cellar bin.",
             _ => string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, GameItems.EmptyCan, StringComparison.OrdinalIgnoreCase)
@@ -8425,6 +8484,45 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawCafeBasementCoalBinHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float coalBinW = CafeBasementHotspots.CoalBinX2 - CafeBasementHotspots.CoalBinX1;
+        float coalBinH = CafeBasementHotspots.CoalBinY2 - CafeBasementHotspots.CoalBinY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            CafeBasementHotspots.CoalBinX1,
+            CafeBasementHotspots.CoalBinY1,
+            coalBinW,
+            coalBinH,
+            artBounds);
+
+        bool hovered = _cafeBasementCoalBinHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            string label = _cafeBasementCoalTaken ? "EMPTY" : "COAL";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawCafeBasementCrateHotspot(int artX, int artY, int artW, int artH)
     {
         if (_phase != Phase.CafeBasement)
@@ -9470,6 +9568,7 @@ public sealed class Game : IGame
         {
             DrawCafeBasementDoorHotspot(artX, artY, artW, artH);
             DrawCafeBasementKeypadHotspot(artX, artY, artW, artH);
+            DrawCafeBasementCoalBinHotspot(artX, artY, artW, artH);
             DrawCafeBasementCrateHotspot(artX, artY, artW, artH);
         }
 
