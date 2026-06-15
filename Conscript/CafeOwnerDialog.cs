@@ -57,9 +57,9 @@ internal static class CafeOwnerDialog
         "\"Work?\" He laughs, but it's brittle. \"I sent you to die and you're asking for a job? " +
         "Either you're the luckiest fool in Buryatia or the stupidest. Sit. Don't touch anything.\"",
         "He exhales through his nose and looks at the floor, then at you. \"Lie low.\" A beat. " +
-        "\"Fine. There's a cellar under the kitchen — coal bins, old crates, a mattress if you're lucky. " +
-        "Nobody goes down there. You keep your head down, you don't exist to anyone upstairs, " +
-        "and one word about the bay and I lock you in and throw away the key.\"",
+        "\"Fine. Cellar under the kitchen — coal bins, crates, a mattress. I'll walk you down and lock the steel door. " +
+        "Code is " + CafeBasementHotspots.LockCode + " if you need out. Nobody upstairs knows you're there. " +
+        "One word about the bay and I throw away the key.\"",
         "\"Passing through.\" He goes very quiet. \"You killed my people, took my truck, and you're passing through my café. " +
         "Drink your tea before I decide what that costs you.\""
     ];
@@ -69,8 +69,8 @@ internal static class CafeOwnerDialog
         "And you drove back like it was a grocery run.\" He doesn't sit. \"We have nothing left to discuss about that delivery.\"";
 
     public const string HideoutAlreadyGrantedReply =
-        "\"You're already renting my cellar.\" He jerks his chin toward the back. \"Go downstairs if you need to. " +
-        "And don't make me regret it.\"";
+        "\"You're already renting my cellar.\" He jerks his chin toward the back. \"Stairs are through the kitchen. " +
+        "You remember the code.\"";
 
     public static readonly string[] DeliveryPlayerLines =
     [

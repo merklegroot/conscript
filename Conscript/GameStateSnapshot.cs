@@ -17,6 +17,7 @@ internal sealed class GameStateSnapshot
     public required float GasGaugeFuel { get; init; }
     public required bool WarehouseCrateOpened { get; init; }
     public required bool WarehouseKeypadUnlocked { get; init; }
+    public required bool CafeBasementKeypadUnlocked { get; init; }
     public required bool HasTrashBagTent { get; init; }
     public required Game.Phase? TentBuiltInPhase { get; init; }
     public required CafeOwnerDialog.Stage CafeOwnerDialogStage { get; init; }

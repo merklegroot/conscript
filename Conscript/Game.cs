@@ -327,6 +327,14 @@ public sealed class Game : IGame
     private readonly NumericKeypadLockDialog _warehouseKeypad =
         new(WarehouseAftermathHotspots.LockCode, WarehouseAftermathHotspots.LockCode.Length);
 
+    // Café basement — Boris locks the exit; keypad on the steel door
+    private Rectangle _cafeBasementDoorClickRect;
+    private bool _cafeBasementDoorHotspotHovered;
+    private Rectangle _cafeBasementKeypadClickRect;
+    private bool _cafeBasementKeypadHotspotHovered;
+    private readonly NumericKeypadLockDialog _cafeBasementKeypad =
+        new(CafeBasementHotspots.LockCode, CafeBasementHotspots.LockCode.Length);
+
     // Warehouse interior — sealed crate
     private Rectangle _warehouseInteriorExitClickRect;
     private bool _warehouseInteriorExitHotspotHovered;
@@ -491,7 +499,7 @@ public sealed class Game : IGame
         "He might help you disappear — or sell you out for pocket change.";
 
     private const string CafeBasementNarrative =
-        "Concrete steps lead down into a low cellar under the kitchen.\n" +
+        "Concrete steps lead up to a locked steel door.\n" +
         "Coal dust, stacked crates, and a stained mattress in the corner.\n" +
         "Pipes knock in the walls. Footsteps creak on the floor above.\n" +
         "Boris said nobody would look for you here. For now, that has to be enough.";
@@ -696,7 +704,7 @@ public sealed class Game : IGame
                 break;
 
             case Phase.CafeBasement:
-                _choices = new[] { ChoiceBackToCafe, ChoiceWait };
+                RefreshCafeBasementActionChoices();
                 _day = 0;
                 _timeOfDay = "Night";
                 _location = "Кафе — Basement";
@@ -1176,6 +1184,11 @@ public sealed class Game : IGame
                 CloseWarehouseLock();
                 return;
             }
+            if (_cafeBasementKeypad.IsOpen)
+            {
+                CloseCafeBasementLock();
+                return;
+            }
             if (_foldedPaperReader.IsOpen)
             {
                 CloseFoldedPaperReader();
@@ -1580,6 +1593,21 @@ public sealed class Game : IGame
                 RecordHistorySnapshot();
                 _actionMessage = "The roll-up door rattles and grinds open.";
                 _actionMessageTimer = 2.8f;
+            }
+
+            return;
+        }
+
+        if (_cafeBasementKeypad.IsOpen)
+        {
+            bool wasUnlocked = _cafeBasementKeypad.IsUnlocked;
+            _cafeBasementKeypad.Update(dt, mouse, leftClicked);
+            if (!wasUnlocked && _cafeBasementKeypad.IsUnlocked)
+            {
+                RecordHistorySnapshot();
+                RefreshCafeBasementActionChoices();
+                _actionMessage = "The bolt clicks free. The steel door can open now.";
+                _actionMessageTimer = 2.6f;
             }
 
             return;
@@ -2273,6 +2301,60 @@ public sealed class Game : IGame
                 _cafeBorisClickRect = default;
             }
 
+            if (_phase == Phase.CafeBasement)
+            {
+                GetCinematicArtBounds(out int basementArtX, out int basementArtY, out int basementArtW, out int basementArtH);
+                var basementArtBounds = new Rectangle(basementArtX, basementArtY, basementArtW, basementArtH);
+
+                _cafeBasementKeypadHotspotHovered = false;
+                float keypadW = CafeBasementHotspots.KeypadX2 - CafeBasementHotspots.KeypadX1;
+                float keypadH = CafeBasementHotspots.KeypadY2 - CafeBasementHotspots.KeypadY1;
+                _cafeBasementKeypadClickRect = SceneRegion.ToScreenRect(
+                    CafeBasementHotspots.KeypadX1,
+                    CafeBasementHotspots.KeypadY1,
+                    keypadW,
+                    keypadH,
+                    basementArtBounds);
+
+                if (!_cafeBasementKeypad.IsUnlocked &&
+                    Raylib.CheckCollisionPointRec(mouse, _cafeBasementKeypadClickRect))
+                {
+                    _cafeBasementKeypadHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        OpenCafeBasementLock();
+                        return;
+                    }
+                }
+
+                _cafeBasementDoorHotspotHovered = false;
+                float basementDoorW = CafeBasementHotspots.DoorX2 - CafeBasementHotspots.DoorX1;
+                float basementDoorH = CafeBasementHotspots.DoorY2 - CafeBasementHotspots.DoorY1;
+                _cafeBasementDoorClickRect = SceneRegion.ToScreenRect(
+                    CafeBasementHotspots.DoorX1,
+                    CafeBasementHotspots.DoorY1,
+                    basementDoorW,
+                    basementDoorH,
+                    basementArtBounds);
+
+                if (Raylib.CheckCollisionPointRec(mouse, _cafeBasementDoorClickRect))
+                {
+                    _cafeBasementDoorHotspotHovered = true;
+                    if (leftClicked)
+                    {
+                        TryOpenCafeBasementDoor();
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                _cafeBasementKeypadHotspotHovered = false;
+                _cafeBasementKeypadClickRect = default;
+                _cafeBasementDoorHotspotHovered = false;
+                _cafeBasementDoorClickRect = default;
+            }
+
             _hoveredDroppedItemListIndex = -1;
             for (int i = 0; i < _droppedItemClickRects.Count; i++)
             {
@@ -2567,6 +2649,9 @@ public sealed class Game : IGame
             if (_cafeBorisHotspotHovered)
                 overClickable = true;
 
+            if (_cafeBasementDoorHotspotHovered || _cafeBasementKeypadHotspotHovered)
+                overClickable = true;
+
             if (_hoveredDroppedItemListIndex >= 0)
                 overClickable = true;
 
@@ -2680,6 +2765,9 @@ public sealed class Game : IGame
         }
 
         if (_warehouseKeypad.IsOpen)
+            overClickable = true;
+
+        if (_cafeBasementKeypad.IsOpen)
             overClickable = true;
 
         if (_foldedPaperReader.IsOpen)
@@ -3784,6 +3872,35 @@ public sealed class Game : IGame
 
     private void CloseWarehouseLock() => _warehouseKeypad.Close();
 
+    private void OpenCafeBasementLock()
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        _cafeBasementKeypad.Open();
+    }
+
+    private void CloseCafeBasementLock() => _cafeBasementKeypad.Close();
+
+    private void TryOpenCafeBasementDoor()
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        if (_cafeBasementKeypad.IsUnlocked)
+        {
+            RecordHistorySnapshot();
+            _actionMessage = "You climb the stairs and step back into the warm café.";
+            _actionMessageTimer = 2.2f;
+            AdvanceTime();
+            EnterPhase(Phase.Cafe);
+            return;
+        }
+
+        _actionMessage = "The steel door won't budge. Boris locked it from the outside.";
+        _actionMessageTimer = 2.6f;
+    }
+
     private void OpenWarehouseCrateDialog()
     {
         if (_phase != Phase.WarehouseInterior)
@@ -4367,6 +4484,13 @@ public sealed class Game : IGame
             CloseBodyLootMenu();
     }
 
+    private void RefreshCafeBasementActionChoices()
+    {
+        _choices = _cafeBasementKeypad.IsUnlocked
+            ? new[] { ChoiceBackToCafe, ChoiceWait }
+            : new[] { ChoiceWait };
+    }
+
     private void RefreshCafeActionChoices()
     {
         _choices = _cafeBasementUnlocked
@@ -4421,6 +4545,13 @@ public sealed class Game : IGame
         switch (_choices[index])
         {
             case ChoiceBackToCafe:
+                if (!_cafeBasementKeypad.IsUnlocked)
+                {
+                    _actionMessage = "The steel door is locked. Use the keypad beside it.";
+                    _actionMessageTimer = 2.4f;
+                    return;
+                }
+
                 _actionMessage = "You climb the stairs and step back into the warm café.";
                 _actionMessageTimer = 2.2f;
                 AdvanceTime();
@@ -4459,7 +4590,9 @@ public sealed class Game : IGame
                 _actionMessage = "You keep your head down. The owner hasn't stopped watching you.";
                 break;
             case Phase.CafeBasement:
-                _actionMessage = "You sit on the mattress and listen to the café above. Nothing moves down here.";
+                _actionMessage = _cafeBasementKeypad.IsUnlocked
+                    ? "You sit on the mattress and listen to the café above. The door could open now."
+                    : "You sit on the mattress. The steel door is locked — Boris isn't upstairs.";
                 break;
             case Phase.DeliveryTruck:
                 _actionMessage = "The engine rumbles under you. The yards are a few minutes away.";
@@ -4554,6 +4687,7 @@ public sealed class Game : IGame
         CloseCrateLootMenu();
         CloseBodyLootMenu();
         CloseWarehouseLock();
+        CloseCafeBasementLock();
         CloseFoldedPaperReader();
         CloseGasGaugeViewer();
         CloseBuildDialog();
@@ -4601,6 +4735,7 @@ public sealed class Game : IGame
         GasGaugeFuel = _gasGaugeFuel,
         WarehouseCrateOpened = _warehouseCrateOpened,
         WarehouseKeypadUnlocked = _warehouseKeypad.IsUnlocked,
+        CafeBasementKeypadUnlocked = _cafeBasementKeypad.IsUnlocked,
         HasTrashBagTent = _hasTrashBagTent,
         TentBuiltInPhase = _tentBuiltInPhase,
         CafeOwnerDialogStage = _cafeOwnerDialogStage,
@@ -4667,12 +4802,16 @@ public sealed class Game : IGame
             _deathLine2 = snapshot.DeathLine2;
 
             _warehouseKeypad.RestoreUnlockedState(snapshot.WarehouseKeypadUnlocked);
+            _cafeBasementKeypad.RestoreUnlockedState(snapshot.CafeBasementKeypadUnlocked);
             ApplyBackgroundForCurrentPhase();
 
             if (_choices.Length == 0)
                 _selectedIndex = 0;
             else
                 _selectedIndex = Math.Clamp(_selectedIndex, 0, _choices.Length - 1);
+
+            if (_phase == Phase.CafeBasement)
+                RefreshCafeBasementActionChoices();
         }
         finally
         {
@@ -4715,7 +4854,8 @@ public sealed class Game : IGame
         _showStoreBuyMenu || _showGloveBoxMenu || _showCrateLootMenu || _showBodyLootMenu
         || _showBuildDialog || _showForageDialog || _showCafeOwnerDialog || _showWarehouseCrateDialog
         || _itemUseActive || _showControllerDebug || _showQuitConfirm || _showDebugRoomList
-        || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _foldedPaperReader.IsOpen
+        || _sceneAreaSelect.IsActive || _warehouseKeypad.IsOpen || _cafeBasementKeypad.IsOpen
+        || _foldedPaperReader.IsOpen
         || _gasGaugeViewer.IsOpen;
 
     private bool AllowsSidebarAndSceneInput() =>
@@ -4723,7 +4863,7 @@ public sealed class Game : IGame
         && !_showBuildDialog && !_showForageDialog && !_showCafeOwnerDialog
         && !_showWarehouseCrateDialog && !_itemUseActive && !_showQuitConfirm
         && !_showDebugRoomList && !_sceneAreaSelect.IsActive && !_warehouseKeypad.IsOpen
-        && !_foldedPaperReader.IsOpen && !_gasGaugeViewer.IsOpen;
+        && !_cafeBasementKeypad.IsOpen && !_foldedPaperReader.IsOpen && !_gasGaugeViewer.IsOpen;
 
     private bool CanUseSceneAreaSelect() =>
         _phase != Phase.Death && _backgroundTexture.Id != 0;
@@ -4748,6 +4888,7 @@ public sealed class Game : IGame
         _noteMessageRead = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
+        _cafeBasementKeypad.Reset();
         _buildFeedback = "";
         ResetDeathLines();
         ClearDroppedItems();
@@ -4783,6 +4924,7 @@ public sealed class Game : IGame
         _noteMessageRead = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
+        _cafeBasementKeypad.Reset();
         EnterPhase(Phase.Cafe);
     }
 
@@ -5081,13 +5223,17 @@ public sealed class Game : IGame
     {
         RecordHistorySnapshot();
         _cafeBasementUnlocked = true;
+        _cafeBasementKeypad.Reset();
+        CloseCafeOwnerDialog();
 
         if (_phase == Phase.Cafe)
             RefreshCafeActionChoices();
 
-        _actionMessage = "Boris jerks his chin toward the kitchen. \"Cellar stairs. Don't touch anything.\"";
-        _actionMessageTimer = 2.8f;
+        _actionMessage =
+            "Boris leads you through the kitchen. The steel door slams shut and the bolt throws home.";
+        _actionMessageTimer = 3.2f;
         AdvanceTime();
+        EnterPhase(Phase.CafeBasement);
     }
 
     private void TryPerformForage(int optionIndex)
@@ -8016,6 +8162,84 @@ public sealed class Game : IGame
         }
     }
 
+    private void DrawCafeBasementKeypadHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.CafeBasement || _cafeBasementKeypad.IsUnlocked)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float lockW = CafeBasementHotspots.KeypadX2 - CafeBasementHotspots.KeypadX1;
+        float lockH = CafeBasementHotspots.KeypadY2 - CafeBasementHotspots.KeypadY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            CafeBasementHotspots.KeypadX1,
+            CafeBasementHotspots.KeypadY1,
+            lockW,
+            lockH,
+            artBounds);
+
+        bool hovered = _cafeBasementKeypadHotspotHovered;
+        Color fill = hovered
+            ? new Color(140, 165, 200, 40)
+            : new Color(140, 165, 200, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(170, 195, 230, 200)
+            : new Color(120, 145, 180, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            const string label = "KEYPAD";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
+    private void DrawCafeBasementDoorHotspot(int artX, int artY, int artW, int artH)
+    {
+        if (_phase != Phase.CafeBasement)
+            return;
+
+        var artBounds = new Rectangle(artX, artY, artW, artH);
+        float doorW = CafeBasementHotspots.DoorX2 - CafeBasementHotspots.DoorX1;
+        float doorH = CafeBasementHotspots.DoorY2 - CafeBasementHotspots.DoorY1;
+        Rectangle r = SceneRegion.ToScreenRect(
+            CafeBasementHotspots.DoorX1,
+            CafeBasementHotspots.DoorY1,
+            doorW,
+            doorH,
+            artBounds);
+
+        bool hovered = _cafeBasementDoorHotspotHovered;
+        Color fill = hovered
+            ? new Color(200, 185, 120, 40)
+            : new Color(200, 185, 120, 16);
+        Raylib.DrawRectangleRec(r, fill);
+        Color border = hovered
+            ? new Color(220, 200, 130, 200)
+            : new Color(180, 165, 110, 90);
+        Raylib.DrawRectangleLinesEx(r, hovered ? 2f : 1f, border);
+
+        if (hovered)
+        {
+            string label = _cafeBasementKeypad.IsUnlocked ? "EXIT" : "DOOR";
+            Font font = _uiFont;
+            float fontSize = 13f;
+            Vector2 size = Raylib.MeasureTextEx(font, label, fontSize, 0.45f);
+            float lx = r.X + (r.Width - size.X) / 2f;
+            float ly = r.Y - size.Y - 4f;
+            Raylib.DrawRectangle((int)lx - 4, (int)ly - 2, (int)size.X + 8, (int)size.Y + 4,
+                new Color(8, 10, 14, 210));
+            Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
+        }
+    }
+
     private void DrawCafeBorisHotspot(int artX, int artY, int artW, int artH)
     {
         if (_phase != Phase.Cafe)
@@ -8289,6 +8513,11 @@ public sealed class Game : IGame
         if (_warehouseKeypad.IsOpen)
         {
             _warehouseKeypad.Draw(_uiFont, _screenWidth, _screenHeight);
+        }
+
+        if (_cafeBasementKeypad.IsOpen)
+        {
+            _cafeBasementKeypad.Draw(_uiFont, _screenWidth, _screenHeight);
         }
 
         if (_foldedPaperReader.IsOpen)
@@ -8934,6 +9163,12 @@ public sealed class Game : IGame
 
         if (_phase == Phase.Cafe)
             DrawCafeBorisHotspot(artX, artY, artW, artH);
+
+        if (_phase == Phase.CafeBasement)
+        {
+            DrawCafeBasementDoorHotspot(artX, artY, artW, artH);
+            DrawCafeBasementKeypadHotspot(artX, artY, artW, artH);
+        }
 
         // Light atmospheric snow (outdoor scenes only)
         if (GamePhase.IsOutdoorsSurvival(_phase))
