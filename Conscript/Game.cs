@@ -1175,6 +1175,8 @@ public sealed class Game : IGame
     {
         float dt = Raylib.GetFrameTime();
         InputManager.RefreshGamepad();
+        Vector2 mouse = Raylib.GetMousePosition();
+        bool leftClicked = Raylib.IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON);
 
         if (InputManager.IsCancelPressed() || Raylib.IsKeyPressed(KeyboardKey.KEY_Q))
         {
@@ -1417,6 +1419,35 @@ public sealed class Game : IGame
                 _selectedIndex = (_selectedIndex - 1 + _choices.Length) % _choices.Length;
         }
 
+        if (_warehouseKeypad.IsOpen)
+        {
+            bool wasUnlocked = _warehouseKeypad.IsUnlocked;
+            _warehouseKeypad.Update(dt, mouse, leftClicked);
+            if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
+            {
+                RecordHistorySnapshot();
+                _actionMessage = "The roll-up door rattles and grinds open.";
+                _actionMessageTimer = 2.8f;
+            }
+
+            return;
+        }
+
+        if (_cafeBasementKeypad.IsOpen)
+        {
+            bool wasUnlocked = _cafeBasementKeypad.IsUnlocked;
+            _cafeBasementKeypad.Update(dt, mouse, leftClicked);
+            if (!wasUnlocked && _cafeBasementKeypad.IsUnlocked)
+            {
+                RecordHistorySnapshot();
+                RefreshCafeBasementActionChoices();
+                _actionMessage = "The bolt clicks free. The steel door can open now.";
+                _actionMessageTimer = 2.6f;
+            }
+
+            return;
+        }
+
         if (InputManager.IsConfirmPressed())
         {
             if (_showControllerDebug)
@@ -1516,8 +1547,6 @@ public sealed class Game : IGame
 
         // === Mouse support: hover to highlight, left-click to immediately activate ===
         Rectangle[] buttonRects = ComputeActionButtonRects();
-        Vector2 mouse = Raylib.GetMousePosition();
-        bool leftClicked = Raylib.IsMouseButtonPressed(MouseButton.MOUSE_LEFT_BUTTON);
 
         // Top-right utility buttons
         UpdateTopRightButtonsLayout();
@@ -1620,35 +1649,6 @@ public sealed class Game : IGame
             {
                 _actionMessage = "Selection too small — drag a larger region.";
                 _actionMessageTimer = 2.5f;
-            }
-
-            return;
-        }
-
-        if (_warehouseKeypad.IsOpen)
-        {
-            bool wasUnlocked = _warehouseKeypad.IsUnlocked;
-            _warehouseKeypad.Update(dt, mouse, leftClicked);
-            if (!wasUnlocked && _warehouseKeypad.IsUnlocked)
-            {
-                RecordHistorySnapshot();
-                _actionMessage = "The roll-up door rattles and grinds open.";
-                _actionMessageTimer = 2.8f;
-            }
-
-            return;
-        }
-
-        if (_cafeBasementKeypad.IsOpen)
-        {
-            bool wasUnlocked = _cafeBasementKeypad.IsUnlocked;
-            _cafeBasementKeypad.Update(dt, mouse, leftClicked);
-            if (!wasUnlocked && _cafeBasementKeypad.IsUnlocked)
-            {
-                RecordHistorySnapshot();
-                RefreshCafeBasementActionChoices();
-                _actionMessage = "The bolt clicks free. The steel door can open now.";
-                _actionMessageTimer = 2.6f;
             }
 
             return;

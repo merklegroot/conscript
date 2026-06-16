@@ -82,6 +82,43 @@ internal sealed class NumericKeypadLockDialog
                 _feedback = "";
         }
 
+        HandleKeyboardInput();
+        HandleMouseInput(mouse, leftClicked);
+    }
+
+    private void HandleKeyboardInput()
+    {
+        if (Raylib.IsKeyPressed(KeyboardKey.KEY_BACKSPACE))
+        {
+            if (_entry.Length > 0)
+            {
+                _entry.Length--;
+                _feedback = "";
+            }
+
+            return;
+        }
+
+        if (Raylib.IsKeyPressed(KeyboardKey.KEY_ENTER) || Raylib.IsKeyPressed(KeyboardKey.KEY_KP_ENTER))
+        {
+            TrySubmit();
+            return;
+        }
+
+        for (int d = 0; d <= 9; d++)
+        {
+            char digit = (char)('0' + d);
+            if (Raylib.IsKeyPressed((KeyboardKey)((int)KeyboardKey.KEY_ZERO + d)) ||
+                Raylib.IsKeyPressed((KeyboardKey)((int)KeyboardKey.KEY_KP_0 + d)))
+            {
+                AppendDigit(digit);
+                return;
+            }
+        }
+    }
+
+    private void HandleMouseInput(Vector2 mouse, bool leftClicked)
+    {
         _hoveredKey = -1;
         if (Raylib.CheckCollisionPointRec(mouse, _closeRect))
             _hoveredKey = KeyClose;
@@ -134,7 +171,13 @@ internal sealed class NumericKeypadLockDialog
             _ => '\0'
         };
 
-        if (digit == '\0' || _entry.Length >= _maxDigits)
+        if (digit != '\0')
+            AppendDigit(digit);
+    }
+
+    private void AppendDigit(char digit)
+    {
+        if (digit < '0' || digit > '9' || _entry.Length >= _maxDigits)
             return;
 
         _entry.Append(digit);
@@ -163,7 +206,7 @@ internal sealed class NumericKeypadLockDialog
         Raylib.DrawTextEx(font, "KEYPAD",
             new Vector2(panelX + 24, panelY + 18), 26, 0.75f, Palette.TextPrimary);
 
-        string hint = "Enter the code";
+        string hint = "Type the code or use the keypad";
         int hintW = (int)Raylib.MeasureTextEx(font, hint, 16, 0.55f).X;
         Raylib.DrawTextEx(font, hint,
             new Vector2(panelX + (panelW - hintW) / 2, panelY + 52),
