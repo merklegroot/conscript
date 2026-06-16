@@ -44,6 +44,7 @@ internal static class GameItems
     public const string CrateNoteFile = "crate-note.png";
     public const string FoldedPaperNoteFile = "folded-paper-note.png";
     public const string BlankPaperNoteFile = "blank-sheet-note.png";
+    public const string BlankPaperRevealedNoteFile = "blank-paper-revealed.png";
 
     public static readonly Dictionary<string, string> IconFiles = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -70,7 +71,7 @@ internal static class GameItems
         [Rabbit]          = "items.rabbit.png",
         [Firewood]        = "items.firewood.png",
         [Rocks]           = "items.rocks.png",
-        [Coal]            = "items/coal.png",
+        [Coal]            = "items.coal.png",
         [GasCan]          = "items.gas-can.png",
         [FilledGasCan]    = "items.gas-can.png",
     };

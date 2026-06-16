@@ -189,9 +189,11 @@ public sealed class Game : IGame
     private bool _foldedPaperMessageRead;
     private bool _noteMessageRead;
     private bool _blankPaperMessageRead;
+    private bool _blankPaperCodeRevealed;
     private Texture2D _foldedPaperNoteTexture;
     private Texture2D _crateNoteTexture;
     private Texture2D _blankPaperNoteTexture;
+    private Texture2D _blankPaperRevealedTexture;
     private string _activeNoteReadItemName = "";
     private readonly FoldedPaperReaderDialog _foldedPaperReader = new();
     private readonly GasGaugeViewerDialog _gasGaugeViewer = new();
@@ -1104,6 +1106,7 @@ public sealed class Game : IGame
         _foldedPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.FoldedPaperNoteFile);
         _crateNoteTexture = EmbeddedTextureLoader.Load(GameItems.CrateNoteFile);
         _blankPaperNoteTexture = EmbeddedTextureLoader.Load(GameItems.BlankPaperNoteFile);
+        _blankPaperRevealedTexture = EmbeddedTextureLoader.Load(GameItems.BlankPaperRevealedNoteFile);
         LoadItemIcons();
         EnterPhase(Phase.Opening);  // EnterPhase will pick the correct background for the starting phase
 
@@ -1165,6 +1168,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _foldedPaperNoteTexture);
         UnloadTextureIfLoaded(ref _crateNoteTexture);
         UnloadTextureIfLoaded(ref _blankPaperNoteTexture);
+        UnloadTextureIfLoaded(ref _blankPaperRevealedTexture);
     }
 
     // --- Main loop ---
@@ -4106,6 +4110,47 @@ public sealed class Game : IGame
         AdvanceTime();
     }
 
+    private bool CanRubCoalOnBlankPaper() =>
+        _phase == Phase.CafeBasement &&
+        !_blankPaperCodeRevealed &&
+        HasBackpackItem(GameItems.BlankPaper);
+
+    private int GetBackpackSlotUnderItemUseCursor()
+    {
+        for (int i = 0; i < _backpackSlotRects.Length; i++)
+        {
+            if (_backpackSlotRects[i].Width > 0 &&
+                Raylib.CheckCollisionPointRec(_itemUseCursorPos, _backpackSlotRects[i]))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private void TryRevealBasementCodeWithCoal(int coalSlotIndex)
+    {
+        if (!CanRubCoalOnBlankPaper())
+            return;
+
+        if (!HasBackpackItemAtSlot(coalSlotIndex, GameItems.Coal))
+            return;
+
+        RecordHistorySnapshot();
+        _blankPaperCodeRevealed = true;
+        _blankPaperMessageRead = true;
+        RemoveBackpackItemAtSlot(coalSlotIndex);
+        CompactBackpack();
+        CloseItemDialog();
+        StopItemUseMode();
+
+        _activeNoteReadItemName = GameItems.BlankPaper;
+        _foldedPaperReader.Open("DOOR CODE");
+        _actionMessage =
+            "You rub the coal across the paper. Numbers surface through the lines — a four-digit door code.";
+        _actionMessageTimer = 3.4f;
+        AdvanceTime();
+    }
+
     private void OpenWarehouseCrateDialog()
     {
         if (_phase != Phase.WarehouseInterior)
@@ -4405,6 +4450,9 @@ public sealed class Game : IGame
                 : "The truck is back at the loading bay.";
         }
 
+        if (string.Equals(itemName, GameItems.Coal, StringComparison.OrdinalIgnoreCase) && CanRubCoalOnBlankPaper())
+            return "Rub the coal against the blank sheet in your pack.";
+
         return itemName switch
         {
             GameItems.Knife => "You sweep the blade through the air. Nothing here needs cutting.",
@@ -4451,6 +4499,18 @@ public sealed class Game : IGame
         {
             TryRefillTruckFromGasCan(_itemUseSlotIndex);
             return;
+        }
+
+        if (string.Equals(_itemUseItemName, GameItems.Coal, StringComparison.OrdinalIgnoreCase) &&
+            CanRubCoalOnBlankPaper())
+        {
+            int paperSlot = GetBackpackSlotUnderItemUseCursor();
+            if (paperSlot >= 0 &&
+                string.Equals(_backpack[paperSlot], GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
+            {
+                TryRevealBasementCodeWithCoal(_itemUseSlotIndex);
+                return;
+            }
         }
 
         _actionMessage = GetItemUseFailureMessage(_itemUseItemName);
@@ -4534,6 +4594,10 @@ public sealed class Game : IGame
         if (string.Equals(_itemUseItemName, GameItems.FilledGasCan, StringComparison.OrdinalIgnoreCase) &&
             CanRefillTruckFromOutside(_phase))
             return "Click the truck to pour diesel · Esc to cancel";
+
+        if (string.Equals(_itemUseItemName, GameItems.Coal, StringComparison.OrdinalIgnoreCase) &&
+            CanRubCoalOnBlankPaper())
+            return "Click the blank paper in your pack · Esc to cancel";
 
         return "Click to try it · Esc to cancel";
     }
@@ -4945,6 +5009,7 @@ public sealed class Game : IGame
         CafeBasementCrateOpened = _cafeBasementCrateOpened,
         CafeBasementCratePaperTaken = _cafeBasementCratePaperTaken,
         CafeBasementCoalTaken = _cafeBasementCoalTaken,
+        BlankPaperCodeRevealed = _blankPaperCodeRevealed,
         BlankPaperMessageRead = _blankPaperMessageRead,
         HasTrashBagTent = _hasTrashBagTent,
         TentBuiltInPhase = _tentBuiltInPhase,
@@ -4987,6 +5052,7 @@ public sealed class Game : IGame
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
             _blankPaperMessageRead = snapshot.BlankPaperMessageRead;
+            _blankPaperCodeRevealed = snapshot.BlankPaperCodeRevealed;
             _gasGaugeFuel = snapshot.GasGaugeFuel;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _cafeBasementCrateOpened = snapshot.CafeBasementCrateOpened;
@@ -5105,6 +5171,7 @@ public sealed class Game : IGame
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
         _blankPaperMessageRead = false;
+        _blankPaperCodeRevealed = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -5145,6 +5212,7 @@ public sealed class Game : IGame
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
         _blankPaperMessageRead = false;
+        _blankPaperCodeRevealed = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -6344,7 +6412,7 @@ public sealed class Game : IGame
         string title = string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
             ? "NOTE"
             : string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase)
-                ? "BLANK PAPER"
+                ? _blankPaperCodeRevealed ? "DOOR CODE" : "BLANK PAPER"
                 : "FOLDED NOTE";
         _foldedPaperReader.Open(title);
     }
@@ -6354,7 +6422,7 @@ public sealed class Game : IGame
         if (string.Equals(_activeNoteReadItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
             return _crateNoteTexture;
         if (string.Equals(_activeNoteReadItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
-            return _blankPaperNoteTexture;
+            return _blankPaperCodeRevealed ? _blankPaperRevealedTexture : _blankPaperNoteTexture;
         return _foldedPaperNoteTexture;
     }
 
@@ -6389,6 +6457,12 @@ public sealed class Game : IGame
 
         if (string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
         {
+            if (_blankPaperCodeRevealed)
+            {
+                return "Charcoal brought out pressed numbers in the sheet — a four-digit door code.\n\n" +
+                    "Press READ to study it.";
+            }
+
             if (!_blankPaperMessageRead)
             {
                 return "A clean sheet torn from a ledger. The lines are still visible, but nothing is written on it.\n\n" +
@@ -6710,7 +6784,9 @@ public sealed class Game : IGame
             _ when canFill && string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase) =>
                 "An empty plastic bottle. The stream is right here — you could fill it.",
             _ when string.Equals(_dialogItemName, GameItems.Coal, StringComparison.OrdinalIgnoreCase) =>
-                "A jagged chunk of anthracite, still dusty from the cellar bin.",
+                CanRubCoalOnBlankPaper()
+                    ? "A jagged chunk of anthracite. Rub it across the blank sheet in your pack — something might show through."
+                    : "A jagged chunk of anthracite, still dusty from the cellar bin.",
             _ => string.Equals(_dialogItemName, GameItems.EmptyBottle, StringComparison.OrdinalIgnoreCase)
                 ? "An empty plastic bottle. Nothing left to drink."
                 : string.Equals(_dialogItemName, GameItems.EmptyCan, StringComparison.OrdinalIgnoreCase)

@@ -27,5 +27,5 @@ internal static class CafeBasementHotspots
     public const float CrateX2 = 0.57f;
     public const float CrateY2 = 0.58f;
 
-    public const string LockCode = "1973";
+    public const string LockCode = "2847";
 }
