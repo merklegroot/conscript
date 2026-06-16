@@ -29,6 +29,7 @@ internal static class GameItems
     public const string FoldedPaper = "Folded Paper";
     public const string Note = "Note";
     public const string BlankPaper = "Blank Paper";
+    public const string MarkedPaper = "Marked Paper";
     public const string Knife = "Knife";
     public const string Molotov = "Molotov";
     public const string LitMolotov = "Lit Molotov";
@@ -58,6 +59,7 @@ internal static class GameItems
         [FoldedPaper]     = FoldedPaperNoteFile,
         [Note]            = CrateNoteFile,
         [BlankPaper]      = BlankPaperNoteFile,
+        [MarkedPaper]     = BlankPaperRevealedNoteFile,
         [Molotov]         = "items.molotov.png",
         [LitMolotov]      = "items.lit-molotov.png",
         [BottledWater]    = "items.bottled-water.png",
@@ -96,12 +98,18 @@ internal static class GameItems
     public static bool IsFoldedPaper(string name) =>
         string.Equals(name, FoldedPaper, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(name, Note, StringComparison.OrdinalIgnoreCase) ||
-        string.Equals(name, BlankPaper, StringComparison.OrdinalIgnoreCase);
+        string.Equals(name, BlankPaper, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(name, MarkedPaper, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsMarkedPaper(string name) =>
+        string.Equals(name, MarkedPaper, StringComparison.OrdinalIgnoreCase);
 
     public static string GetReadableNoteImageFile(string itemName)
     {
         if (string.Equals(itemName, Note, StringComparison.OrdinalIgnoreCase))
             return CrateNoteFile;
+        if (string.Equals(itemName, MarkedPaper, StringComparison.OrdinalIgnoreCase))
+            return BlankPaperRevealedNoteFile;
         if (string.Equals(itemName, BlankPaper, StringComparison.OrdinalIgnoreCase))
             return BlankPaperNoteFile;
         return FoldedPaperNoteFile;

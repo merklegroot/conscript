@@ -189,7 +189,6 @@ public sealed class Game : IGame
     private bool _foldedPaperMessageRead;
     private bool _noteMessageRead;
     private bool _blankPaperMessageRead;
-    private bool _blankPaperCodeRevealed;
     private Texture2D _foldedPaperNoteTexture;
     private Texture2D _crateNoteTexture;
     private Texture2D _blankPaperNoteTexture;
@@ -4112,7 +4111,6 @@ public sealed class Game : IGame
 
     private bool CanRubCoalOnBlankPaper() =>
         _phase == Phase.CafeBasement &&
-        !_blankPaperCodeRevealed &&
         HasBackpackItem(GameItems.BlankPaper);
 
     private int GetBackpackSlotUnderItemUseCursor()
@@ -4135,15 +4133,20 @@ public sealed class Game : IGame
         if (!HasBackpackItemAtSlot(coalSlotIndex, GameItems.Coal))
             return;
 
+        int paperSlot = GetBackpackSlotUnderItemUseCursor();
+        if (paperSlot < 0 ||
+            paperSlot == coalSlotIndex ||
+            !string.Equals(_backpack[paperSlot], GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
+            return;
+
         RecordHistorySnapshot();
-        _blankPaperCodeRevealed = true;
-        _blankPaperMessageRead = true;
+        _backpack[paperSlot] = GameItems.MarkedPaper;
         RemoveBackpackItemAtSlot(coalSlotIndex);
         CompactBackpack();
         CloseItemDialog();
         StopItemUseMode();
 
-        _activeNoteReadItemName = GameItems.BlankPaper;
+        _activeNoteReadItemName = GameItems.MarkedPaper;
         _foldedPaperReader.Open("DOOR CODE");
         _actionMessage =
             "You rub the coal across the paper. Numbers surface through the lines — a four-digit door code.";
@@ -5009,7 +5012,6 @@ public sealed class Game : IGame
         CafeBasementCrateOpened = _cafeBasementCrateOpened,
         CafeBasementCratePaperTaken = _cafeBasementCratePaperTaken,
         CafeBasementCoalTaken = _cafeBasementCoalTaken,
-        BlankPaperCodeRevealed = _blankPaperCodeRevealed,
         BlankPaperMessageRead = _blankPaperMessageRead,
         HasTrashBagTent = _hasTrashBagTent,
         TentBuiltInPhase = _tentBuiltInPhase,
@@ -5052,7 +5054,6 @@ public sealed class Game : IGame
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
             _blankPaperMessageRead = snapshot.BlankPaperMessageRead;
-            _blankPaperCodeRevealed = snapshot.BlankPaperCodeRevealed;
             _gasGaugeFuel = snapshot.GasGaugeFuel;
             _warehouseCrateOpened = snapshot.WarehouseCrateOpened;
             _cafeBasementCrateOpened = snapshot.CafeBasementCrateOpened;
@@ -5171,7 +5172,6 @@ public sealed class Game : IGame
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
         _blankPaperMessageRead = false;
-        _blankPaperCodeRevealed = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -5212,7 +5212,6 @@ public sealed class Game : IGame
         _foldedPaperMessageRead = false;
         _noteMessageRead = false;
         _blankPaperMessageRead = false;
-        _blankPaperCodeRevealed = false;
         _gasGaugeFuel = GasGaugeCatalog.EmptyFuel;
         _warehouseKeypad.Reset();
         _cafeBasementKeypad.Reset();
@@ -6411,9 +6410,11 @@ public sealed class Game : IGame
 
         string title = string.Equals(_dialogItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase)
             ? "NOTE"
-            : string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase)
-                ? _blankPaperCodeRevealed ? "DOOR CODE" : "BLANK PAPER"
-                : "FOLDED NOTE";
+            : GameItems.IsMarkedPaper(_dialogItemName)
+                ? "DOOR CODE"
+                : string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase)
+                    ? "BLANK PAPER"
+                    : "FOLDED NOTE";
         _foldedPaperReader.Open(title);
     }
 
@@ -6421,8 +6422,10 @@ public sealed class Game : IGame
     {
         if (string.Equals(_activeNoteReadItemName, GameItems.Note, StringComparison.OrdinalIgnoreCase))
             return _crateNoteTexture;
+        if (GameItems.IsMarkedPaper(_activeNoteReadItemName))
+            return _blankPaperRevealedTexture;
         if (string.Equals(_activeNoteReadItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
-            return _blankPaperCodeRevealed ? _blankPaperRevealedTexture : _blankPaperNoteTexture;
+            return _blankPaperNoteTexture;
         return _foldedPaperNoteTexture;
     }
 
@@ -6457,12 +6460,6 @@ public sealed class Game : IGame
 
         if (string.Equals(_dialogItemName, GameItems.BlankPaper, StringComparison.OrdinalIgnoreCase))
         {
-            if (_blankPaperCodeRevealed)
-            {
-                return "Charcoal brought out pressed numbers in the sheet — a four-digit door code.\n\n" +
-                    "Press READ to study it.";
-            }
-
             if (!_blankPaperMessageRead)
             {
                 return "A clean sheet torn from a ledger. The lines are still visible, but nothing is written on it.\n\n" +
@@ -6470,6 +6467,12 @@ public sealed class Game : IGame
             }
 
             return "A blank sheet. Press READ again to look at it.";
+        }
+
+        if (GameItems.IsMarkedPaper(_dialogItemName))
+        {
+            return "Charcoal brought out pressed numbers in the sheet — a four-digit door code.\n\n" +
+                "Press READ to study it.";
         }
 
         if (!_foldedPaperMessageRead)
