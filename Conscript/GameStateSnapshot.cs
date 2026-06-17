@@ -12,6 +12,7 @@ internal sealed class GameStateSnapshot
     public required bool BorisDeliveryJobActive { get; init; }
     public required bool WarehouseAmbushersDead { get; init; }
     public required bool CafeBasementUnlocked { get; init; }
+    public required bool CafeBorisGone { get; init; }
     public required bool FoldedPaperMessageRead { get; init; }
     public required bool NoteMessageRead { get; init; }
     public required float GasGaugeFuel { get; init; }

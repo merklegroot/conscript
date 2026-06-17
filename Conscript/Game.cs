@@ -186,6 +186,7 @@ public sealed class Game : IGame
     private bool _borisDeliveryJobActive;
     private bool _warehouseAmbushersDead;
     private bool _cafeBasementUnlocked;
+    private bool _cafeBorisGone;
     private bool _foldedPaperMessageRead;
     private bool _noteMessageRead;
     private bool _blankPaperMessageRead;
@@ -517,6 +518,11 @@ public sealed class Game : IGame
         "Steam and cheap tea mask the smell of cigarettes and diesel.\n" +
         "Boris watches the room like he owns everyone in it.\n" +
         "He might help you disappear — or sell you out for pocket change.";
+
+    private const string CafeNarrativeBorisGone =
+        "Steam still hangs in the air, but the samovar has gone cold.\n" +
+        "The counter is wiped clean. Boris is nowhere in sight.\n" +
+        "Whoever locked you in the cellar didn't stick around to explain.";
 
     private const string CafeBasementNarrative =
         "Concrete steps lead up to a locked steel door.\n" +
@@ -2350,7 +2356,7 @@ public sealed class Game : IGame
                 _warehouseCrateClickRect = default;
             }
 
-            if (_phase == Phase.Cafe)
+            if (_phase == Phase.Cafe && !_cafeBorisGone)
             {
                 GetCinematicArtBounds(out int cafeArtX, out int cafeArtY, out int cafeArtW, out int cafeArtH);
                 var cafeArtBounds = new Rectangle(cafeArtX, cafeArtY, cafeArtW, cafeArtH);
@@ -4013,16 +4019,26 @@ public sealed class Game : IGame
 
         if (_cafeBasementKeypad.IsUnlocked)
         {
-            RecordHistorySnapshot();
-            _actionMessage = "You climb the stairs and step back into the warm café.";
-            _actionMessageTimer = 2.2f;
-            AdvanceTime();
-            EnterPhase(Phase.Cafe);
+            EscapeCafeBasementToCafe();
             return;
         }
 
         _actionMessage = "The steel door won't budge. Boris locked it from the outside.";
         _actionMessageTimer = 2.6f;
+    }
+
+    private void EscapeCafeBasementToCafe()
+    {
+        if (_phase != Phase.CafeBasement || !_cafeBasementKeypad.IsUnlocked)
+            return;
+
+        RecordHistorySnapshot();
+        _cafeBorisGone = true;
+        CloseCafeBasementLock();
+        _actionMessage = "You climb the stairs into the café. The counter is empty — Boris is gone.";
+        _actionMessageTimer = 2.8f;
+        AdvanceTime();
+        EnterPhase(Phase.Cafe);
     }
 
     private void OpenCafeBasementCrateDialog()
@@ -4765,6 +4781,14 @@ public sealed class Game : IGame
 
     private void RefreshCafeActionChoices()
     {
+        if (_cafeBorisGone)
+        {
+            _choices = _cafeBasementUnlocked
+                ? new[] { ChoiceGoToCafeBasement, ChoiceLeaveCafe, ChoiceWait }
+                : new[] { ChoiceLeaveCafe, ChoiceWait };
+            return;
+        }
+
         _choices = _cafeBasementUnlocked
             ? new[] { ChoiceTalkToOwner, ChoiceGoToCafeBasement, ChoiceLeaveCafe, ChoiceWait }
             : new[] { ChoiceTalkToOwner, ChoiceLeaveCafe, ChoiceWait };
@@ -4824,10 +4848,7 @@ public sealed class Game : IGame
                     return;
                 }
 
-                _actionMessage = "You climb the stairs and step back into the warm café.";
-                _actionMessageTimer = 2.2f;
-                AdvanceTime();
-                EnterPhase(Phase.Cafe);
+                EscapeCafeBasementToCafe();
                 return;
 
             case ChoiceWait:
@@ -4859,7 +4880,9 @@ public sealed class Game : IGame
                 _actionMessage = "You linger by the shelves, pretending to read labels.";
                 break;
             case Phase.Cafe:
-                _actionMessage = "You keep your head down. The owner hasn't stopped watching you.";
+                _actionMessage = _cafeBorisGone
+                    ? "You listen for footsteps upstairs. The café stays empty."
+                    : "You keep your head down. The owner hasn't stopped watching you.";
                 break;
             case Phase.CafeBasement:
                 _actionMessage = _cafeBasementKeypad.IsUnlocked
@@ -5003,6 +5026,7 @@ public sealed class Game : IGame
         BorisDeliveryJobActive = _borisDeliveryJobActive,
         WarehouseAmbushersDead = _warehouseAmbushersDead,
         CafeBasementUnlocked = _cafeBasementUnlocked,
+        CafeBorisGone = _cafeBorisGone,
         FoldedPaperMessageRead = _foldedPaperMessageRead,
         NoteMessageRead = _noteMessageRead,
         GasGaugeFuel = _gasGaugeFuel,
@@ -5051,6 +5075,7 @@ public sealed class Game : IGame
             _borisDeliveryJobActive = snapshot.BorisDeliveryJobActive;
             _warehouseAmbushersDead = snapshot.WarehouseAmbushersDead;
             _cafeBasementUnlocked = snapshot.CafeBasementUnlocked;
+            _cafeBorisGone = snapshot.CafeBorisGone;
             _foldedPaperMessageRead = snapshot.FoldedPaperMessageRead;
             _noteMessageRead = snapshot.NoteMessageRead;
             _blankPaperMessageRead = snapshot.BlankPaperMessageRead;
@@ -5093,6 +5118,8 @@ public sealed class Game : IGame
 
             if (_phase == Phase.CafeBasement)
                 RefreshCafeBasementActionChoices();
+            else if (_phase == Phase.Cafe)
+                RefreshCafeActionChoices();
         }
         finally
         {
@@ -5162,6 +5189,7 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = false;
         _warehouseAmbushersDead = false;
         _cafeBasementUnlocked = false;
+        _cafeBorisGone = false;
         _cafeBasementCrateOpened = false;
         _cafeBasementCratePaperTaken = false;
         _cafeBasementCoalTaken = false;
@@ -5202,6 +5230,7 @@ public sealed class Game : IGame
         _borisDeliveryJobActive = true;
         _warehouseAmbushersDead = true;
         _cafeBasementUnlocked = false;
+        _cafeBorisGone = false;
         _cafeBasementCrateOpened = false;
         _cafeBasementCratePaperTaken = false;
         _cafeBasementCoalTaken = false;
@@ -5425,7 +5454,7 @@ public sealed class Game : IGame
 
     private void OpenCafeOwnerDialog()
     {
-        if (_phase != Phase.Cafe)
+        if (_phase != Phase.Cafe || _cafeBorisGone)
             return;
 
         _showCafeOwnerDialog = true;
@@ -8647,7 +8676,7 @@ public sealed class Game : IGame
 
     private void DrawCafeBorisHotspot(int artX, int artY, int artW, int artH)
     {
-        if (_phase != Phase.Cafe)
+        if (_phase != Phase.Cafe || _cafeBorisGone)
             return;
 
         var artBounds = new Rectangle(artX, artY, artW, artH);
@@ -9468,7 +9497,7 @@ public sealed class Game : IGame
             Phase.Outside => OutsideNarrative,
             Phase.Town               => TownNarrative,
             Phase.IndustrialDistrict => IndustrialDistrictNarrative,
-            Phase.Cafe               => CafeNarrative,
+            Phase.Cafe               => _cafeBorisGone ? CafeNarrativeBorisGone : CafeNarrative,
             Phase.CafeBasement       => CafeBasementNarrative,
             Phase.DeliveryTruck      => DeliveryTruckNarrative,
             Phase.WarehouseTruck     => WarehouseTruckNarrative,
