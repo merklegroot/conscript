@@ -181,3 +181,36 @@ Cinematic photorealistic interior of a low Soviet-era café cellar basement at n
 - **notes**:
   - `Phase.CafeBasement` — Boris grants cellar hideout after warehouse betrayal; entered via **GO TO THE BASEMENT** in the café.
 
+## `cafe.png`
+
+- **asset**: `Conscript/img/cafe.png`
+- **date**: 2026-06-12
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage` + `scripts/install_scene_image.py`
+- **source**: `cafe-no-boris-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic interior of a grimy post-Soviet café at night, Ulan-Ude Siberia, early autumn noir mood. Small worn L-shaped counter on the left with two glasses of amber tea, black pendant lamp above counter, wispy steam in dim air, dirty peeling yellow-grey walls, small square tables with wooden stools, large window center showing overcast grey street with distant pedestrian and parked cars, autumn trees outside. EMPTY café — absolutely no people inside the room. Gritty film grain, deep shadows, warm lamp glow on counter. Wide landscape 3:2 composition, eye-level view. No text, no logos.
+```
+
+- **notes**:
+  - `Phase.Cafe` background only; Boris is a separate `cafe-boris.png` overlay toggled by `CafeBorisGone`.
+
+## `cafe-boris.png`
+
+- **asset**: `Conscript/img/cafe-boris.png`
+- **date**: 2026-05-29
+- **model**: Composer 2.5 Fast (GenerateImage)
+- **tool**: `GenerateImage` + `scripts/prepare_cafe_boris_overlay.py` (hard `#2B2B2B` key, binary alpha)
+- **source**: `cafe-boris-standing-nocounter-draft.png`
+- **prompt**:
+
+```text
+Cinematic photorealistic FULL-LENGTH standing portrait of a wiry middle-aged Slavic man (Boris) in black leather biker jacket with silver chain, black shirt, dark jeans, black boots, receding grey hair, stern expression. Entire body visible head to feet, standing upright holding a white cloth, warm cinematic side lighting, post-Soviet Siberian noir style. NO counter, NO furniture — character only on solid uniform dark grey background #2B2B2B. No text, no logos.
+```
+
+- **notes**:
+  - RGBA overlay drawn on top of `cafe.png` when Boris is present; hidden when player escapes the basement (`CafeBorisGone`).
+  - Character cutout only — café counter comes from `cafe.png`. Legs clipped at bar height so they sit behind the background counter.
+

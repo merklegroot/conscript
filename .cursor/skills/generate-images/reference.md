@@ -18,7 +18,8 @@
 | `apartment-outside.png` | Outside (courtyard) | `OutsideNarrative` |
 | `town.png` | Town | `TownNarrative` |
 | `industrial.png` | Industrial District | `IndustrialDistrictNarrative` |
-| `cafe.png` | Кафе (from industrial) | `CafeNarrative` |
+| `cafe.png` | Кафé (empty interior) | `CafeNarrative` |
+| `cafe-boris.png` | Boris overlay on café (toggled) | `CafeHotspots.BorisOverlayFile` |
 | `cafe-basement.png` | Кафе — Basement | `CafeBasementNarrative` |
 | `cafe-owner-portrait.png` | Boris dialog portrait (3:4) | `CafeOwnerDialog` |
 | `commercial.png` | Commercial District | `CommercialDistrictNarrative` |

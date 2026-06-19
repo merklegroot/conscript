@@ -39,6 +39,7 @@ public sealed class Game : IGame
     private Texture2D _forestStreamBackground;
     private Texture2D _storeBackground;
     private Texture2D _cafeBackground;
+    private Texture2D _cafeBorisOverlayTexture;
     private Texture2D _cafeBasementBackground;
     private Texture2D _deliveryTruckBackground;
     private Texture2D _warehouseBackground;
@@ -1096,6 +1097,7 @@ public sealed class Game : IGame
         _forestStreamBackground = EmbeddedTextureLoader.Load("forest-stream.png");
         _storeBackground        = EmbeddedTextureLoader.Load("store.png");  // dedicated store interior photo (bright fluorescent kiosk)
         _cafeBackground         = LoadTextureOrFallback("cafe.png", _storeBackground);
+        _cafeBorisOverlayTexture = EmbeddedTextureLoader.Load(CafeHotspots.BorisOverlayFile);
         _cafeBasementBackground = LoadTextureOrFallback("cafe-basement.png", _cafeBackground);
         _deliveryTruckBackground = LoadTextureOrFallback("delivery-truck-cab.png", _industrialDistrictBackground);
         _warehouseBackground = LoadTextureOrFallback("warehouse-14.png", _industrialDistrictBackground);
@@ -1158,6 +1160,7 @@ public sealed class Game : IGame
         UnloadTextureIfLoaded(ref _forestStreamBackground);
         UnloadTextureIfLoaded(ref _storeBackground);
         UnloadTextureIfLoaded(ref _cafeBackground);
+        UnloadTextureIfLoaded(ref _cafeBorisOverlayTexture);
         UnloadTextureIfLoaded(ref _cafeBasementBackground);
         UnloadTextureIfLoaded(ref _deliveryTruckBackground);
         UnloadTextureIfLoaded(ref _warehouseBackground);
@@ -9637,6 +9640,9 @@ public sealed class Game : IGame
 
         DrawSceneBackground(artX, artY, artW, artH);
 
+        if (_phase == Phase.Cafe && !_cafeBorisGone)
+            DrawCafeBorisOverlay(artX, artY, artW, artH);
+
         if (_hasTrashBagTent && GamePhase.IsOutdoorsSurvival(_phase))
             DrawTrashBagTentOverlay(artX, artY, artW, artH);
 
@@ -9880,6 +9886,16 @@ public sealed class Game : IGame
                 new Color(8, 10, 14, 210));
             Raylib.DrawTextEx(font, label, new Vector2(lx, ly), fontSize, 0.45f, Palette.TextPrimary);
         }
+    }
+
+    private void DrawCafeBorisOverlay(int artX, int artY, int artW, int artH)
+    {
+        if (_cafeBorisOverlayTexture.Id == 0)
+            return;
+
+        var dst = new Rectangle(artX, artY, artW, artH);
+        var src = new Rectangle(0, 0, _cafeBorisOverlayTexture.Width, _cafeBorisOverlayTexture.Height);
+        Raylib.DrawTexturePro(_cafeBorisOverlayTexture, src, dst, Vector2.Zero, 0f, Color.WHITE);
     }
 
     private void DrawTrashBagTentOverlay(int artX, int artY, int artW, int artH)
